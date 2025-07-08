@@ -4,7 +4,7 @@
   "readme": "README.md",
   "repository": "https://github.com/Milky2018/sqlparser-mbt.git",
   "license": "Apache-2.0",
-  "keywords": [],
-  "description": "",
+  "keywords": ["sql", "parser", "lexer"],
+  "description": "Extensible SQL Lexer and Parser in MoonBit",
   "source": "src"
 }
