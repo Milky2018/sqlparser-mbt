@@ -6,6 +6,7 @@ pub(all) enum Token {
   Select
   From
   Where
+  As
   Identifier(String)
   Number(String)
   StringLiteral(String)
@@ -204,6 +205,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "select" => Token::Select
     "from" => Token::From
     "where" => Token::Where
+    "as" => Token::As
     _ => Token::Identifier(word)
   }
 }
@@ -239,7 +241,26 @@ fn Lexer::read_single_quoted_string(self : Self) -> Token {
 
 ///|
 fn Lexer::read_double_quoted_string(self : Self) -> Token {
-  ...
+  self.offset += 1
+  let result = StringBuilder::new()
+  while self.offset < self.end_offset {
+    match self.current() {
+      '"' => {
+        self.offset += 1
+        if self.offset < self.end_offset && self.current() == '"' {
+          result.write_char('"')
+          self.offset += 1
+        } else {
+          break
+        }
+      }
+      c => {
+        result.write_char(c)
+        self.offset += 1
+      }
+    }
+  }
+  Token::StringLiteral(result.to_string())
 }
 
 ///|
