@@ -1,0 +1,196 @@
+package "Milky2018/sqlparser"
+
+// Values
+fn parse_sql(String) -> Statement raise SqlParserError
+
+// Types and methods
+pub(all) enum Asc {
+  Ascending
+  Descending
+}
+impl Eq for Asc
+
+pub(all) enum BinaryOperator {
+  Eq
+  Neq
+  Lt
+  Gt
+  LtEq
+  GtEq
+  Spaceship
+  Plus
+  Minus
+  Mul
+  Div
+  Mod
+}
+impl Eq for BinaryOperator
+
+pub(all) enum DatetimeUnit {
+  Year
+  Month
+  Day
+  Hour
+  Minute
+  Second
+}
+impl Eq for DatetimeUnit
+
+pub(all) enum Expr {
+  Identifier(String)
+  Literal(Literal)
+  BinaryOperation(Expr, BinaryOperator, Expr)
+  UnaryOperation(UnaryOperator, Expr)
+  FunctionCall(String, Array[Expr])
+  Wildcard
+  Datetime(String)
+  Interval(String, IntervalQualifier)
+}
+impl Eq for Expr
+
+pub(all) enum IntervalQualifier {
+  Single(PrimaryDatetimeField)
+  Range(PrimaryDatetimeField, PrimaryDatetimeField)
+}
+impl Eq for IntervalQualifier
+
+pub(all) enum Keyword {
+  Select
+  From
+  Where
+  As
+  Group
+  Order
+  By
+  Asc
+  Desc
+  Nulls
+  First
+  Last
+  Year
+  Month
+  Day
+  Hour
+  Minute
+  Second
+  Date
+  Interval
+  To
+}
+impl Eq for Keyword
+impl Show for Keyword
+
+type Lexer
+fn Lexer::lex(Self) -> Array[Token] raise LexerError
+fn Lexer::new(String) -> Self
+
+type LexerError
+impl Show for LexerError
+
+pub(all) enum Literal {
+  Integer(Int)
+  Double(Double)
+  String(String)
+  Boolean(Bool)
+  Null
+}
+impl Eq for Literal
+
+pub struct OrderByExpr {
+  expr : Expr
+  asc : Bool?
+  nulls_first : Bool?
+}
+impl Eq for OrderByExpr
+
+pub struct Parser {
+  input : Array[Token]
+  mut offset : Int
+}
+
+type ParserError
+impl Show for ParserError
+
+type PrimaryDatetimeField
+impl Eq for PrimaryDatetimeField
+
+pub(all) enum Projection {
+  Wildcard
+  UnamedExpr(Expr)
+  AliasedExpr(Expr, String)
+}
+impl Eq for Projection
+
+pub struct SelectStmt {
+  projections : Array[Projection]
+  from : Array[TableRef]
+  where_clause : Expr?
+  group_by : Array[Expr]
+  having : Expr?
+  order_by : Array[OrderByExpr]
+  limit : Int?
+  offset : Int?
+}
+impl Eq for SelectStmt
+
+pub suberror SqlParserError {
+  LexerError(LexerError)
+  ParserError(ParserError)
+}
+impl Show for SqlParserError
+
+pub(all) enum Statement {
+  Select(SelectStmt)
+}
+impl Eq for Statement
+impl Show for Statement
+
+pub(all) enum TableRef {
+  Table(String)
+  TableAlias(String, String)
+  SubQuery(SelectStmt, String)
+}
+impl Eq for TableRef
+
+pub(all) enum Token {
+  Keyword(Keyword)
+  Identifier(String)
+  Number(String)
+  StringLiteral(String)
+  Comma
+  Semicolon
+  Eq
+  DoubleEq
+  Neq
+  Lt
+  Gt
+  LtEq
+  GtEq
+  Spaceship
+  Plus
+  Minus
+  Mul
+  Div
+  Mod
+  LBracket
+  RBracket
+  LBrace
+  RBrace
+  LParen
+  RParen
+  Unknown(Char)
+  Eof
+}
+impl Eq for Token
+impl Show for Token
+
+pub(all) enum UnaryOperator {
+  Negate
+  Not
+}
+impl Eq for UnaryOperator
+
+// Type aliases
+
+// Traits
+

@@ -53,6 +53,15 @@ impl Show for SelectStmt with output(self, logger) {
     logger.write_string(" WHERE ")
     selection.output(logger)
   }
+  if self.group_by.length() > 0 {
+    logger.write_string(" GROUP BY ")
+    for i = 0; i < self.group_by.length(); i = i + 1 {
+      if i > 0 {
+        logger.write_string(", ")
+      }
+      self.group_by[i].output(logger)
+    }
+  }
   if self.order_by.length() > 0 {
     logger.write_string(" ORDER BY ")
     for i = 0; i < self.order_by.length(); i = i + 1 {
@@ -281,6 +290,7 @@ pub(all) enum IntervalQualifier {
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
 } derive(Eq)
 
+///|
 struct PrimaryDatetimeField {
   // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   field : DatetimeUnit
@@ -288,6 +298,7 @@ struct PrimaryDatetimeField {
   precision : Int?
 } derive(Eq)
 
+///|
 impl Show for PrimaryDatetimeField with output(self, logger) {
   self.field.output(logger)
   if self.precision is Some(p) {

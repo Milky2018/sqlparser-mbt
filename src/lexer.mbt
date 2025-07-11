@@ -307,7 +307,7 @@ test "Lexing one keyword" {
   let input = "SELECT"
   let lexer = Lexer::new(input)
   let tokens = lexer.lex()
-  inspect(tokens, content="[Select]")
+  inspect(tokens, content="[Keyword(Select)]")
 }
 
 ///|
@@ -315,7 +315,7 @@ test "Lexing two keywords" {
   let input = "SELECT FROM"
   let lexer = Lexer::new(input)
   let tokens = lexer.lex()
-  inspect(tokens, content="[Select, From]")
+  inspect(tokens, content="[Keyword(Select), Keyword(From)]")
 }
 
 ///|
@@ -325,7 +325,9 @@ test "Lexing simple query" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content="[Select, Mul, From, Identifier(\"table\"), Where, Identifier(\"id\"), Eq, Number(\"1\"), Semicolon]",
+    content=
+      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
+    ,
   )
 }
 
@@ -336,7 +338,9 @@ test "Lexing single quoted string" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content="[Select, StringLiteral(\"Hello, World!\"), From, Identifier(\"table\"), Semicolon]",
+    content=
+      #|[Keyword(Select), StringLiteral("Hello, World!"), Keyword(From), Identifier("table"), Semicolon]
+    ,
   )
 }
 
@@ -347,7 +351,9 @@ test "Lexing single quoted string with escaped quotes" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content="[Select, StringLiteral(\"Hello, 'World!'!\"), From, Identifier(\"table\"), Semicolon]",
+    content=
+      #|[Keyword(Select), StringLiteral("Hello, 'World!'!"), Keyword(From), Identifier("table"), Semicolon]
+    ,
   )
 }
 
@@ -369,6 +375,8 @@ test "Skip line comment" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content="[Select, Mul, From, Identifier(\"table\"), Where, Identifier(\"id\"), Eq, Number(\"1\"), Semicolon]",
+    content=
+      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
+    ,
   )
 }

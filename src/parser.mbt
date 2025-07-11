@@ -97,7 +97,7 @@ fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
     projections,
     from,
     where_clause,
-    group_by: [], // TODO: 
+    group_by,
     having: None, // TODO:
     order_by,
     limit: None, // TODO:
