@@ -1,6 +1,9 @@
 {
   "name": "Milky2018/sqlparser",
   "version": "0.1.0",
+  "deps": {
+    "moonbitlang/x": "0.4.29"
+  },
   "readme": "README.md",
   "repository": "https://github.com/Milky2018/sqlparser-mbt.git",
   "license": "Apache-2.0",

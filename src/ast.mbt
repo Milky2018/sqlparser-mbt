@@ -7,7 +7,7 @@ pub(all) enum Statement {
 } derive(Eq)
 
 ///|
-impl Show for Statement with output(self, logger) {
+pub impl Show for Statement with output(self, logger) {
   match self {
     Statement::Select(stmt) => stmt.output(logger)
     // Statement::Insert(stmt) => logger.write("Insert: \{stmt}"),
@@ -18,12 +18,17 @@ impl Show for Statement with output(self, logger) {
 
 ///|
 pub struct SelectStmt {
+  // SELECT <projections>
   projections : Array[Projection]
+  // FROM <table_refs>
   from : Array[TableRef]
+  // WHERE <where_clause>
   where_clause : Expr?
+  // GROUP BY <group_by>
   group_by : Array[Expr]
   having : Expr?
-  order_by : Array[OrderBy]
+  // ORDER BY <order_by>
+  order_by : Array[OrderByExpr]
   limit : Int?
   offset : Int?
 } derive(Eq)
@@ -43,6 +48,19 @@ impl Show for SelectStmt with output(self, logger) {
       logger.write_string(", ")
     }
     self.from[i].output(logger)
+  }
+  if self.where_clause is Some(selection) {
+    logger.write_string(" WHERE ")
+    selection.output(logger)
+  }
+  if self.order_by.length() > 0 {
+    logger.write_string(" ORDER BY ")
+    for i = 0; i < self.order_by.length(); i = i + 1 {
+      if i > 0 {
+        logger.write_string(", ")
+      }
+      self.order_by[i].output(logger)
+    }
   }
   logger.write_string(";")
 }
@@ -74,7 +92,46 @@ pub(all) enum Expr {
   BinaryOperation(Expr, BinaryOperator, Expr)
   UnaryOperation(UnaryOperator, Expr)
   FunctionCall(String, Array[Expr])
-} derive(Eq, Show)
+  Wildcard
+  // DATE '1998-05-19'
+  // TODO: parse the date string
+  Datetime(String)
+} derive(Eq)
+
+impl Show for Expr with output(self, logger) {
+  match self {
+    Expr::Identifier(name) => logger.write_string(name)
+    Expr::Literal(lit) => lit.output(logger)
+    Expr::BinaryOperation(left, op, right) => {
+      logger.write_string("(")
+      left.output(logger)
+      logger.write_string(" \{op} ")
+      right.output(logger)
+      logger.write_string(")")
+    }
+    Expr::UnaryOperation(op, expr) => {
+      logger.write_string("\{op} ")
+      expr.output(logger)
+    }
+    Expr::FunctionCall(name, args) => {
+      logger.write_string(name)
+      logger.write_string("(")
+      for i = 0; i < args.length(); i = i + 1 {
+        if i > 0 {
+          logger.write_string(", ")
+        }
+        args[i].output(logger)
+      }
+      logger.write_string(")")
+    }
+    Expr::Wildcard => logger.write_string("*")
+    Datetime(s) => {
+      logger.write_string("DATE '")
+      logger.write_string(s)
+      logger.write_string("'")
+    }
+  }
+}
 
 ///|
 pub(all) enum Literal {
@@ -83,7 +140,17 @@ pub(all) enum Literal {
   String(String)
   Boolean(Bool)
   Null
-} derive(Eq, Show)
+} derive(Eq)
+
+impl Show for Literal with output(self, logger) {
+  match self {
+    Literal::Integer(value) => logger.write_string("\{value}")
+    Literal::Double(value) => logger.write_string("\{value}")
+    Literal::String(value) => logger.write_string("\"" + value + "\"")
+    Literal::Boolean(value) => logger.write_string(if value { "TRUE" } else { "FALSE" })
+    Literal::Null => logger.write_string("NULL")
+  }
+}
 
 ///|
 pub(all) enum BinaryOperator {
@@ -99,29 +166,90 @@ pub(all) enum BinaryOperator {
   Mul
   Div
   Mod
-} derive(Eq, Show)
+} derive(Eq)
+
+impl Show for BinaryOperator with output(self, logger) {
+  match self {
+    BinaryOperator::Eq => logger.write_string("=")
+    BinaryOperator::Neq => logger.write_string("!=")
+    BinaryOperator::Lt => logger.write_string("<")
+    BinaryOperator::Gt => logger.write_string(">")
+    BinaryOperator::LtEq => logger.write_string("<=")
+    BinaryOperator::GtEq => logger.write_string(">=")
+    BinaryOperator::Spaceship => logger.write_string("<=>")
+    BinaryOperator::Plus => logger.write_string("+")
+    BinaryOperator::Minus => logger.write_string("-")
+    BinaryOperator::Mul => logger.write_string("*")
+    BinaryOperator::Div => logger.write_string("/")
+    BinaryOperator::Mod => logger.write_string("%")
+  }
+}
 
 ///|
 pub(all) enum UnaryOperator {
   Negate
   Not
-} derive(Eq, Show)
+} derive(Eq)
+
+impl Show for UnaryOperator with output(self, logger) {
+  match self {
+    UnaryOperator::Negate => logger.write_string("-")
+    UnaryOperator::Not => logger.write_string("NOT ")
+  }
+}
 
 ///|
-pub struct OrderBy {
+pub struct OrderByExpr {
+  // ORDER BY <expr>
   expr : Expr
-  asc : Asc
-} derive(Eq, Show)
+  // ASC | DESC
+  asc : Bool?
+  // NULLS FIRST | NULLS LAST
+  nulls_first : Bool?
+} derive(Eq)
+
+impl Show for OrderByExpr with output(self, logger) {
+  self.expr.output(logger)
+  if self.asc is Some(b) {
+    logger.write_string(match b {
+      true => " ASC"
+      false => " DESC"
+    })
+  }
+  if self.nulls_first is Some(b) {
+    logger.write_string(match b {
+      true => " NULLS FIRST"
+      false => " NULLS LAST"
+    })
+  }
+}
 
 ///|
 pub(all) enum Asc {
   Ascending
   Descending
-} derive(Eq, Show)
+} derive(Eq)
 
 ///|
 pub(all) enum TableRef {
   Table(String)
   TableAlias(String, String)
   SubQuery(SelectStmt, String)
-} derive(Eq, Show)
+} derive(Eq)
+
+impl Show for TableRef with output(self, logger) {
+  match self {
+    TableRef::Table(name) => logger.write_string(name)
+    TableRef::TableAlias(name, alias_name) => {
+      logger.write_string(name)
+      logger.write_string(" AS ")
+      logger.write_string(alias_name)
+    }
+    TableRef::SubQuery(stmt, alias_name) => {
+      logger.write_string("(")
+      stmt.output(logger)
+      logger.write_string(") AS ")
+      logger.write_string(alias_name)
+    }
+  }
+}
