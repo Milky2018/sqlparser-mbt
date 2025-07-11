@@ -1,7 +1,7 @@
 ///|
 test "TPCH 1" {
-  let input = @fs.read_file_to_string("src/tests/tpch/1.sql")
-  let stmt = @sqlparser.parse_sql(input) catch {
+  let input = @fs.read_file_to_string("src/tpch/1.sql")
+  let stmt = parse_sql(input) catch {
     LexerError(e) => {
       println(e)
       panic()
