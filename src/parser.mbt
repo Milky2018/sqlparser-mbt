@@ -58,7 +58,7 @@ fn Parser::parse(self : Self) -> Statement raise ParserError {
 ///|
 fn Parser::parse_statement(self : Self) -> Statement raise ParserError {
   let stmt = match self.current() {
-    Some(Token::Select) => {
+    Some(Keyword(Select)) => {
       let select_stmt = self.parse_select_statement()
       Statement::Select(select_stmt)
     }
@@ -72,23 +72,23 @@ fn Parser::parse_statement(self : Self) -> Statement raise ParserError {
 
 ///|
 fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
-  self.expect(Token::Select)
+  self.expect(Keyword(Select))
   let projections = self.parse_projections()
-  self.expect(Token::From)
+  self.expect(Keyword(From))
   let from = self.parse_table_refs()
-  let where_clause = if self.eat(Token::Where) {
+  let where_clause = if self.eat(Keyword(Where)) {
     Some(self.parse_expr())
   } else {
     None
   }
-  let group_by = if self.eat(Token::Group) {
-    self.expect(Token::By)
+  let group_by = if self.eat(Keyword(Group)) {
+    self.expect(Keyword(By))
     self.parse_group_by()
   } else {
     []
   }
-  let order_by = if self.eat(Token::Order) {
-    self.expect(Token::By)
+  let order_by = if self.eat(Keyword(Order)) {
+    self.expect(Keyword(By))
     self.parse_order_by()
   } else {
     []
@@ -118,7 +118,7 @@ fn Parser::parse_projections(
       }
       Some(_) => {
         let expr = self.parse_expr()
-        if self.eat(Token::As) {
+        if self.eat(Keyword(As)) {
           match self.current() {
             Some(Identifier(alias_name)) => {
               self.advance()
@@ -147,7 +147,7 @@ fn Parser::parse_expr(self : Self) -> Expr raise ParserError {
 }
 
 ///|
-fn BinaryOperator::get_bp(self : Self) -> Int {
+fn BinaryOperator::get_precedence(self : Self) -> Int {
   match self {
     BinaryOperator::Plus | BinaryOperator::Minus => 30
     BinaryOperator::Mul | BinaryOperator::Div | BinaryOperator::Mod => 40
@@ -157,7 +157,7 @@ fn BinaryOperator::get_bp(self : Self) -> Int {
     | BinaryOperator::Gt
     | BinaryOperator::LtEq
     | BinaryOperator::GtEq
-    | BinaryOperator::Spaceship => 50
+    | BinaryOperator::Spaceship => 10
   }
 }
 
@@ -170,9 +170,9 @@ fn Parser::parse_binary_expr(
   for {
     let op = self.try_binary_operator()
     match op {
-      Some(op) if op.get_bp() >= min_bp => {
+      Some(op) if op.get_precedence() >= min_bp => {
         self.advance()
-        let rhs = self.parse_binary_expr(op.get_bp() + 1)
+        let rhs = self.parse_binary_expr(op.get_precedence() + 1)
         lhs = Expr::BinaryOperation(lhs, op, rhs)
       }
       _ => return lhs
@@ -226,27 +226,28 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
       self.advance()
       Expr::Literal(Literal::String(s))
     }
+    Some(Keyword(Date)) => self.parse_date_expr()
+    Some(Keyword(Interval)) => self.parse_interval_expr()
     Some(Identifier(name)) => {
       self.advance()
-      match self.current() {
-        Some(Token::LParen)  => {
-          let args = []
-          self.advance()
-          if not(self.eat(Token::RParen)) {
-            for {
-              let arg = self.parse_expr()
-              args.push(arg)
-              if self.eat(Token::Comma) {
-                continue
-              } else {
-                self.expect(Token::RParen)
-                break
-              }
+      if self.current() == Some(Token::LParen) {
+        let args = []
+        self.advance()
+        if not(self.eat(Token::RParen)) {
+          for {
+            let arg = self.parse_expr()
+            args.push(arg)
+            if self.eat(Token::Comma) {
+              continue
+            } else {
+              self.expect(Token::RParen)
+              break
             }
           }
-          Expr::FunctionCall(name, args)
         }
-        _ => Expr::Identifier(name)
+        Expr::FunctionCall(name, args)
+      } else {
+        Expr::Identifier(name)
       }
     }
     Some(Token::LParen) => {
@@ -271,7 +272,7 @@ fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
     match self.current() {
       Some(Identifier(name)) => {
         self.advance()
-        if self.eat(Token::As) {
+        if self.eat(Keyword(As)) {
           match self.current() {
             Some(Identifier(alias_name)) => {
               self.advance()
@@ -290,6 +291,7 @@ fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
   }
 }
 
+///|
 fn Parser::parse_group_by(self : Self) -> Array[Expr] raise ParserError {
   let group_by = []
   for {
@@ -302,6 +304,7 @@ fn Parser::parse_group_by(self : Self) -> Array[Expr] raise ParserError {
   raise ParserError::InternalBug("parse_group_by: unexpected end of input")
 }
 
+///|
 fn Parser::parse_order_by(self : Self) -> Array[OrderByExpr] raise ParserError {
   let order_by = []
   for {
@@ -314,24 +317,25 @@ fn Parser::parse_order_by(self : Self) -> Array[OrderByExpr] raise ParserError {
   raise ParserError::InternalBug("parse_order_by: unexpected end of input")
 }
 
+///|
 fn Parser::parse_order_by_expr(self : Self) -> OrderByExpr raise ParserError {
   let expr = self.parse_expr()
-  let asc = if self.eat(Token::Asc) {
+  let asc = if self.eat(Keyword(Asc)) {
     Some(true)
-  } else if self.eat(Token::Desc) {
+  } else if self.eat(Keyword(Desc)) {
     Some(false)
   } else {
     None
   }
-  let nulls_first = if self.eat(Token::Nulls) {
-    if self.eat(Token::First) {
+  let nulls_first = if self.eat(Keyword(Nulls)) {
+    if self.eat(Keyword(First)) {
       Some(true)
-    } else if self.eat(Token::Last) {
+    } else if self.eat(Keyword(Last)) {
       Some(false)
     } else {
       raise UnexpectedTokenMessageError(
         self.current().unwrap(),
-        "expected 'FIRST' or 'LAST' after 'NULLS'"
+        "expected 'FIRST' or 'LAST' after 'NULLS'",
       )
     }
   } else {
@@ -341,11 +345,116 @@ fn Parser::parse_order_by_expr(self : Self) -> OrderByExpr raise ParserError {
 }
 
 ///|
+fn Parser::parse_date_expr(self : Self) -> Expr raise ParserError {
+  self.expect(Keyword(Date))
+  match self.current() {
+    Some(Token::StringLiteral(s)) => {
+      self.advance()
+      Expr::Datetime(s)
+    }
+    Some(unknown_token) =>
+      raise UnexpectedTokenMessageError(
+        unknown_token, "expected a string literal after 'DATE'",
+      )
+    None =>
+      raise ParserError::InternalBug("parse_date_expr: unexpected end of input")
+  }
+}
+
+///|
+fn Parser::parse_interval_expr(self : Self) -> Expr raise ParserError {
+  self.expect(Keyword(Interval))
+  match self.current() {
+    Some(Token::StringLiteral(s)) => {
+      self.advance()
+      let qualifier = self.parse_interval_qualifier()
+      Expr::Interval(s, qualifier)
+    }
+    Some(unknown_token) =>
+      raise UnexpectedTokenMessageError(
+        unknown_token, "expected a string literal after 'INTERVAL'",
+      )
+    None =>
+      raise ParserError::InternalBug(
+        "parse_interval_expr: unexpected end of input",
+      )
+  }
+}
+
+///|
+fn Parser::parse_interval_qualifier(
+  self : Self
+) -> IntervalQualifier raise ParserError {
+  let field1 = self.parse_primary_datetime_field()
+  if self.eat(Keyword(To)) {
+    let field2 = self.parse_primary_datetime_field()
+    IntervalQualifier::Range(field1, field2)
+  } else {
+    IntervalQualifier::Single(field1)
+  }
+}
+
+///|
+fn Parser::parse_primary_datetime_field(
+  self : Self
+) -> PrimaryDatetimeField raise ParserError {
+  match self.current() {
+    Some(keyword) if datetime_unit_from_keyword(keyword) is Some(field) => {
+      self.advance()
+      let precision = if self.eat(Token::LParen) {
+        match self.current() {
+          Some(Number(n)) => {
+            self.advance()
+            self.expect(Token::RParen)
+            let p = @strconv.parse_int(n) catch {
+              StrConvError(e) =>
+                raise ParserError::InternalBug(
+                  "parse_primary_datetime_field: \{e}",
+                )
+            }
+            Some(p)
+          }
+          Some(other) =>
+            raise UnexpectedTokenMessageError(
+              other, "expected a number after '('",
+            )
+          None => raise ParserError::InternalBug("parse_primary_datetime_field")
+        }
+      } else {
+        None
+      }
+      { field, precision }
+    }
+    Some(other) =>
+      raise UnexpectedTokenMessageError(
+        other, "expected a primary datetime field keyword (YEAR, MONTH, etc.)",
+      )
+    None =>
+      raise ParserError::InternalBug(
+        "parse_primary_datetime_field: unexpected end of input",
+      )
+  }
+}
+
+///|
+fn datetime_unit_from_keyword(keyword : Token) -> DatetimeUnit? {
+  match keyword {
+    Keyword(Year) => Some(Year)
+    Keyword(Month) => Some(Month)
+    Keyword(Day) => Some(Day)
+    Keyword(Hour) => Some(Hour)
+    Keyword(Minute) => Some(Minute)
+    Keyword(Second) => Some(Second)
+    _ => None
+  }
+}
+
+///|
 test "Parse simple select statement" {
   let input = [
-    Token::Select,
+    Keyword(Select),
     Token::Mul,
-    Token::From,
+    Keyword(From),
     Token::Identifier("t"),
     Token::Semicolon,
   ]

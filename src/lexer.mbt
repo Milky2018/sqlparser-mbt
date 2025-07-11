@@ -5,18 +5,7 @@ suberror LexerError {
 
 ///|
 pub(all) enum Token {
-  Select
-  From
-  Where
-  As
-  Group
-  Order
-  By
-  Asc
-  Desc
-  Nulls
-  First
-  Last
+  Keyword(Keyword)
   Identifier(String)
   Number(String)
   StringLiteral(String)
@@ -226,18 +215,27 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
   let end = self.offset
   let word = self.input.substring(start~, end~).to_lower()
   match word {
-    "select" => Token::Select
-    "from" => Token::From
-    "where" => Token::Where
-    "as" => Token::As
-    "group" => Token::Group
-    "order" => Token::Order
-    "by" => Token::By
-    "asc" => Token::Asc
-    "desc" => Token::Desc
-    "nulls" => Token::Nulls
-    "first" => Token::First
-    "last" => Token::Last
+    "select" => Keyword(Select)
+    "from" => Keyword(From)
+    "where" => Keyword(Where)
+    "as" => Keyword(As)
+    "group" => Keyword(Group)
+    "order" => Keyword(Order)
+    "by" => Keyword(By)
+    "asc" => Keyword(Asc)
+    "desc" => Keyword(Desc)
+    "nulls" => Keyword(Nulls)
+    "first" => Keyword(First)
+    "last" => Keyword(Last)
+    "year" => Keyword(Year)
+    "month" => Keyword(Month)
+    "day" => Keyword(Day)
+    "hour" => Keyword(Hour)
+    "minute" => Keyword(Minute)
+    "second" => Keyword(Second)
+    "date" => Keyword(Date)
+    "interval" => Keyword(Interval)
+    "to" => Keyword(To)
     _ => Token::Identifier(word)
   }
 }

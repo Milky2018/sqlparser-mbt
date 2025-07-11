@@ -96,8 +96,11 @@ pub(all) enum Expr {
   // DATE '1998-05-19'
   // TODO: parse the date string
   Datetime(String)
+  // INTERVAL '1 day' YEAR TO MONTH
+  Interval(String, IntervalQualifier)
 } derive(Eq)
 
+///|
 impl Show for Expr with output(self, logger) {
   match self {
     Expr::Identifier(name) => logger.write_string(name)
@@ -130,6 +133,12 @@ impl Show for Expr with output(self, logger) {
       logger.write_string(s)
       logger.write_string("'")
     }
+    Interval(s, qualifier) => {
+      logger.write_string("INTERVAL '")
+      logger.write_string(s)
+      logger.write_string("' ")
+      qualifier.output(logger)
+    }
   }
 }
 
@@ -142,12 +151,14 @@ pub(all) enum Literal {
   Null
 } derive(Eq)
 
+///|
 impl Show for Literal with output(self, logger) {
   match self {
     Literal::Integer(value) => logger.write_string("\{value}")
     Literal::Double(value) => logger.write_string("\{value}")
     Literal::String(value) => logger.write_string("\"" + value + "\"")
-    Literal::Boolean(value) => logger.write_string(if value { "TRUE" } else { "FALSE" })
+    Literal::Boolean(value) =>
+      logger.write_string(if value { "TRUE" } else { "FALSE" })
     Literal::Null => logger.write_string("NULL")
   }
 }
@@ -168,6 +179,7 @@ pub(all) enum BinaryOperator {
   Mod
 } derive(Eq)
 
+///|
 impl Show for BinaryOperator with output(self, logger) {
   match self {
     BinaryOperator::Eq => logger.write_string("=")
@@ -191,6 +203,7 @@ pub(all) enum UnaryOperator {
   Not
 } derive(Eq)
 
+///|
 impl Show for UnaryOperator with output(self, logger) {
   match self {
     UnaryOperator::Negate => logger.write_string("-")
@@ -208,19 +221,24 @@ pub struct OrderByExpr {
   nulls_first : Bool?
 } derive(Eq)
 
+///|
 impl Show for OrderByExpr with output(self, logger) {
   self.expr.output(logger)
   if self.asc is Some(b) {
-    logger.write_string(match b {
-      true => " ASC"
-      false => " DESC"
-    })
+    logger.write_string(
+      match b {
+        true => " ASC"
+        false => " DESC"
+      },
+    )
   }
   if self.nulls_first is Some(b) {
-    logger.write_string(match b {
-      true => " NULLS FIRST"
-      false => " NULLS LAST"
-    })
+    logger.write_string(
+      match b {
+        true => " NULLS FIRST"
+        false => " NULLS LAST"
+      },
+    )
   }
 }
 
@@ -237,6 +255,7 @@ pub(all) enum TableRef {
   SubQuery(SelectStmt, String)
 } derive(Eq)
 
+///|
 impl Show for TableRef with output(self, logger) {
   match self {
     TableRef::Table(name) => logger.write_string(name)
@@ -250,6 +269,62 @@ impl Show for TableRef with output(self, logger) {
       stmt.output(logger)
       logger.write_string(") AS ")
       logger.write_string(alias_name)
+    }
+  }
+}
+
+///|
+pub(all) enum IntervalQualifier {
+  // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  Single(PrimaryDatetimeField)
+  // <from> TO <to>
+  Range(PrimaryDatetimeField, PrimaryDatetimeField)
+} derive(Eq)
+
+struct PrimaryDatetimeField {
+  // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  field : DatetimeUnit
+  // (3)
+  precision : Int?
+} derive(Eq)
+
+impl Show for PrimaryDatetimeField with output(self, logger) {
+  self.field.output(logger)
+  if self.precision is Some(p) {
+    logger.write_string(" (\{p})")
+  }
+}
+
+///|
+pub(all) enum DatetimeUnit {
+  Year
+  Month
+  Day
+  Hour
+  Minute
+  Second
+} derive(Eq)
+
+///|
+impl Show for DatetimeUnit with output(self, logger) {
+  match self {
+    DatetimeUnit::Year => logger.write_string("YEAR")
+    DatetimeUnit::Month => logger.write_string("MONTH")
+    DatetimeUnit::Day => logger.write_string("DAY")
+    DatetimeUnit::Hour => logger.write_string("HOUR")
+    DatetimeUnit::Minute => logger.write_string("MINUTE")
+    DatetimeUnit::Second => logger.write_string("SECOND")
+  }
+}
+
+///|
+impl Show for IntervalQualifier with output(self, logger) {
+  match self {
+    IntervalQualifier::Single(field) => field.output(logger)
+    IntervalQualifier::Range(from, to) => {
+      from.output(logger)
+      logger.write_string(" TO ")
+      to.output(logger)
     }
   }
 }
