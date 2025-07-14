@@ -314,26 +314,33 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
 ///|
 fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
   let table_refs = []
-  for {
-    match self.current() {
-      Some(Identifier(name)) => {
-        self.advance()
-        if self.eat(Keyword(As)) {
-          match self.current() {
-            Some(Identifier(alias_name)) => {
-              self.advance()
-              table_refs.push(TableRef::TableAlias(name, alias_name))
-            }
-            Some(unknown_token) =>
-              raise UnexpectedTokenMessageError(unknown_token, "alias name")
-            None => raise ParserError::InternalBug("parse_table_refs")
+  loop self.current() {
+    Some(Identifier(name)) => {
+      self.advance()
+      if self.eat(Keyword(As)) {
+        match self.current() {
+          Some(Identifier(alias_name)) => {
+            self.advance()
+            table_refs.push(TableRef::TableAlias(name, alias_name))
           }
-        } else {
-          table_refs.push(TableRef::Table(name))
+          Some(unknown_token) =>
+            raise UnexpectedTokenMessageError(unknown_token, "alias name")
+          None => raise ParserError::InternalBug("parse_table_refs")
         }
+      } else {
+        table_refs.push(TableRef::Table(name))
       }
-      _ => return table_refs
+      if self.eat(Token::Comma) {
+        continue self.current()
+      } else {
+        break table_refs
+      }
     }
+    Some(unknown) =>
+      raise UnexpectedTokenMessageError(
+        unknown, "expected a table name or identifier",
+      )
+    None => raise ParserError::InternalBug("parse_table_refs")
   }
 }
 
@@ -564,4 +571,11 @@ test "Like, ilike, not like, not ilike" {
       #|SELECT * FROM t WHERE ((((name LIKE "test") AND (name ILIKE "TEST")) AND (name NOT LIKE "test2")) AND (name NOT ILIKE "TEST2"));
     ,
   )
+}
+
+///|
+test "From multiple table refs" {
+  let input = "SELECT * FROM t1, t2;"
+  let stmt = parse_sql(input)
+  inspect(stmt, content="SELECT * FROM t1, t2;")
 }

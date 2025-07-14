@@ -1,6 +1,6 @@
 {
   "name": "Milky2018/sqlparser",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "deps": {
     "moonbitlang/x": "0.4.29"
   },

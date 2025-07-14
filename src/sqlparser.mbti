@@ -23,7 +23,10 @@ pub(all) enum BinaryOperator {
   Mul
   Div
   Mod
+  And
+  Or
 }
+fn BinaryOperator::get_precedence(Self) -> Precedence
 impl Eq for BinaryOperator
 
 pub(all) enum DatetimeUnit {
@@ -45,6 +48,8 @@ pub(all) enum Expr {
   Wildcard
   Datetime(String)
   Interval(String, IntervalQualifier)
+  Like(positive~ : Bool, Expr, Expr)
+  ILike(positive~ : Bool, Expr, Expr)
 }
 impl Eq for Expr
 
@@ -76,6 +81,11 @@ pub(all) enum Keyword {
   Date
   Interval
   To
+  Like
+  Not
+  ILike
+  And
+  Or
 }
 impl Eq for Keyword
 impl Show for Keyword
@@ -110,6 +120,16 @@ pub struct Parser {
 
 type ParserError
 impl Show for ParserError
+
+pub(all) enum Precedence {
+  PlusMinus
+  MulDivMod
+  Eq
+  Like
+  And
+  Or
+}
+fn Precedence::value(Self) -> Int
 
 type PrimaryDatetimeField
 impl Eq for PrimaryDatetimeField
