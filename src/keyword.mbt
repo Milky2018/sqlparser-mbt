@@ -20,4 +20,10 @@ pub(all) enum Keyword {
   Date
   Interval
   To
+  Like
+  Not
+  ILike
+  // Only in lexer
+  And
+  Or
 } derive(Eq, Show)

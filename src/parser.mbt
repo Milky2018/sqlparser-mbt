@@ -19,7 +19,7 @@ fn Parser::new(input : Array[Token]) -> Parser {
 
 ///|
 fn Parser::current(self : Self) -> Token? {
-  self.input.get(self.offset)
+  self.peek(0)
 }
 
 ///|
@@ -46,6 +46,22 @@ fn Parser::eat(self : Self, expected : Token) -> Bool {
   } else {
     false
   }
+}
+
+///|
+fn Parser::eat_tokens(self : Self, expected : Array[Token]) -> Bool {
+  for i, token in expected {
+    if self.input.get(self.offset + i) != Some(token) {
+      return false
+    }
+  }
+  self.offset += expected.length()
+  true
+}
+
+///|
+fn Parser::peek(self : Self, nth : Int) -> Token? {
+  self.input.get(self.offset + nth)
 }
 
 ///|
@@ -147,17 +163,26 @@ fn Parser::parse_expr(self : Self) -> Expr raise ParserError {
 }
 
 ///|
-fn BinaryOperator::get_precedence(self : Self) -> Int {
-  match self {
-    BinaryOperator::Plus | BinaryOperator::Minus => 30
-    BinaryOperator::Mul | BinaryOperator::Div | BinaryOperator::Mod => 40
-    BinaryOperator::Eq
-    | BinaryOperator::Neq
-    | BinaryOperator::Lt
-    | BinaryOperator::Gt
-    | BinaryOperator::LtEq
-    | BinaryOperator::GtEq
-    | BinaryOperator::Spaceship => 10
+fn Parser::get_next_bp(self : Self) -> Int raise ParserError {
+  if self.try_binary_operator() is Some(op) {
+    op.get_precedence().value()
+  } else {
+    match self.current() {
+      Some(Keyword(Like)) | Some(Keyword(ILike)) => Precedence::Like.value()
+      Some(Keyword(Not)) =>
+        match self.peek(1) {
+          Some(Keyword(Like)) | Some(Keyword(ILike)) => Precedence::Like.value()
+          Some(unknown) =>
+            raise UnexpectedTokenMessageError(
+              unknown, "expected 'LIKE' or 'ILIKE' after 'NOT'",
+            )
+          None =>
+            raise ParserError::InternalBug(
+              "get_next_bp: unexpected end of input after 'NOT'",
+            )
+        }
+      _ => 0
+    }
   }
 }
 
@@ -166,17 +191,36 @@ fn Parser::parse_binary_expr(
   self : Self,
   min_bp : Int
 ) -> Expr raise ParserError {
-  let mut lhs = self.parse_primary_expr()
+  let mut expr = self.parse_primary_expr()
   for {
-    let op = self.try_binary_operator()
-    match op {
-      Some(op) if op.get_precedence() >= min_bp => {
-        self.advance()
-        let rhs = self.parse_binary_expr(op.get_precedence() + 1)
-        lhs = Expr::BinaryOperation(lhs, op, rhs)
-      }
-      _ => return lhs
+    let next_bp = self.get_next_bp()
+    if next_bp <= min_bp {
+      return expr
     }
+    expr = self.parse_infix(expr, next_bp)
+  }
+}
+
+///|
+fn Parser::parse_infix(
+  self : Self,
+  left : Expr,
+  min_bp : Int
+) -> Expr raise ParserError {
+  if self.try_binary_operator() is Some(op) {
+    self.advance()
+    let right = self.parse_binary_expr(min_bp)
+    Expr::BinaryOperation(left, op, right)
+  } else if self.eat_tokens([Keyword(Like)]) {
+    Expr::Like(positive=true, left, self.parse_binary_expr(min_bp))
+  } else if self.eat_tokens([Keyword(ILike)]) {
+    Expr::ILike(positive=true, left, self.parse_binary_expr(min_bp))
+  } else if self.eat_tokens([Keyword(Not), Keyword(Like)]) {
+    Expr::Like(positive=false, left, self.parse_binary_expr(min_bp))
+  } else if self.eat_tokens([Keyword(Not), Keyword(ILike)]) {
+    Expr::ILike(positive=false, left, self.parse_binary_expr(min_bp))
+  } else {
+    left
   }
 }
 
@@ -197,6 +241,8 @@ fn Parser::try_binary_operator(self : Self) -> BinaryOperator? {
         Token::LtEq => Some(BinaryOperator::LtEq)
         Token::GtEq => Some(BinaryOperator::GtEq)
         Token::Spaceship => Some(BinaryOperator::Spaceship)
+        Keyword(And) => Some(BinaryOperator::And)
+        Keyword(Or) => Some(BinaryOperator::Or)
         _ => None
       }
     None => None
@@ -506,4 +552,16 @@ test "Selection clause" {
   let input = "SELECT * FROM t WHERE id = 1;"
   let stmt = parse_sql(input)
   inspect(stmt, content="SELECT * FROM t WHERE (id = 1);")
+}
+
+///|
+test "Like, ilike, not like, not ilike" {
+  let input = "SELECT * FROM t WHERE name LIKE 'test' AND name ILIKE 'TEST' AND name NOT LIKE 'test2' AND name NOT ILIKE 'TEST2';"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT * FROM t WHERE ((((name LIKE "test") AND (name ILIKE "TEST")) AND (name NOT LIKE "test2")) AND (name NOT ILIKE "TEST2"));
+    ,
+  )
 }

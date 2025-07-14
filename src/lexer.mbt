@@ -236,6 +236,11 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "date" => Keyword(Date)
     "interval" => Keyword(Interval)
     "to" => Keyword(To)
+    "like" => Keyword(Like)
+    "not" => Keyword(Not)
+    "ilike" => Keyword(ILike)
+    "and" => Keyword(And)
+    "or" => Keyword(Or)
     _ => Token::Identifier(word)
   }
 }

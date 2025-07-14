@@ -107,6 +107,10 @@ pub(all) enum Expr {
   Datetime(String)
   // INTERVAL '1 day' YEAR TO MONTH
   Interval(String, IntervalQualifier)
+  // <expr> [NOT] LIKE <expr>
+  Like(positive~ : Bool, Expr, Expr)
+  // <expr> [NOT] ILIKE <expr>
+  ILike(positive~ : Bool, Expr, Expr)
 } derive(Eq)
 
 ///|
@@ -148,6 +152,26 @@ impl Show for Expr with output(self, logger) {
       logger.write_string("' ")
       qualifier.output(logger)
     }
+    Expr::Like(positive~, left, right) => {
+      logger.write_string("(")
+      left.output(logger)
+      if not(positive) {
+        logger.write_string(" NOT")
+      }
+      logger.write_string(" LIKE ")
+      right.output(logger)
+      logger.write_string(")")
+    }
+    Expr::ILike(positive~, left, right) => {
+      logger.write_string("(")
+      left.output(logger)
+      if not(positive) {
+        logger.write_string(" NOT")
+      }
+      logger.write_string(" ILIKE ")
+      right.output(logger)
+      logger.write_string(")")
+    }
   }
 }
 
@@ -186,6 +210,8 @@ pub(all) enum BinaryOperator {
   Mul
   Div
   Mod
+  And
+  Or
 } derive(Eq)
 
 ///|
@@ -203,6 +229,8 @@ impl Show for BinaryOperator with output(self, logger) {
     BinaryOperator::Mul => logger.write_string("*")
     BinaryOperator::Div => logger.write_string("/")
     BinaryOperator::Mod => logger.write_string("%")
+    BinaryOperator::And => logger.write_string("AND")
+    BinaryOperator::Or => logger.write_string("OR")
   }
 }
 
