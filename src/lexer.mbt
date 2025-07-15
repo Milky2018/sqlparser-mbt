@@ -266,6 +266,11 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "exists" => Keyword(Exists)
     "between" => Keyword(Between)
     "extract" => Keyword(Extract)
+    "case" => Keyword(Case)
+    "when" => Keyword(When)
+    "then" => Keyword(Then)
+    "else" => Keyword(Else)
+    "end" => Keyword(End)
     _ => Token::Identifier(word)
   }
 }

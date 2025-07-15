@@ -2,6 +2,7 @@
 suberror ParserError {
   UnexpectedTokenError(Token, Token)
   UnexpectedTokenMessageError(Token, String)
+  MultipleElseInCaseExprError
   UnimplementedError(String)
   InternalBug(String)
 } derive(Show)
@@ -356,6 +357,7 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
         )
       }
     }
+    Some(Keyword(Case)) => self.parse_case_expr()
     Some(Token::LParen) => {
       self.advance()
       if self.current() == Some(Keyword(Select)) {
@@ -514,6 +516,46 @@ fn Parser::parse_extract_expr(self : Self) -> Expr raise ParserError {
   let expr = self.parse_expr()
   self.expect(Token::RParen)
   Expr::Extract(field, expr)
+}
+
+///|
+fn Parser::parse_case_expr(self : Self) -> Expr raise ParserError {
+  self.expect(Keyword(Case))
+  let when_clauses = []
+  let mut else_expr = None
+  let operand = if self.current() is Some(Keyword(When)) {
+    None
+  } else {
+    Some(self.parse_expr())
+  }
+  loop self.current() {
+    Some(Keyword(When)) => {
+      self.advance()
+      let condition = self.parse_expr()
+      self.expect(Keyword(Then))
+      let result = self.parse_expr()
+      when_clauses.push((condition, result))
+      continue self.current()
+    }
+    Some(Keyword(Else)) => {
+      self.advance()
+      if else_expr is Some(_e) {
+        raise MultipleElseInCaseExprError
+      }
+      else_expr = Some(self.parse_expr())
+      continue self.current()
+    }
+    Some(Keyword(End)) => {
+      self.advance()
+      break Expr::Case({ when_then_clauses: when_clauses, else_expr, operand })
+    }
+    Some(other) =>
+      raise UnexpectedTokenMessageError(
+        other, "expected 'WHEN', 'ELSE', or 'END'",
+      )
+    None =>
+      raise ParserError::InternalBug("parse_case_expr: unexpected end of input")
+  }
 }
 
 ///|
@@ -850,5 +892,35 @@ test "Extract function" {
 
 ///|
 test "Aliasing omits AS" {
+  let input = "SELECT col1 c1, col2 FROM t;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  col1 AS c1,
+      #|  col2
+      #|FROM
+      #|  t;
+    ,
+  )
+}
 
+///|
+test "Case when" {
+  let input = "SELECT CASE WHEN a > 0 THEN 'positive' WHEN a < 0 THEN 'negative' ELSE 'zero' END AS result FROM t;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  CASE
+      #|    WHEN a > 0 THEN 'positive'
+      #|    WHEN a < 0 THEN 'negative'
+      #|    ELSE 'zero'
+      #|  END AS result
+      #|FROM
+      #|  t;
+    ,
+  )
 }

@@ -29,4 +29,9 @@ pub(all) enum Keyword {
   And
   Or
   Extract
+  Case
+  When
+  Then
+  Else
+  End
 } derive(Eq, Show)

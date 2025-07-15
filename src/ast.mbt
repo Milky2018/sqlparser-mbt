@@ -140,6 +140,8 @@ pub(all) enum Expr {
   Between(positive~ : Bool, Expr, Expr, Expr)
   // EXTRACT(YEAR FROM <expr>)
   Extract(PrimaryDatetimeField, Expr)
+  // CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
+  Case(CaseExpr)
 } derive(Eq)
 
 ///|
@@ -208,6 +210,7 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.text(" FROM ") +
       expr.pretty() +
       @pp.char(')')
+    Expr::Case(case_expr) => case_expr.pretty()
   }
 }
 
@@ -433,4 +436,72 @@ impl @pp.Pretty for DatetimeUnit with pretty(self) {
 ///|
 impl Show for DatetimeUnit with output(self, logger) {
   self.pretty().output(logger)
+}
+
+// CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
+
+///|
+pub struct CaseExpr {
+  // CASE [operand]
+  operand : Expr?
+  // WHEN <expr> THEN <expr> [...]
+  when_then_clauses : Array[(Expr, Expr)]
+  // ELSE <expr>
+  else_expr : Expr?
+} derive(Eq)
+
+///|
+impl @pp.Pretty for CaseExpr with pretty(self) {
+  @pp.text("CASE") +
+  (match self.operand {
+    Some(op) => @pp.space + op.pretty()
+    None => @pp.empty
+  }) +
+  @pp.nest(
+    @pp.hardline +
+    @pp.separate(
+      @pp.hardline,
+      self.when_then_clauses.map(fn(condition_result) {
+        let condition = condition_result.0
+        let result = condition_result.1
+        @pp.text("WHEN ") +
+        condition.pretty() +
+        @pp.text(" THEN ") +
+        result.pretty()
+      }),
+    ) +
+    (match self.else_expr {
+      Some(else_expr) => @pp.hardline + @pp.text("ELSE ") + else_expr.pretty()
+      None => @pp.empty
+    }),
+  ) +
+  @pp.hardline +
+  @pp.text("END")
+}
+
+///|
+impl Show for CaseExpr with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
+test "Case when" {
+  let expr = {
+    operand: Some(Expr::Identifier("x")),
+    when_then_clauses: [
+      (Expr::Identifier("a"), Expr::Identifier("b")),
+      (Expr::Identifier("c"), Expr::Identifier("d")),
+    ],
+    else_expr: Some(Expr::Identifier("e")),
+  }
+  inspect(
+    expr,
+    content=
+      #|CASE x
+      #|  WHEN a THEN b
+      #|  WHEN c THEN d
+      #|  ELSE e
+      #|END
+    ,
+  )
 }
