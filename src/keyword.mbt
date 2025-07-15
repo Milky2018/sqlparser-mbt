@@ -25,7 +25,7 @@ pub(all) enum Keyword {
   Not
   ILike
   Exists
-  // Only in lexer
+  Between
   And
   Or
 } derive(Eq, Show)

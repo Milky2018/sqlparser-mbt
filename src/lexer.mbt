@@ -180,6 +180,7 @@ fn Lexer::next_token(self : Self) -> Token raise LexerError {
     }
     Some('\'') => self.read_single_quoted_string()
     Some('"') => self.read_double_quoted_string()
+    Some('.') => self.read_frac()
     Some(c) if c.is_ascii_digit() => self.read_number()
     Some(c) if c.is_ascii_alphabetic() || c == '_' =>
       self.read_identifier_or_keyword()
@@ -197,10 +198,30 @@ fn Lexer::skip_whitespace(self : Self) -> Unit {
 }
 
 ///|
+fn Lexer::read_frac(self : Self) -> Token {
+  let start = self.offset
+  self.advance()
+  while self.current().map_or(false, c => c.is_ascii_digit()) {
+    self.advance()
+  }
+  let end = self.offset
+  if end == start + 1 {
+    return Unknown('.')
+  }
+  Token::Number(self.input.substring(start~, end~))
+}
+
+///|
 fn Lexer::read_number(self : Self) -> Token {
   let start = self.offset
   while self.current().map_or(false, c => c.is_ascii_digit()) {
     self.advance()
+  }
+  if self.current() == Some('.') {
+    self.advance()
+    while self.current().map_or(false, c => c.is_ascii_digit()) {
+      self.advance()
+    }
   }
   let end = self.offset
   Token::Number(self.input.substring(start~, end~))
@@ -242,6 +263,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "and" => Keyword(And)
     "or" => Keyword(Or)
     "exists" => Keyword(Exists)
+    "between" => Keyword(Between)
     _ => Token::Identifier(word)
   }
 }
@@ -383,6 +405,19 @@ test "Skip line comment" {
     tokens,
     content=
       #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
+    ,
+  )
+}
+
+///|
+test "Decimal point" {
+  let input = "SELECT 3.14, .1 FROM table;"
+  let lexer = Lexer::new(input)
+  let tokens = lexer.lex()
+  inspect(
+    tokens,
+    content=
+      #|[Keyword(Select), Number("3.14"), Comma, Number(".1"), Keyword(From), Identifier("table"), Semicolon]
     ,
   )
 }

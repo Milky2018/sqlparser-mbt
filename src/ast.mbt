@@ -133,6 +133,8 @@ pub(all) enum Expr {
   SubQuery(SelectStmt)
   // [NOT] EXISTS
   Exists(positive~ : Bool, SelectStmt)
+  // <expr> [NOT] BETWEEN <expr> AND <expr>
+  Between(positive~ : Bool, Expr, Expr, Expr)
 } derive(Eq)
 
 ///|
@@ -172,19 +174,17 @@ impl @pp.Pretty for Expr with pretty(self) {
         @pp.char(')'),
       )
     Expr::Exists(positive~, stmt) =>
-      if positive {
-        @pp.text("EXISTS (") +
-        @pp.hardline +
-        @pp.nest(stmt.pretty()) +
-        @pp.hardline +
-        @pp.char(')')
-      } else {
-        @pp.text("NOT EXISTS (") +
-        @pp.hardline +
-        @pp.nest(stmt.pretty()) +
-        @pp.hardline +
-        @pp.char(')')
-      }
+      (if positive { @pp.text("EXISTS (") } else { @pp.text("NOT EXISTS (") }) +
+      @pp.hardline +
+      @pp.nest(stmt.pretty()) +
+      @pp.hardline +
+      @pp.char(')')
+    Expr::Between(positive~, e, low, hi) =>
+      e.pretty() +
+      @pp.text(if positive { " BETWEEN " } else { " NOT BETWEEN " }) +
+      low.pretty() +
+      @pp.text(" AND ") +
+      hi.pretty()
   }
 }
 

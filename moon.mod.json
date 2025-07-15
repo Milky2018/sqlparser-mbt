@@ -1,6 +1,6 @@
 {
   "name": "Milky2018/sqlparser",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "deps": {
     "moonbitlang/x": "0.4.29",
     "Yoorkin/prettyprinter": "0.4.3"

@@ -4,12 +4,6 @@ package "Milky2018/sqlparser"
 fn parse_sql(String) -> Statement raise SqlParserError
 
 // Types and methods
-pub(all) enum Asc {
-  Ascending
-  Descending
-}
-impl Eq for Asc
-
 pub(all) enum BinaryOperator {
   Eq
   Neq
@@ -51,6 +45,8 @@ pub(all) enum Expr {
   Like(positive~ : Bool, Expr, Expr)
   ILike(positive~ : Bool, Expr, Expr)
   SubQuery(SelectStmt)
+  Exists(positive~ : Bool, SelectStmt)
+  Between(positive~ : Bool, Expr, Expr, Expr)
 }
 impl Eq for Expr
 
@@ -85,6 +81,8 @@ pub(all) enum Keyword {
   Like
   Not
   ILike
+  Exists
+  Between
   And
   Or
 }
@@ -129,6 +127,7 @@ pub(all) enum Precedence {
   Like
   And
   Or
+  Between
 }
 fn Precedence::value(Self) -> Int
 

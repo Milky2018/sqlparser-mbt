@@ -164,3 +164,56 @@ test "TPCH 4" {
     ,
   )
 }
+
+///|
+test "TPCH 5" {
+  let stmt = read_and_parse("src/tpch/5.sql")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  n_name,
+      #|  sum(l_extendedprice * 1 - l_discount) AS revenue
+      #|FROM
+      #|  customer,
+      #|  orders,
+      #|  lineitem,
+      #|  supplier,
+      #|  nation,
+      #|  region
+      #|WHERE
+      #|  c_custkey = o_custkey 
+      #|  AND l_orderkey = o_orderkey 
+      #|  AND l_suppkey = s_suppkey 
+      #|  AND c_nationkey = s_nationkey 
+      #|  AND s_nationkey = n_nationkey 
+      #|  AND n_regionkey = r_regionkey 
+      #|  AND r_name = 'ASIA' 
+      #|  AND o_orderdate >= DATE '1994-01-01' 
+      #|  AND o_orderdate < DATE '1994-01-01' + INTERVAL '1' YEAR
+      #|GROUP BY
+      #|  n_name
+      #|ORDER BY
+      #|  revenue DESC;
+    ,
+  )
+}
+
+///|
+test "TPCH 6" {
+  let stmt = read_and_parse("src/tpch/6.sql")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  sum(l_extendedprice * l_discount) AS revenue
+      #|FROM
+      #|  lineitem
+      #|WHERE
+      #|  l_shipdate >= DATE '1994-01-01' 
+      #|  AND l_shipdate < DATE '1994-01-01' + INTERVAL '1' YEAR 
+      #|  AND l_discount BETWEEN 0.06 - 0.01 AND 0.06 + 0.01 
+      #|  AND l_quantity < 24;
+    ,
+  )
+}

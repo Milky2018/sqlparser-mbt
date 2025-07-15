@@ -24,6 +24,7 @@ pub(all) enum Precedence {
   Like
   And
   Or
+  Between
 }
 
 ///|
@@ -35,5 +36,6 @@ pub fn Precedence::value(self : Precedence) -> Int {
     MulDivMod => 40
     PlusMinus => 30
     Or => 5
+    Between => 20
   }
 }

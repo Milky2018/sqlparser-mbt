@@ -172,6 +172,7 @@ fn Parser::get_next_bp(self : Self) -> Int raise ParserError {
       Some(Keyword(Not)) =>
         match self.peek(1) {
           Some(Keyword(Like)) | Some(Keyword(ILike)) => Precedence::Like.value()
+          Some(Keyword(Between)) => Precedence::Between.value()
           Some(unknown) =>
             raise UnexpectedTokenMessageError(
               unknown, "expected 'LIKE' or 'ILIKE' after 'NOT'",
@@ -181,6 +182,7 @@ fn Parser::get_next_bp(self : Self) -> Int raise ParserError {
               "get_next_bp: unexpected end of input after 'NOT'",
             )
         }
+      Some(Keyword(Between)) => Precedence::Between.value()
       _ => 0
     }
   }
@@ -219,6 +221,10 @@ fn Parser::parse_infix(
     Expr::Like(positive=false, left, self.parse_binary_expr(min_bp))
   } else if self.eat_tokens([Keyword(Not), Keyword(ILike)]) {
     Expr::ILike(positive=false, left, self.parse_binary_expr(min_bp))
+  } else if self.eat_tokens([Keyword(Between)]) {
+    self.parse_between_expr(left, true)
+  } else if self.eat_tokens([Keyword(Not), Keyword(Between)]) {
+    self.parse_between_expr(left, false)
   } else {
     left
   }
@@ -544,6 +550,18 @@ fn Parser::parse_primary_datetime_field(
 }
 
 ///|
+fn Parser::parse_between_expr(
+  self : Self,
+  left : Expr,
+  positive : Bool
+) -> Expr raise ParserError {
+  let low = self.parse_binary_expr(Precedence::Between.value())
+  self.expect(Keyword(And))
+  let hi = self.parse_binary_expr(Precedence::Between.value())
+  Expr::Between(positive~, left, low, hi)
+}
+
+///|
 fn datetime_unit_from_keyword(keyword : Token) -> DatetimeUnit? {
   match keyword {
     Keyword(Year) => Some(Year)
@@ -755,6 +773,23 @@ test "Exists, not exists" {
       #|    FROM
       #|      t3
       #|  );
+    ,
+  )
+}
+
+///|
+test "Between and" {
+  let input = "SELECT * FROM t WHERE id BETWEEN 1 AND 10;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|WHERE
+      #|  id BETWEEN 1 AND 10;
     ,
   )
 }
