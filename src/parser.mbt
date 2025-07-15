@@ -104,6 +104,11 @@ fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
   } else {
     []
   }
+  let having = if self.eat(Keyword(Having)) {
+    Some(self.parse_expr())
+  } else {
+    None
+  }
   let order_by = if self.eat(Keyword(Order)) {
     self.expect(Keyword(By))
     self.parse_order_by()
@@ -115,7 +120,7 @@ fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
     from,
     where_clause,
     group_by,
-    having: None, // TODO:
+    having,
     order_by,
     limit: None, // TODO:
     offset: None, // TODO:
@@ -688,9 +693,6 @@ test "Parse select with function call" {
       #|  min() AS m
       #|FROM
       #|  t;
-
-
-
     ),
   )
 }
@@ -923,6 +925,26 @@ test "Case when" {
       #|  END AS result
       #|FROM
       #|  t;
+    ),
+  )
+}
+
+test "Having" {
+  let input = "SELECT col1, COUNT(*) FROM t GROUP BY col1 HAVING COUNT(*) > 1;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  col1,
+      #|  count(*)
+      #|FROM
+      #|  t
+      #|GROUP BY
+      #|  col1
+      #|HAVING
+      #|  count(*) > 1;
+
     ),
   )
 }

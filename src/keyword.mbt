@@ -33,5 +33,6 @@ pub(all) enum Keyword {
   When
   Then
   Else
+  Having
   End
 } derive(Eq, Show)

@@ -32,6 +32,7 @@ pub struct SelectStmt {
   where_clause : Expr?
   // GROUP BY <group_by>
   group_by : Array[Expr]
+  // HAVING <expr>
   having : Expr?
   // ORDER BY <order_by>
   order_by : Array[OrderByExpr]
@@ -68,6 +69,11 @@ impl @pp.Pretty for SelectStmt with pretty(self) {
     )
   } else {
     @pp.text("")
+  }) +
+  (match self.having {
+    Some(expr) =>
+      @pp.hardline + @pp.text("HAVING") + @pp.nest(@pp.hardline + expr.pretty())
+    None => @pp.empty
   }) +
   (if self.order_by.length() > 0 {
     @pp.hardline +
@@ -173,9 +179,7 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.group(@pp.text("\{op} ") + expr.pretty())
     Expr::FunctionCall(name, args) =>
       @pp.text(name) +
-      @pp.parens(
-        @pp.separate(@pp.text(", "), args.map(@pp.pretty)),
-      )
+      @pp.parens(@pp.separate(@pp.text(", "), args.map(@pp.pretty)))
     Expr::Wildcard => @pp.char('*')
     Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
     Interval(s, qualifier) =>

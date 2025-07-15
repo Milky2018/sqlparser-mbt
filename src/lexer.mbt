@@ -271,6 +271,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "then" => Keyword(Then)
     "else" => Keyword(Else)
     "end" => Keyword(End)
+    "having" => Keyword(Having)
     _ => Token::Identifier(word)
   }
 }
