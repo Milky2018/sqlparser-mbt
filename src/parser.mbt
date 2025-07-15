@@ -296,6 +296,27 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
         Expr::Identifier(name)
       }
     }
+    Some(Keyword(Exists)) => {
+      self.advance()
+      self.expect(Token::LParen)
+      let sub_query = self.parse_select_statement()
+      self.expect(Token::RParen)
+      Exists(positive=true, sub_query)
+    }
+    Some(Keyword(Not)) => {
+      self.advance()
+      if self.eat(Keyword(Exists)) {
+        self.expect(Token::LParen)
+        let sub_query = self.parse_select_statement()
+        self.expect(Token::RParen)
+        Exists(positive=false, sub_query)
+      } else {
+        raise UnexpectedTokenMessageError(
+          self.current().unwrap(),
+          "expected 'EXISTS' after 'NOT'",
+        )
+      }
+    }
     Some(Token::LParen) => {
       self.advance()
       if self.current() == Some(Keyword(Select)) {
@@ -546,21 +567,48 @@ test "Parse simple select statement" {
   ]
   let parser = Parser::new(input)
   let stmt = parser.parse()
-  inspect(stmt, content="SELECT * FROM t;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t;
+    ,
+  )
 }
 
 ///|
 test "Parse select with two columns" {
   let input = "SELECT col1, col2 FROM t;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT col1, col2 FROM t;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  col1,
+      #|  col2
+      #|FROM
+      #|  t;
+    ,
+  )
 }
 
 ///|
 test "Parse select with function call" {
   let input = "SELECT MAX(arg1, arg2), MIN() as m FROM t;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT max(arg1, arg2), min() AS m FROM t;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  max(arg1,
+      #|  arg2),
+      #|  min() AS m
+      #|FROM
+      #|  t;
+    ,
+  )
 }
 
 ///|
@@ -569,7 +617,12 @@ test "Nested expression" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content="SELECT sum((l_extendedprice * (1 - l_discount))) FROM lineitem;",
+    content=
+      #|SELECT
+      #|  sum(l_extendedprice * 1 - l_discount)
+      #|FROM
+      #|  lineitem;
+    ,
   )
 }
 
@@ -577,21 +630,47 @@ test "Nested expression" {
 test "Binary expression" {
   let input = "SELECT 1 + 2 * 3 FROM t;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT (1 + (2 * 3)) FROM t;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  1 + 2 * 3
+      #|FROM
+      #|  t;
+    ,
+  )
 }
 
 ///|
 test "Complecated binary expression" {
   let input = "SELECT sum(a * (1 - b) * (2 + b)) AS c FROM t;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT sum(((a * (1 - b)) * (2 + b))) AS c FROM t;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  sum(a * 1 - b * 2 + b) AS c
+      #|FROM
+      #|  t;
+    ,
+  )
 }
 
 ///|
 test "Selection clause" {
   let input = "SELECT * FROM t WHERE id = 1;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT * FROM t WHERE (id = 1);")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|WHERE
+      #|  id = 1;
+    ,
+  )
 }
 
 ///|
@@ -601,7 +680,15 @@ test "Like, ilike, not like, not ilike" {
   inspect(
     stmt,
     content=
-      #|SELECT * FROM t WHERE ((((name LIKE "test") AND (name ILIKE "TEST")) AND (name NOT LIKE "test2")) AND (name NOT ILIKE "TEST2"));
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|WHERE
+      #|  name LIKE 'test' 
+      #|  AND name ILIKE 'TEST' 
+      #|  AND name NOT LIKE 'test2' 
+      #|  AND name NOT ILIKE 'TEST2';
     ,
   )
 }
@@ -610,12 +697,64 @@ test "Like, ilike, not like, not ilike" {
 test "From multiple table refs" {
   let input = "SELECT * FROM t1, t2;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT * FROM t1, t2;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1,
+      #|  t2;
+    ,
+  )
 }
 
 ///|
 test "SubQuery" {
   let input = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
   let stmt = parse_sql(input)
-  inspect(stmt, content="SELECT sub FROM (SELECT name FROM users WHERE (active = true)) AS sub;")
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  sub
+      #|FROM
+      #|  (
+      #|    SELECT
+      #|        name
+      #|      FROM
+      #|        users
+      #|      WHERE
+      #|        active = true
+      #|    ) AS sub;
+    ,
+  )
+}
+
+///|
+test "Exists, not exists" {
+  let input = "SELECT * FROM t WHERE EXISTS (SELECT 1 FROM t2) AND NOT EXISTS (SELECT 1 FROM t3);"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|WHERE
+      #|  EXISTS (
+      #|  SELECT
+      #|      1
+      #|    FROM
+      #|      t2
+      #|  ) 
+      #|  AND NOT EXISTS (
+      #|  SELECT
+      #|      1
+      #|    FROM
+      #|      t3
+      #|  );
+    ,
+  )
 }

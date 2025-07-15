@@ -1,13 +1,18 @@
 {
   "name": "Milky2018/sqlparser",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "deps": {
-    "moonbitlang/x": "0.4.29"
+    "moonbitlang/x": "0.4.29",
+    "Yoorkin/prettyprinter": "0.4.3"
   },
   "readme": "README.md",
   "repository": "https://github.com/Milky2018/sqlparser-mbt.git",
   "license": "Apache-2.0",
-  "keywords": ["sql", "parser", "lexer"],
+  "keywords": [
+    "sql",
+    "parser",
+    "lexer"
+  ],
   "description": "Extensible SQL Lexer and Parser in MoonBit",
   "source": "src"
 }

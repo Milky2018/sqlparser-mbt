@@ -241,6 +241,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "ilike" => Keyword(ILike)
     "and" => Keyword(And)
     "or" => Keyword(Or)
+    "exists" => Keyword(Exists)
     _ => Token::Identifier(word)
   }
 }
@@ -279,7 +280,7 @@ fn Lexer::read_single_quoted_string(self : Self) -> Token {
 fn Lexer::read_double_quoted_string(self : Self) -> Token {
   self.advance()
   let result = StringBuilder::new()
-  for{
+  for {
     match self.current() {
       Some('"') => {
         self.advance()

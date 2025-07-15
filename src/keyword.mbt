@@ -1,3 +1,4 @@
+///|
 pub(all) enum Keyword {
   Select
   From
@@ -23,6 +24,7 @@ pub(all) enum Keyword {
   Like
   Not
   ILike
+  Exists
   // Only in lexer
   And
   Or

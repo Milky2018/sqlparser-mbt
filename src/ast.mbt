@@ -7,14 +7,19 @@ pub(all) enum Statement {
 } derive(Eq)
 
 ///|
+impl @pp.Pretty for Statement with pretty(self) {
+  (match self {
+    Statement::Select(stmt) => stmt.pretty()
+    // Statement::Insert(stmt) => @pp.text("Insert: \{stmt}")
+    // Statement::Update(stmt) => @pp.text("Update: \{stmt}")
+    // Statement::Delete(stmt) => @pp.text("Delete: \{stmt}")
+  }) +
+  @pp.text(";")
+}
+
+///|
 pub impl Show for Statement with output(self, logger) {
-  match self {
-    Statement::Select(stmt) => stmt.output(logger)
-    // Statement::Insert(stmt) => logger.write("Insert: \{stmt}"),
-    // Statement::Update(stmt) => logger.write("Update: \{stmt}"),
-    // Statement::Delete(stmt) => logger.write("Delete: \{stmt}"),
-  }
-  logger.write_string(";")
+  self.pretty().output(logger)
 }
 
 ///|
@@ -35,43 +40,50 @@ pub struct SelectStmt {
 } derive(Eq)
 
 ///|
+impl @pp.Pretty for SelectStmt with pretty(self) {
+  @pp.text("SELECT") +
+  @pp.nest(
+    @pp.hardline +
+    @pp.separate(@pp.char(',') + @pp.hardline, self.projections.map(@pp.pretty)),
+  ) +
+  @pp.hardline +
+  @pp.text("FROM") +
+  @pp.nest(
+    @pp.hardline +
+    @pp.separate(@pp.char(',') + @pp.hardline, self.from.map(@pp.pretty)),
+  ) +
+  (match self.where_clause {
+    Some(selection) =>
+      @pp.hardline +
+      @pp.text("WHERE") +
+      @pp.nest(@pp.hardline + selection.pretty())
+    None => @pp.empty
+  }) +
+  (if self.group_by.length() > 0 {
+    @pp.hardline +
+    @pp.text("GROUP BY") +
+    @pp.nest(
+      @pp.hardline +
+      @pp.separate(@pp.char(',') + @pp.hardline, self.group_by.map(@pp.pretty)),
+    )
+  } else {
+    @pp.text("")
+  }) +
+  (if self.order_by.length() > 0 {
+    @pp.hardline +
+    @pp.text("ORDER BY") +
+    @pp.nest(
+      @pp.hardline +
+      @pp.separate(@pp.char(',') + @pp.hardline, self.order_by.map(@pp.pretty)),
+    )
+  } else {
+    @pp.text("")
+  })
+}
+
+///|
 impl Show for SelectStmt with output(self, logger) {
-  logger.write_string("SELECT ")
-  for i = 0; i < self.projections.length(); i = i + 1 {
-    if i > 0 {
-      logger.write_string(", ")
-    }
-    self.projections[i].output(logger)
-  }
-  logger.write_string(" FROM ")
-  for i = 0; i < self.from.length(); i = i + 1 {
-    if i > 0 {
-      logger.write_string(", ")
-    }
-    self.from[i].output(logger)
-  }
-  if self.where_clause is Some(selection) {
-    logger.write_string(" WHERE ")
-    selection.output(logger)
-  }
-  if self.group_by.length() > 0 {
-    logger.write_string(" GROUP BY ")
-    for i = 0; i < self.group_by.length(); i = i + 1 {
-      if i > 0 {
-        logger.write_string(", ")
-      }
-      self.group_by[i].output(logger)
-    }
-  }
-  if self.order_by.length() > 0 {
-    logger.write_string(" ORDER BY ")
-    for i = 0; i < self.order_by.length(); i = i + 1 {
-      if i > 0 {
-        logger.write_string(", ")
-      }
-      self.order_by[i].output(logger)
-    }
-  }
+  self.pretty().output(logger)
 }
 
 ///|
@@ -82,28 +94,34 @@ pub(all) enum Projection {
 } derive(Eq)
 
 ///|
-impl Show for Projection with output(self, logger) {
+impl @pp.Pretty for Projection with pretty(self) {
   match self {
-    Projection::Wildcard => logger.write_string("*")
-    Projection::UnamedExpr(expr) => expr.output(logger)
-    Projection::AliasedExpr(expr, alias_name) => {
-      expr.output(logger)
-      logger.write_string(" AS ")
-      logger.write_string(alias_name)
-    }
+    Projection::Wildcard => @pp.char('*')
+    Projection::UnamedExpr(expr) => expr.pretty()
+    Projection::AliasedExpr(expr, alias_name) =>
+      expr.pretty() + @pp.text(" AS ") + @pp.text(alias_name)
   }
+}
+
+///|
+impl Show for Projection with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
 pub(all) enum Expr {
   Identifier(String)
+  // string, integer, double, boolean, null
   Literal(Literal)
+  // <expr> + <expr>
   BinaryOperation(Expr, BinaryOperator, Expr)
+  // - <expr>
   UnaryOperation(UnaryOperator, Expr)
+  // sum(*)
   FunctionCall(String, Array[Expr])
+  // *
   Wildcard
   // DATE '1998-05-19'
-  // TODO: parse the date string
   Datetime(String)
   // INTERVAL '1 day' YEAR TO MONTH
   Interval(String, IntervalQualifier)
@@ -113,73 +131,66 @@ pub(all) enum Expr {
   ILike(positive~ : Bool, Expr, Expr)
   // (SELECT ...)
   SubQuery(SelectStmt)
+  // [NOT] EXISTS
+  Exists(positive~ : Bool, SelectStmt)
 } derive(Eq)
 
 ///|
-impl Show for Expr with output(self, logger) {
+impl @pp.Pretty for Expr with pretty(self) {
   match self {
-    Expr::Identifier(name) => logger.write_string(name)
-    Expr::Literal(lit) => lit.output(logger)
-    Expr::BinaryOperation(left, op, right) => {
-      logger.write_string("(")
-      left.output(logger)
-      logger.write_string(" \{op} ")
-      right.output(logger)
-      logger.write_string(")")
-    }
-    Expr::UnaryOperation(op, expr) => {
-      logger.write_string("\{op} ")
-      expr.output(logger)
-    }
-    Expr::FunctionCall(name, args) => {
-      logger.write_string(name)
-      logger.write_string("(")
-      for i = 0; i < args.length(); i = i + 1 {
-        if i > 0 {
-          logger.write_string(", ")
-        }
-        args[i].output(logger)
+    Expr::Identifier(name) => @pp.text(name)
+    Expr::Literal(lit) => lit.pretty()
+    Expr::BinaryOperation(left, op, right) =>
+      left.pretty() + @pp.space + op.pretty() + @pp.space + right.pretty()
+    Expr::UnaryOperation(op, expr) =>
+      @pp.group(@pp.text("\{op} ") + expr.pretty())
+    Expr::FunctionCall(name, args) =>
+      @pp.text(name) +
+      @pp.char('(') +
+      @pp.separate(@pp.char(',') + @pp.hardline, args.map(@pp.pretty)) +
+      @pp.char(')')
+    Expr::Wildcard => @pp.char('*')
+    Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
+    Interval(s, qualifier) =>
+      @pp.text("INTERVAL '") + @pp.text(s) + @pp.text("' ") + qualifier.pretty()
+    Expr::Like(positive~, left, right) =>
+      left.pretty() +
+      @pp.text(if positive { "" } else { " NOT" }) +
+      @pp.text(" LIKE ") +
+      right.pretty()
+    Expr::ILike(positive~, left, right) =>
+      left.pretty() +
+      @pp.text(if positive { "" } else { " NOT" }) +
+      @pp.text(" ILIKE ") +
+      right.pretty()
+    Expr::SubQuery(stmt) =>
+      @pp.nest(
+        @pp.char('(') +
+        @pp.hardline +
+        stmt.pretty() +
+        @pp.hardline +
+        @pp.char(')'),
+      )
+    Expr::Exists(positive~, stmt) =>
+      if positive {
+        @pp.text("EXISTS (") +
+        @pp.hardline +
+        @pp.nest(stmt.pretty()) +
+        @pp.hardline +
+        @pp.char(')')
+      } else {
+        @pp.text("NOT EXISTS (") +
+        @pp.hardline +
+        @pp.nest(stmt.pretty()) +
+        @pp.hardline +
+        @pp.char(')')
       }
-      logger.write_string(")")
-    }
-    Expr::Wildcard => logger.write_string("*")
-    Datetime(s) => {
-      logger.write_string("DATE '")
-      logger.write_string(s)
-      logger.write_string("'")
-    }
-    Interval(s, qualifier) => {
-      logger.write_string("INTERVAL '")
-      logger.write_string(s)
-      logger.write_string("' ")
-      qualifier.output(logger)
-    }
-    Expr::Like(positive~, left, right) => {
-      logger.write_string("(")
-      left.output(logger)
-      if not(positive) {
-        logger.write_string(" NOT")
-      }
-      logger.write_string(" LIKE ")
-      right.output(logger)
-      logger.write_string(")")
-    }
-    Expr::ILike(positive~, left, right) => {
-      logger.write_string("(")
-      left.output(logger)
-      if not(positive) {
-        logger.write_string(" NOT")
-      }
-      logger.write_string(" ILIKE ")
-      right.output(logger)
-      logger.write_string(")")
-    }
-    Expr::SubQuery(stmt) => {
-      logger.write_string("(")
-      stmt.output(logger)
-      logger.write_string(")")
-    }
   }
+}
+
+///|
+impl Show for Expr with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
@@ -192,15 +203,19 @@ pub(all) enum Literal {
 } derive(Eq)
 
 ///|
-impl Show for Literal with output(self, logger) {
+impl @pp.Pretty for Literal with pretty(self) {
   match self {
-    Literal::Integer(value) => logger.write_string("\{value}")
-    Literal::Double(value) => logger.write_string("\{value}")
-    Literal::String(value) => logger.write_string("\"" + value + "\"")
-    Literal::Boolean(value) =>
-      logger.write_string(if value { "TRUE" } else { "FALSE" })
-    Literal::Null => logger.write_string("NULL")
+    Literal::Integer(value) => @pp.text("\{value}")
+    Literal::Double(value) => @pp.text("\{value}")
+    Literal::String(value) => @pp.text("'\{value}'")
+    Literal::Boolean(value) => @pp.text(if value { "TRUE" } else { "FALSE" })
+    Literal::Null => @pp.text("NULL")
   }
+}
+
+///|
+impl Show for Literal with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
@@ -222,23 +237,28 @@ pub(all) enum BinaryOperator {
 } derive(Eq)
 
 ///|
-impl Show for BinaryOperator with output(self, logger) {
+impl @pp.Pretty for BinaryOperator with pretty(self) {
   match self {
-    BinaryOperator::Eq => logger.write_string("=")
-    BinaryOperator::Neq => logger.write_string("!=")
-    BinaryOperator::Lt => logger.write_string("<")
-    BinaryOperator::Gt => logger.write_string(">")
-    BinaryOperator::LtEq => logger.write_string("<=")
-    BinaryOperator::GtEq => logger.write_string(">=")
-    BinaryOperator::Spaceship => logger.write_string("<=>")
-    BinaryOperator::Plus => logger.write_string("+")
-    BinaryOperator::Minus => logger.write_string("-")
-    BinaryOperator::Mul => logger.write_string("*")
-    BinaryOperator::Div => logger.write_string("/")
-    BinaryOperator::Mod => logger.write_string("%")
-    BinaryOperator::And => logger.write_string("AND")
-    BinaryOperator::Or => logger.write_string("OR")
+    BinaryOperator::Eq => @pp.text("=")
+    BinaryOperator::Neq => @pp.text("!=")
+    BinaryOperator::Lt => @pp.text("<")
+    BinaryOperator::Gt => @pp.text(">")
+    BinaryOperator::LtEq => @pp.text("<=")
+    BinaryOperator::GtEq => @pp.text(">=")
+    BinaryOperator::Spaceship => @pp.text("<=>")
+    BinaryOperator::Plus => @pp.text("+")
+    BinaryOperator::Minus => @pp.text("-")
+    BinaryOperator::Mul => @pp.char('*')
+    BinaryOperator::Div => @pp.text("/")
+    BinaryOperator::Mod => @pp.text("%")
+    BinaryOperator::And => @pp.hardline + @pp.text("AND")
+    BinaryOperator::Or => @pp.hardline + @pp.text("OR")
   }
+}
+
+///|
+impl Show for BinaryOperator with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
@@ -248,11 +268,16 @@ pub(all) enum UnaryOperator {
 } derive(Eq)
 
 ///|
-impl Show for UnaryOperator with output(self, logger) {
+impl @pp.Pretty for UnaryOperator with pretty(self) {
   match self {
-    UnaryOperator::Negate => logger.write_string("-")
-    UnaryOperator::Not => logger.write_string("NOT ")
+    UnaryOperator::Negate => @pp.text("-")
+    UnaryOperator::Not => @pp.text("NOT ")
   }
+}
+
+///|
+impl Show for UnaryOperator with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
@@ -266,31 +291,24 @@ pub struct OrderByExpr {
 } derive(Eq)
 
 ///|
-impl Show for OrderByExpr with output(self, logger) {
-  self.expr.output(logger)
-  if self.asc is Some(b) {
-    logger.write_string(
-      match b {
-        true => " ASC"
-        false => " DESC"
-      },
-    )
-  }
-  if self.nulls_first is Some(b) {
-    logger.write_string(
-      match b {
-        true => " NULLS FIRST"
-        false => " NULLS LAST"
-      },
-    )
-  }
+impl @pp.Pretty for OrderByExpr with pretty(self) {
+  self.expr.pretty() +
+  (match self.asc {
+    Some(true) => @pp.text(" ASC")
+    Some(false) => @pp.text(" DESC")
+    None => @pp.text("")
+  }) +
+  (match self.nulls_first {
+    Some(true) => @pp.text(" NULLS FIRST")
+    Some(false) => @pp.text(" NULLS LAST")
+    None => @pp.text("")
+  })
 }
 
 ///|
-pub(all) enum Asc {
-  Ascending
-  Descending
-} derive(Eq)
+impl Show for OrderByExpr with output(self, logger) {
+  self.pretty().output(logger)
+}
 
 ///|
 pub(all) enum TableRef {
@@ -301,26 +319,29 @@ pub(all) enum TableRef {
 } derive(Eq)
 
 ///|
-impl Show for TableRef with output(self, logger) {
+impl @pp.Pretty for TableRef with pretty(self) {
   match self {
-    TableRef::Table(name, None) => logger.write_string(name)
-    TableRef::Table(name, Some(alias_name)) => {
-      logger.write_string(name)
-      logger.write_string(" AS ")
-      logger.write_string(alias_name)
-    }
-    TableRef::SubQuery(stmt, None) => {
-      logger.write_string("(")
-      stmt.output(logger)
-      logger.write_string(")")
-    }
-    TableRef::SubQuery(stmt, Some(alias_name)) => {
-      logger.write_string("(")
-      stmt.output(logger)
-      logger.write_string(") AS ")
-      logger.write_string(alias_name)
-    }
+    TableRef::Table(name, None) => @pp.text(name)
+    TableRef::Table(name, Some(alias_name)) =>
+      @pp.text(name) + @pp.text(" AS ") + @pp.text(alias_name)
+    TableRef::SubQuery(stmt, alias_name_option) =>
+      @pp.nest(
+        @pp.char('(') +
+        @pp.hardline +
+        @pp.nest(stmt.pretty()) +
+        @pp.hardline +
+        @pp.char(')') +
+        (match alias_name_option {
+          Some(alias_name) => @pp.text(" AS ") + @pp.text(alias_name)
+          None => @pp.empty
+        }),
+      )
   }
+}
+
+///|
+impl Show for TableRef with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
@@ -332,6 +353,20 @@ pub(all) enum IntervalQualifier {
 } derive(Eq)
 
 ///|
+impl @pp.Pretty for IntervalQualifier with pretty(self) {
+  match self {
+    IntervalQualifier::Single(field) => field.pretty()
+    IntervalQualifier::Range(from, to) =>
+      @pp.group(from.pretty() + @pp.text(" TO ") + to.pretty())
+  }
+}
+
+///|
+impl Show for IntervalQualifier with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
 struct PrimaryDatetimeField {
   // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   field : DatetimeUnit
@@ -340,11 +375,20 @@ struct PrimaryDatetimeField {
 } derive(Eq)
 
 ///|
+impl @pp.Pretty for PrimaryDatetimeField with pretty(self) {
+  self.field.pretty() +
+  @pp.group(
+    if self.precision is Some(p) {
+      @pp.text(" (\{p})")
+    } else {
+      @pp.text("")
+    },
+  )
+}
+
+///|
 impl Show for PrimaryDatetimeField with output(self, logger) {
-  self.field.output(logger)
-  if self.precision is Some(p) {
-    logger.write_string(" (\{p})")
-  }
+  self.pretty().output(logger)
 }
 
 ///|
@@ -358,25 +402,18 @@ pub(all) enum DatetimeUnit {
 } derive(Eq)
 
 ///|
-impl Show for DatetimeUnit with output(self, logger) {
+impl @pp.Pretty for DatetimeUnit with pretty(self) {
   match self {
-    DatetimeUnit::Year => logger.write_string("YEAR")
-    DatetimeUnit::Month => logger.write_string("MONTH")
-    DatetimeUnit::Day => logger.write_string("DAY")
-    DatetimeUnit::Hour => logger.write_string("HOUR")
-    DatetimeUnit::Minute => logger.write_string("MINUTE")
-    DatetimeUnit::Second => logger.write_string("SECOND")
+    DatetimeUnit::Year => @pp.text("YEAR")
+    DatetimeUnit::Month => @pp.text("MONTH")
+    DatetimeUnit::Day => @pp.text("DAY")
+    DatetimeUnit::Hour => @pp.text("HOUR")
+    DatetimeUnit::Minute => @pp.text("MINUTE")
+    DatetimeUnit::Second => @pp.text("SECOND")
   }
 }
 
 ///|
-impl Show for IntervalQualifier with output(self, logger) {
-  match self {
-    IntervalQualifier::Single(field) => field.output(logger)
-    IntervalQualifier::Range(from, to) => {
-      from.output(logger)
-      logger.write_string(" TO ")
-      to.output(logger)
-    }
-  }
+impl Show for DatetimeUnit with output(self, logger) {
+  self.pretty().output(logger)
 }

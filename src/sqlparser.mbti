@@ -50,6 +50,7 @@ pub(all) enum Expr {
   Interval(String, IntervalQualifier)
   Like(positive~ : Bool, Expr, Expr)
   ILike(positive~ : Bool, Expr, Expr)
+  SubQuery(SelectStmt)
 }
 impl Eq for Expr
 
@@ -166,9 +167,8 @@ impl Eq for Statement
 impl Show for Statement
 
 pub(all) enum TableRef {
-  Table(String)
-  TableAlias(String, String)
-  SubQuery(SelectStmt, String)
+  Table(String, String?)
+  SubQuery(SelectStmt, String?)
 }
 impl Eq for TableRef
 
