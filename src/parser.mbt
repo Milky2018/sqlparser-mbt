@@ -282,9 +282,8 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
     Some(Keyword(Interval)) => self.parse_interval_expr()
     Some(Identifier(name)) => {
       self.advance()
-      if self.current() == Some(Token::LParen) {
+      if self.eat(Token::LParen) {
         let args = []
-        self.advance()
         if not(self.eat(Token::RParen)) {
           for {
             let arg = self.parse_expr()
@@ -298,6 +297,24 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
           }
         }
         Expr::FunctionCall(name, args)
+      } else if self.eat(Token::Period) {
+        let parts = [name]
+        loop self.current() {
+          Some(Token::Identifier(part)) => {
+            self.advance()
+            parts.push(part)
+            if self.eat(Token::Period) {
+              continue self.current()
+            } else {
+              break Expr::CompoundIdentifier(parts)
+            }
+          }
+          Some(other) =>
+            raise UnexpectedTokenMessageError(
+              other, "expected another identifier after '.'",
+            )
+          None => raise ParserError::InternalBug("parse_primary_expr")
+        }
       } else {
         Expr::Identifier(name)
       }
@@ -790,6 +807,22 @@ test "Between and" {
       #|  t
       #|WHERE
       #|  id BETWEEN 1 AND 10;
+    ,
+  )
+}
+
+test "Compound identifiers" {
+  let input = "SELECT t1.col1, t2.col2 FROM t1, t2;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  t1.col1,
+      #|  t2.col2
+      #|FROM
+      #|  t1,
+      #|  t2;
     ,
   )
 }

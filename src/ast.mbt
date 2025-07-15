@@ -110,7 +110,10 @@ impl Show for Projection with output(self, logger) {
 
 ///|
 pub(all) enum Expr {
+  // <identifier>
   Identifier(String)
+  // <identifier>.<identifier>
+  CompoundIdentifier(Array[String])
   // string, integer, double, boolean, null
   Literal(Literal)
   // <expr> + <expr>
@@ -141,6 +144,8 @@ pub(all) enum Expr {
 impl @pp.Pretty for Expr with pretty(self) {
   match self {
     Expr::Identifier(name) => @pp.text(name)
+    Expr::CompoundIdentifier(parts) =>
+      @pp.separate(@pp.text("."), parts.map(@pp.text))
     Expr::Literal(lit) => lit.pretty()
     Expr::BinaryOperation(left, op, right) =>
       left.pretty() + @pp.space + op.pretty() + @pp.space + right.pretty()

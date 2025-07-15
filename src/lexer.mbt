@@ -30,6 +30,7 @@ pub(all) enum Token {
   RBrace
   LParen
   RParen
+  Period
   Unknown(Char)
   Eof
 } derive(Eq, Show)
@@ -206,7 +207,7 @@ fn Lexer::read_frac(self : Self) -> Token {
   }
   let end = self.offset
   if end == start + 1 {
-    return Unknown('.')
+    return Token::Period
   }
   Token::Number(self.input.substring(start~, end~))
 }
