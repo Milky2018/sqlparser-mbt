@@ -82,7 +82,7 @@ impl @pp.Pretty for SelectStmt with pretty(self) {
 }
 
 ///|
-impl Show for SelectStmt with output(self, logger) {
+pub impl Show for SelectStmt with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -104,7 +104,7 @@ impl @pp.Pretty for Projection with pretty(self) {
 }
 
 ///|
-impl Show for Projection with output(self, logger) {
+pub impl Show for Projection with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -174,7 +174,7 @@ impl @pp.Pretty for Expr with pretty(self) {
     Expr::FunctionCall(name, args) =>
       @pp.text(name) +
       @pp.parens(
-        @pp.separate(@pp.char(',') + @pp.hardline, args.map(@pp.pretty)),
+        @pp.separate(@pp.text(", "), args.map(@pp.pretty)),
       )
     Expr::Wildcard => @pp.char('*')
     Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
@@ -215,7 +215,7 @@ impl @pp.Pretty for Expr with pretty(self) {
 }
 
 ///|
-impl Show for Expr with output(self, logger) {
+pub impl Show for Expr with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -240,7 +240,7 @@ impl @pp.Pretty for Literal with pretty(self) {
 }
 
 ///|
-impl Show for Literal with output(self, logger) {
+pub impl Show for Literal with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -283,7 +283,7 @@ impl @pp.Pretty for BinaryOperator with pretty(self) {
 }
 
 ///|
-impl Show for BinaryOperator with output(self, logger) {
+pub impl Show for BinaryOperator with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -302,7 +302,7 @@ impl @pp.Pretty for UnaryOperator with pretty(self) {
 }
 
 ///|
-impl Show for UnaryOperator with output(self, logger) {
+pub impl Show for UnaryOperator with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -332,7 +332,7 @@ impl @pp.Pretty for OrderByExpr with pretty(self) {
 }
 
 ///|
-impl Show for OrderByExpr with output(self, logger) {
+pub impl Show for OrderByExpr with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -360,7 +360,7 @@ impl @pp.Pretty for TableRef with pretty(self) {
 }
 
 ///|
-impl Show for TableRef with output(self, logger) {
+pub impl Show for TableRef with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -382,7 +382,7 @@ impl @pp.Pretty for IntervalQualifier with pretty(self) {
 }
 
 ///|
-impl Show for IntervalQualifier with output(self, logger) {
+pub impl Show for IntervalQualifier with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -407,7 +407,7 @@ impl @pp.Pretty for PrimaryDatetimeField with pretty(self) {
 }
 
 ///|
-impl Show for PrimaryDatetimeField with output(self, logger) {
+pub impl Show for PrimaryDatetimeField with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -434,7 +434,7 @@ impl @pp.Pretty for DatetimeUnit with pretty(self) {
 }
 
 ///|
-impl Show for DatetimeUnit with output(self, logger) {
+pub impl Show for DatetimeUnit with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -480,7 +480,7 @@ impl @pp.Pretty for CaseExpr with pretty(self) {
 }
 
 ///|
-impl Show for CaseExpr with output(self, logger) {
+pub impl Show for CaseExpr with output(self, logger) {
   self.pretty().output(logger)
 }
 
@@ -496,12 +496,12 @@ test "Case when" {
   }
   inspect(
     expr,
-    content=
+    content=(
       #|CASE x
       #|  WHEN a THEN b
       #|  WHEN c THEN d
       #|  ELSE e
       #|END
-    ,
+    ),
   )
 }

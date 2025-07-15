@@ -651,12 +651,12 @@ test "Parse simple select statement" {
   let stmt = parser.parse()
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  *
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }
 
@@ -666,13 +666,13 @@ test "Parse select with two columns" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  col1,
       #|  col2
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }
 
@@ -682,14 +682,16 @@ test "Parse select with function call" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
-      #|  max(arg1,
-      #|  arg2),
+      #|  max(arg1, arg2),
       #|  min() AS m
       #|FROM
       #|  t;
-    ,
+
+
+
+    ),
   )
 }
 
@@ -699,12 +701,12 @@ test "Nested expression" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  sum(l_extendedprice * (1 - l_discount))
       #|FROM
       #|  lineitem;
-    ,
+    ),
   )
 }
 
@@ -714,12 +716,12 @@ test "Binary expression" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  1 + 2 * 3
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }
 
@@ -729,12 +731,12 @@ test "Complecated binary expression" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  sum(a * (1 - b) * (2 + b)) AS c
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }
 
@@ -744,14 +746,14 @@ test "Selection clause" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  *
       #|FROM
       #|  t
       #|WHERE
       #|  id = 1;
-    ,
+    ),
   )
 }
 
@@ -761,7 +763,7 @@ test "Like, ilike, not like, not ilike" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  *
       #|FROM
@@ -771,7 +773,7 @@ test "Like, ilike, not like, not ilike" {
       #|  AND name ILIKE 'TEST' 
       #|  AND name NOT LIKE 'test2' 
       #|  AND name NOT ILIKE 'TEST2';
-    ,
+    ),
   )
 }
 
@@ -781,13 +783,13 @@ test "From multiple table refs" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  *
       #|FROM
       #|  t1,
       #|  t2;
-    ,
+    ),
   )
 }
 
@@ -797,7 +799,7 @@ test "SubQuery" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  sub
       #|FROM
@@ -809,7 +811,7 @@ test "SubQuery" {
       #|    WHERE
       #|      active = true
       #|  ) AS sub;
-    ,
+    ),
   )
 }
 
@@ -819,7 +821,7 @@ test "Exists, not exists" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  *
       #|FROM
@@ -837,7 +839,7 @@ test "Exists, not exists" {
       #|    FROM
       #|      t3
       #|  );
-    ,
+    ),
   )
 }
 
@@ -847,14 +849,14 @@ test "Between and" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  *
       #|FROM
       #|  t
       #|WHERE
       #|  id BETWEEN 1 AND 10;
-    ,
+    ),
   )
 }
 
@@ -864,14 +866,14 @@ test "Compound identifiers" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  t1.col1,
       #|  t2.col2
       #|FROM
       #|  t1,
       #|  t2;
-    ,
+    ),
   )
 }
 
@@ -881,12 +883,12 @@ test "Extract function" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  EXTRACT(YEAR FROM date_col)
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }
 
@@ -896,13 +898,13 @@ test "Aliasing omits AS" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  col1 AS c1,
       #|  col2
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }
 
@@ -912,7 +914,7 @@ test "Case when" {
   let stmt = parse_sql(input)
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  CASE
       #|    WHEN a > 0 THEN 'positive'
@@ -921,6 +923,6 @@ test "Case when" {
       #|  END AS result
       #|FROM
       #|  t;
-    ,
+    ),
   )
 }

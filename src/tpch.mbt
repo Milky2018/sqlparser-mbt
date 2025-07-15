@@ -23,7 +23,7 @@ test "TPCH 1" {
   let stmt = read_and_parse("src/tpch/1.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  l_returnflag,
       #|  l_linestatus,
@@ -45,7 +45,7 @@ test "TPCH 1" {
       #|ORDER BY
       #|  l_returnflag,
       #|  l_linestatus;
-    ,
+    ),
   )
 }
 
@@ -54,7 +54,7 @@ test "TPCH 2" {
   let stmt = read_and_parse("src/tpch/2.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  s_acctbal,
       #|  s_name,
@@ -98,7 +98,7 @@ test "TPCH 2" {
       #|  n_name,
       #|  s_name,
       #|  p_partkey;
-    ,
+    ),
   )
 }
 
@@ -107,7 +107,7 @@ test "TPCH 3" {
   let stmt = read_and_parse("src/tpch/3.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  l_orderkey,
       #|  sum(l_extendedprice * (1 - l_discount)) AS revenue,
@@ -130,7 +130,7 @@ test "TPCH 3" {
       #|ORDER BY
       #|  revenue DESC,
       #|  o_orderdate;
-    ,
+    ),
   )
 }
 
@@ -139,7 +139,7 @@ test "TPCH 4" {
   let stmt = read_and_parse("src/tpch/4.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  o_orderpriority,
       #|  count(*) AS order_count
@@ -161,7 +161,7 @@ test "TPCH 4" {
       #|  o_orderpriority
       #|ORDER BY
       #|  o_orderpriority;
-    ,
+    ),
   )
 }
 
@@ -170,7 +170,7 @@ test "TPCH 5" {
   let stmt = read_and_parse("src/tpch/5.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  n_name,
       #|  sum(l_extendedprice * (1 - l_discount)) AS revenue
@@ -195,7 +195,7 @@ test "TPCH 5" {
       #|  n_name
       #|ORDER BY
       #|  revenue DESC;
-    ,
+    ),
   )
 }
 
@@ -204,7 +204,7 @@ test "TPCH 6" {
   let stmt = read_and_parse("src/tpch/6.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  sum(l_extendedprice * l_discount) AS revenue
       #|FROM
@@ -214,7 +214,7 @@ test "TPCH 6" {
       #|  AND l_shipdate < DATE '1994-01-01' + INTERVAL '1' YEAR 
       #|  AND l_discount BETWEEN 0.06 - 0.01 AND 0.06 + 0.01 
       #|  AND l_quantity < 24;
-    ,
+    ),
   )
 }
 
@@ -223,7 +223,7 @@ test "TPCH 7" {
   let stmt = read_and_parse("src/tpch/7.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  supp_nation,
       #|  cust_nation,
@@ -265,7 +265,7 @@ test "TPCH 7" {
       #|  supp_nation,
       #|  cust_nation,
       #|  l_year;
-    ,
+    ),
   )
 }
 
@@ -274,7 +274,7 @@ test "TPCH 8" {
   let stmt = read_and_parse("src/tpch/8.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  o_year,
       #|  sum(CASE
@@ -312,7 +312,7 @@ test "TPCH 8" {
       #|  o_year
       #|ORDER BY
       #|  o_year;
-    ,
+    ),
   )
 }
 
@@ -321,7 +321,7 @@ test "TPCH 9" {
   let stmt = read_and_parse("src/tpch/9.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  nation,
       #|  o_year,
@@ -354,7 +354,7 @@ test "TPCH 9" {
       #|ORDER BY
       #|  nation,
       #|  o_year DESC;
-    ,
+    ),
   )
 }
 
@@ -363,7 +363,7 @@ test "TPCH 10" {
   let stmt = read_and_parse("src/tpch/10.sql")
   inspect(
     stmt,
-    content=
+    content=(
       #|SELECT
       #|  c_custkey,
       #|  c_name,
@@ -395,6 +395,6 @@ test "TPCH 10" {
       #|  c_comment
       #|ORDER BY
       #|  revenue DESC;
-    ,
+    ),
   )
 }

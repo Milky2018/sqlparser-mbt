@@ -360,9 +360,9 @@ test "Lexing simple query" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content=
+    content=(
       #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
-    ,
+    ),
   )
 }
 
@@ -373,9 +373,9 @@ test "Lexing single quoted string" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content=
+    content=(
       #|[Keyword(Select), StringLiteral("Hello, World!"), Keyword(From), Identifier("table"), Semicolon]
-    ,
+    ),
   )
 }
 
@@ -386,9 +386,9 @@ test "Lexing single quoted string with escaped quotes" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content=
+    content=(
       #|[Keyword(Select), StringLiteral("Hello, 'World!'!"), Keyword(From), Identifier("table"), Semicolon]
-    ,
+    ),
   )
 }
 
@@ -410,9 +410,9 @@ test "Skip line comment" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content=
+    content=(
       #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
-    ,
+    ),
   )
 }
 
@@ -423,8 +423,8 @@ test "Decimal point" {
   let tokens = lexer.lex()
   inspect(
     tokens,
-    content=
+    content=(
       #|[Keyword(Select), Number("3.14"), Comma, Number(".1"), Keyword(From), Identifier("table"), Semicolon]
-    ,
+    ),
   )
 }
