@@ -298,9 +298,15 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
     }
     Some(Token::LParen) => {
       self.advance()
-      let expr = self.parse_expr()
-      self.expect(Token::RParen)
-      expr
+      if self.current() == Some(Keyword(Select)) {
+        let sub_query = self.parse_select_statement()
+        self.expect(Token::RParen)
+        Expr::SubQuery(sub_query)
+      } else {
+        let expr = self.parse_expr()
+        self.expect(Token::RParen)
+        expr
+      }
     }
     Some(Token::Mul) => {
       self.advance()
@@ -321,14 +327,41 @@ fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
         match self.current() {
           Some(Identifier(alias_name)) => {
             self.advance()
-            table_refs.push(TableRef::TableAlias(name, alias_name))
+            table_refs.push(TableRef::Table(name, Some(alias_name)))
           }
           Some(unknown_token) =>
-            raise UnexpectedTokenMessageError(unknown_token, "alias name")
+            raise UnexpectedTokenMessageError(
+              unknown_token, "expected alias name",
+            )
           None => raise ParserError::InternalBug("parse_table_refs")
         }
       } else {
-        table_refs.push(TableRef::Table(name))
+        table_refs.push(TableRef::Table(name, None))
+      }
+      if self.eat(Token::Comma) {
+        continue self.current()
+      } else {
+        break table_refs
+      }
+    }
+    Some(LParen) => {
+      self.advance()
+      let sub_query = self.parse_select_statement()
+      self.expect(RParen)
+      if self.eat(Keyword(As)) {
+        match self.current() {
+          Some(Identifier(alias_name)) => {
+            self.advance()
+            table_refs.push(TableRef::SubQuery(sub_query, Some(alias_name)))
+          }
+          Some(unknown_token) =>
+            raise UnexpectedTokenMessageError(
+              unknown_token, "expected alias name",
+            )
+          None => raise ParserError::InternalBug("parse_table_refs")
+        }
+      } else {
+        table_refs.push(TableRef::SubQuery(sub_query, None))
       }
       if self.eat(Token::Comma) {
         continue self.current()
@@ -578,4 +611,11 @@ test "From multiple table refs" {
   let input = "SELECT * FROM t1, t2;"
   let stmt = parse_sql(input)
   inspect(stmt, content="SELECT * FROM t1, t2;")
+}
+
+///|
+test "SubQuery" {
+  let input = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
+  let stmt = parse_sql(input)
+  inspect(stmt, content="SELECT sub FROM (SELECT name FROM users WHERE (active = true)) AS sub;")
 }

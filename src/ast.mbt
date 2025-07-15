@@ -14,6 +14,7 @@ pub impl Show for Statement with output(self, logger) {
     // Statement::Update(stmt) => logger.write("Update: \{stmt}"),
     // Statement::Delete(stmt) => logger.write("Delete: \{stmt}"),
   }
+  logger.write_string(";")
 }
 
 ///|
@@ -71,7 +72,6 @@ impl Show for SelectStmt with output(self, logger) {
       self.order_by[i].output(logger)
     }
   }
-  logger.write_string(";")
 }
 
 ///|
@@ -111,6 +111,8 @@ pub(all) enum Expr {
   Like(positive~ : Bool, Expr, Expr)
   // <expr> [NOT] ILIKE <expr>
   ILike(positive~ : Bool, Expr, Expr)
+  // (SELECT ...)
+  SubQuery(SelectStmt)
 } derive(Eq)
 
 ///|
@@ -170,6 +172,11 @@ impl Show for Expr with output(self, logger) {
       }
       logger.write_string(" ILIKE ")
       right.output(logger)
+      logger.write_string(")")
+    }
+    Expr::SubQuery(stmt) => {
+      logger.write_string("(")
+      stmt.output(logger)
       logger.write_string(")")
     }
   }
@@ -287,21 +294,27 @@ pub(all) enum Asc {
 
 ///|
 pub(all) enum TableRef {
-  Table(String)
-  TableAlias(String, String)
-  SubQuery(SelectStmt, String)
+  // FROM table [AS alias]
+  Table(String, String?)
+  // FROM (SELECT ...) [AS alias]
+  SubQuery(SelectStmt, String?)
 } derive(Eq)
 
 ///|
 impl Show for TableRef with output(self, logger) {
   match self {
-    TableRef::Table(name) => logger.write_string(name)
-    TableRef::TableAlias(name, alias_name) => {
+    TableRef::Table(name, None) => logger.write_string(name)
+    TableRef::Table(name, Some(alias_name)) => {
       logger.write_string(name)
       logger.write_string(" AS ")
       logger.write_string(alias_name)
     }
-    TableRef::SubQuery(stmt, alias_name) => {
+    TableRef::SubQuery(stmt, None) => {
+      logger.write_string("(")
+      stmt.output(logger)
+      logger.write_string(")")
+    }
+    TableRef::SubQuery(stmt, Some(alias_name)) => {
       logger.write_string("(")
       stmt.output(logger)
       logger.write_string(") AS ")

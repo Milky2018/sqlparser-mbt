@@ -30,5 +30,15 @@ test "TPCH 1" {
 ///|
 test "TPCH 2" {
   let stmt = read_and_parse("src/tpch/2.sql")
-  inspect(stmt, content="SELECT s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment FROM part;")
+  inspect(stmt, content=
+    #|SELECT s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment FROM part, supplier, partsupp, nation, region WHERE ((((((((p_partkey = ps_partkey) AND (s_suppkey = ps_suppkey)) AND (p_size = 15)) AND (p_type LIKE "%BRASS")) AND (s_nationkey = n_nationkey)) AND (n_regionkey = r_regionkey)) AND (r_name = "EUROPE")) AND (ps_supplycost = (SELECT min(ps_supplycost) FROM partsupp, supplier, nation, region WHERE (((((p_partkey = ps_partkey) AND (s_suppkey = ps_suppkey)) AND (s_nationkey = n_nationkey)) AND (n_regionkey = r_regionkey)) AND (r_name = "EUROPE"))))) ORDER BY s_acctbal DESC, n_name, s_name, p_partkey;
+  )
+}
+
+test "TPCH 3" {
+  let stmt = read_and_parse("src/tpch/3.sql")
+  inspect(stmt, content=
+    #|SELECT l_orderkey, sum((l_extendedprice * (1 - l_discount))) AS revenue, o_orderdate, o_shippriority FROM customer, orders, lineitem WHERE (((((c_mktsegment = "BUILDING") AND (c_custkey = o_custkey)) AND (l_orderkey = o_orderkey)) AND (o_orderdate < DATE '1995-03-15')) AND (l_shipdate > DATE '1995-03-15')) GROUP BY l_orderkey, o_orderdate, o_shippriority ORDER BY revenue DESC, o_orderdate;
+
+  )
 }
