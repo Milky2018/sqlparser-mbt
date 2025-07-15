@@ -138,7 +138,21 @@ pub(all) enum Expr {
   Exists(positive~ : Bool, SelectStmt)
   // <expr> [NOT] BETWEEN <expr> AND <expr>
   Between(positive~ : Bool, Expr, Expr, Expr)
+  // EXTRACT(YEAR FROM <expr>)
+  Extract(PrimaryDatetimeField, Expr)
 } derive(Eq)
+
+///|
+fn wrap_parens(expr : Expr, current_op : BinaryOperator) -> @pp.Document {
+  if expr is Expr::BinaryOperation(_, Or, _) {
+    @pp.parens(@pp.nest(@pp.hardline + expr.pretty()) + @pp.hardline)
+  } else if expr is Expr::BinaryOperation(_, op, _) &&
+    op.get_precedence().value() < current_op.get_precedence().value() {
+    @pp.parens(expr.pretty())
+  } else {
+    expr.pretty()
+  }
+}
 
 ///|
 impl @pp.Pretty for Expr with pretty(self) {
@@ -148,14 +162,18 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.separate(@pp.text("."), parts.map(@pp.text))
     Expr::Literal(lit) => lit.pretty()
     Expr::BinaryOperation(left, op, right) =>
-      left.pretty() + @pp.space + op.pretty() + @pp.space + right.pretty()
+      wrap_parens(left, op) +
+      @pp.space +
+      op.pretty() +
+      @pp.space +
+      wrap_parens(right, op)
     Expr::UnaryOperation(op, expr) =>
       @pp.group(@pp.text("\{op} ") + expr.pretty())
     Expr::FunctionCall(name, args) =>
       @pp.text(name) +
-      @pp.char('(') +
-      @pp.separate(@pp.char(',') + @pp.hardline, args.map(@pp.pretty)) +
-      @pp.char(')')
+      @pp.parens(
+        @pp.separate(@pp.char(',') + @pp.hardline, args.map(@pp.pretty)),
+      )
     Expr::Wildcard => @pp.char('*')
     Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
     Interval(s, qualifier) =>
@@ -171,13 +189,7 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.text(" ILIKE ") +
       right.pretty()
     Expr::SubQuery(stmt) =>
-      @pp.nest(
-        @pp.char('(') +
-        @pp.hardline +
-        stmt.pretty() +
-        @pp.hardline +
-        @pp.char(')'),
-      )
+      @pp.parens(@pp.nest(@pp.hardline + stmt.pretty()) + @pp.hardline)
     Expr::Exists(positive~, stmt) =>
       (if positive { @pp.text("EXISTS (") } else { @pp.text("NOT EXISTS (") }) +
       @pp.hardline +
@@ -190,6 +202,12 @@ impl @pp.Pretty for Expr with pretty(self) {
       low.pretty() +
       @pp.text(" AND ") +
       hi.pretty()
+    Expr::Extract(field, expr) =>
+      @pp.text("EXTRACT(") +
+      field.pretty() +
+      @pp.text(" FROM ") +
+      expr.pretty() +
+      @pp.char(')')
   }
 }
 
@@ -330,17 +348,11 @@ impl @pp.Pretty for TableRef with pretty(self) {
     TableRef::Table(name, Some(alias_name)) =>
       @pp.text(name) + @pp.text(" AS ") + @pp.text(alias_name)
     TableRef::SubQuery(stmt, alias_name_option) =>
-      @pp.nest(
-        @pp.char('(') +
-        @pp.hardline +
-        @pp.nest(stmt.pretty()) +
-        @pp.hardline +
-        @pp.char(')') +
-        (match alias_name_option {
-          Some(alias_name) => @pp.text(" AS ") + @pp.text(alias_name)
-          None => @pp.empty
-        }),
-      )
+      @pp.parens(@pp.nest(@pp.hardline + stmt.pretty()) + @pp.hardline) +
+      (match alias_name_option {
+        Some(alias_name) => @pp.text(" AS ") + @pp.text(alias_name)
+        None => @pp.empty
+      })
   }
 }
 

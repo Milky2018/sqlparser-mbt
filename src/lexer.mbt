@@ -265,6 +265,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "or" => Keyword(Or)
     "exists" => Keyword(Exists)
     "between" => Keyword(Between)
+    "extract" => Keyword(Extract)
     _ => Token::Identifier(word)
   }
 }

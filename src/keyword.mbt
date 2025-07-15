@@ -28,4 +28,5 @@ pub(all) enum Keyword {
   Between
   And
   Or
+  Extract
 } derive(Eq, Show)

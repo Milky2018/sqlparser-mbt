@@ -122,6 +122,29 @@ fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
 }
 
 ///|
+fn Parser::parse_aliasing(
+  self : Self,
+  error_msg : String
+) -> String? raise ParserError {
+  if self.eat(Keyword(As)) {
+    match self.current() {
+      Some(Identifier(alias_name)) => {
+        self.advance()
+        return Some(alias_name)
+      }
+      Some(unknown_token) =>
+        raise UnexpectedTokenMessageError(unknown_token, error_msg)
+      None => raise ParserError::InternalBug("parse_aliasing")
+    }
+  } else if self.current() is Some(Identifier(alias_name)) {
+    self.advance()
+    return Some(alias_name)
+  } else {
+    return None
+  }
+}
+
+///|
 fn Parser::parse_projections(
   self : Self
 ) -> Array[Projection] raise ParserError {
@@ -134,18 +157,10 @@ fn Parser::parse_projections(
       }
       Some(_) => {
         let expr = self.parse_expr()
-        if self.eat(Keyword(As)) {
-          match self.current() {
-            Some(Identifier(alias_name)) => {
-              self.advance()
-              Projection::AliasedExpr(expr, alias_name)
-            }
-            Some(unknown_token) =>
-              raise UnexpectedTokenMessageError(unknown_token, "alias name")
-            None => raise ParserError::InternalBug("parse_projections")
-          }
-        } else {
-          Projection::UnamedExpr(expr)
+        let optional_alias = self.parse_aliasing("expected alias name")
+        match optional_alias {
+          Some(alias_name) => Projection::AliasedExpr(expr, alias_name)
+          None => Projection::UnamedExpr(expr)
         }
       }
       None => raise ParserError::InternalBug("parse_projections")
@@ -280,6 +295,7 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
     }
     Some(Keyword(Date)) => self.parse_date_expr()
     Some(Keyword(Interval)) => self.parse_interval_expr()
+    Some(Keyword(Extract)) => self.parse_extract_expr()
     Some(Identifier(name)) => {
       self.advance()
       if self.eat(Token::LParen) {
@@ -367,21 +383,10 @@ fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
   loop self.current() {
     Some(Identifier(name)) => {
       self.advance()
-      if self.eat(Keyword(As)) {
-        match self.current() {
-          Some(Identifier(alias_name)) => {
-            self.advance()
-            table_refs.push(TableRef::Table(name, Some(alias_name)))
-          }
-          Some(unknown_token) =>
-            raise UnexpectedTokenMessageError(
-              unknown_token, "expected alias name",
-            )
-          None => raise ParserError::InternalBug("parse_table_refs")
-        }
-      } else {
-        table_refs.push(TableRef::Table(name, None))
-      }
+      let optional_alias = self.parse_aliasing(
+        "expected alias name after table name",
+      )
+      table_refs.push(TableRef::Table(name, optional_alias))
       if self.eat(Token::Comma) {
         continue self.current()
       } else {
@@ -392,21 +397,10 @@ fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
       self.advance()
       let sub_query = self.parse_select_statement()
       self.expect(RParen)
-      if self.eat(Keyword(As)) {
-        match self.current() {
-          Some(Identifier(alias_name)) => {
-            self.advance()
-            table_refs.push(TableRef::SubQuery(sub_query, Some(alias_name)))
-          }
-          Some(unknown_token) =>
-            raise UnexpectedTokenMessageError(
-              unknown_token, "expected alias name",
-            )
-          None => raise ParserError::InternalBug("parse_table_refs")
-        }
-      } else {
-        table_refs.push(TableRef::SubQuery(sub_query, None))
-      }
+      let optional_alias = self.parse_aliasing(
+        "expected alias name after subquery",
+      )
+      table_refs.push(TableRef::SubQuery(sub_query, optional_alias))
       if self.eat(Token::Comma) {
         continue self.current()
       } else {
@@ -509,6 +503,17 @@ fn Parser::parse_interval_expr(self : Self) -> Expr raise ParserError {
         "parse_interval_expr: unexpected end of input",
       )
   }
+}
+
+///|
+fn Parser::parse_extract_expr(self : Self) -> Expr raise ParserError {
+  self.expect(Keyword(Extract))
+  self.expect(Token::LParen)
+  let field = self.parse_primary_datetime_field()
+  self.expect(Keyword(From))
+  let expr = self.parse_expr()
+  self.expect(Token::RParen)
+  Expr::Extract(field, expr)
 }
 
 ///|
@@ -654,7 +659,7 @@ test "Nested expression" {
     stmt,
     content=
       #|SELECT
-      #|  sum(l_extendedprice * 1 - l_discount)
+      #|  sum(l_extendedprice * (1 - l_discount))
       #|FROM
       #|  lineitem;
     ,
@@ -684,7 +689,7 @@ test "Complecated binary expression" {
     stmt,
     content=
       #|SELECT
-      #|  sum(a * 1 - b * 2 + b) AS c
+      #|  sum(a * (1 - b) * (2 + b)) AS c
       #|FROM
       #|  t;
     ,
@@ -756,12 +761,12 @@ test "SubQuery" {
       #|FROM
       #|  (
       #|    SELECT
-      #|        name
-      #|      FROM
-      #|        users
-      #|      WHERE
-      #|        active = true
-      #|    ) AS sub;
+      #|      name
+      #|    FROM
+      #|      users
+      #|    WHERE
+      #|      active = true
+      #|  ) AS sub;
     ,
   )
 }
@@ -811,6 +816,7 @@ test "Between and" {
   )
 }
 
+///|
 test "Compound identifiers" {
   let input = "SELECT t1.col1, t2.col2 FROM t1, t2;"
   let stmt = parse_sql(input)
@@ -825,4 +831,24 @@ test "Compound identifiers" {
       #|  t2;
     ,
   )
+}
+
+///|
+test "Extract function" {
+  let input = "SELECT EXTRACT(YEAR FROM date_col) FROM t;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=
+      #|SELECT
+      #|  EXTRACT(YEAR FROM date_col)
+      #|FROM
+      #|  t;
+    ,
+  )
+}
+
+///|
+test "Aliasing omits AS" {
+
 }

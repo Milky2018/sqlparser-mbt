@@ -29,8 +29,8 @@ test "TPCH 1" {
       #|  l_linestatus,
       #|  sum(l_quantity) AS sum_qty,
       #|  sum(l_extendedprice) AS sum_base_price,
-      #|  sum(l_extendedprice * 1 - l_discount) AS sum_disc_price,
-      #|  sum(l_extendedprice * 1 - l_discount * 1 + l_tax) AS sum_charge,
+      #|  sum(l_extendedprice * (1 - l_discount)) AS sum_disc_price,
+      #|  sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) AS sum_charge,
       #|  avg(l_quantity) AS avg_qty,
       #|  avg(l_extendedprice) AS avg_price,
       #|  avg(l_discount) AS avg_disc,
@@ -92,7 +92,7 @@ test "TPCH 2" {
       #|      AND s_nationkey = n_nationkey 
       #|      AND n_regionkey = r_regionkey 
       #|      AND r_name = 'EUROPE'
-      #|    )
+      #|  )
       #|ORDER BY
       #|  s_acctbal DESC,
       #|  n_name,
@@ -110,7 +110,7 @@ test "TPCH 3" {
     content=
       #|SELECT
       #|  l_orderkey,
-      #|  sum(l_extendedprice * 1 - l_discount) AS revenue,
+      #|  sum(l_extendedprice * (1 - l_discount)) AS revenue,
       #|  o_orderdate,
       #|  o_shippriority
       #|FROM
@@ -173,7 +173,7 @@ test "TPCH 5" {
     content=
       #|SELECT
       #|  n_name,
-      #|  sum(l_extendedprice * 1 - l_discount) AS revenue
+      #|  sum(l_extendedprice * (1 - l_discount)) AS revenue
       #|FROM
       #|  customer,
       #|  orders,
@@ -218,6 +218,7 @@ test "TPCH 6" {
   )
 }
 
+///|
 test "TPCH 7" {
   let stmt = read_and_parse("src/tpch/7.sql")
   inspect(
@@ -228,31 +229,34 @@ test "TPCH 7" {
       #|  cust_nation,
       #|  l_year,
       #|  sum(volume) AS revenue
-      #|FROM (
-      #|  SELECT
-      #|    n1.n_name AS supp_nation,
-      #|    n2.n_name AS cust_nation,
-      #|    extract(year from l_shipdate) AS l_year,
-      #|    l_extendedprice * (1 - l_discount) AS volume
-      #|  FROM
-      #|    supplier,
-      #|    lineitem,
-      #|    orders,
-      #|    customer,
-      #|    nation n1,
-      #|    nation n2
-      #|  WHERE
-      #|    s_suppkey = l_suppkey 
-      #|    AND o_orderkey = l_orderkey 
-      #|    AND c_custkey = o_custkey 
-      #|    AND s_nationkey = n1.n_nationkey 
-      #|    AND c_nationkey = n2.n_nationkey 
-      #|    AND (
-      #|        (n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') 
-      #|        OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE')
-      #|        )
-      #|    AND l_shipdate BETWEEN DATE '1995-01-01' AND DATE '1996-12-31'
-      #|) AS shipping
+      #|FROM
+      #|  (
+      #|    SELECT
+      #|      n1.n_name AS supp_nation,
+      #|      n2.n_name AS cust_nation,
+      #|      EXTRACT(YEAR FROM l_shipdate) AS l_year,
+      #|      l_extendedprice * (1 - l_discount) AS volume
+      #|    FROM
+      #|      supplier,
+      #|      lineitem,
+      #|      orders,
+      #|      customer,
+      #|      nation AS n1,
+      #|      nation AS n2
+      #|    WHERE
+      #|      s_suppkey = l_suppkey 
+      #|      AND o_orderkey = l_orderkey 
+      #|      AND c_custkey = o_custkey 
+      #|      AND s_nationkey = n1.n_nationkey 
+      #|      AND c_nationkey = n2.n_nationkey 
+      #|      AND (
+      #|        n1.n_name = 'FRANCE' 
+      #|        AND n2.n_name = 'GERMANY' 
+      #|        OR n1.n_name = 'GERMANY' 
+      #|        AND n2.n_name = 'FRANCE'
+      #|      ) 
+      #|      AND l_shipdate BETWEEN DATE '1995-01-01' AND DATE '1996-12-31'
+      #|  ) AS shipping
       #|GROUP BY
       #|  supp_nation,
       #|  cust_nation,
