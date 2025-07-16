@@ -9,6 +9,8 @@ pub(all) enum Token {
   Identifier(String)
   Number(String)
   StringLiteral(String)
+  Boolean(Bool)
+  Null
   Comma
   Semicolon
   Eq
@@ -234,8 +236,10 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     self.advance()
   }
   let end = self.offset
-  let word = self.input.substring(start~, end~).to_lower()
-  match word {
+  match self.input.substring(start~, end~).to_lower() {
+    "true" => Boolean(true)
+    "false" => Boolean(false)
+    "null" => Null
     "select" => Keyword(Select)
     "from" => Keyword(From)
     "where" => Keyword(Where)
@@ -280,7 +284,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "inner" => Keyword(Inner)
     "cross" => Keyword(Cross)
     "on" => Keyword(On)
-    _ => Token::Identifier(word)
+    word => Token::Identifier(word)
   }
 }
 

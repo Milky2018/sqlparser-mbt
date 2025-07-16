@@ -304,6 +304,14 @@ fn Parser::try_binary_operator(self : Self) -> BinaryOperator? {
 ///|
 fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
   match self.current() {
+    Some(Boolean(b)) => {
+      self.advance()
+      Expr::Literal(Literal::Boolean(b))
+    }
+    Some(Null) => {
+      self.advance()
+      Expr::Literal(Literal::Null)
+    }
     Some(Number(n)) => {
       self.advance()
       if n.contains_char('.') {
@@ -1176,7 +1184,6 @@ test "Left join" {
       #|    ON t1.id = t2.id
       #|GROUP BY
       #|  x;
-
     ),
   )
 }
@@ -1209,6 +1216,23 @@ test "Full outer join" {
       #|  *
       #|FROM
       #|  t1 FULL OUTER JOIN t2;
+    ),
+  )
+}
+
+///|
+test "Null, true and false" {
+  let input = "SELECT NULL, true, false FROM t1;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  NULL,
+      #|  TRUE,
+      #|  FALSE
+      #|FROM
+      #|  t1;
     ),
   )
 }
