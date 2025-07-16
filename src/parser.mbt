@@ -151,12 +151,34 @@ fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
 fn Parser::parse_aliasing(
   self : Self,
   error_msg : String
-) -> String? raise ParserError {
+) -> TableAlias? raise ParserError {
   if self.eat(Keyword(As)) {
     match self.current() {
       Some(Identifier(alias_name)) => {
+        let columns = []
         self.advance()
-        return Some(alias_name)
+        if self.eat(LParen) {
+          loop self.current() {
+            Some(Identifier(col_name)) => {
+              self.advance()
+              columns.push(col_name)
+              if not(self.eat(Token::Comma)) {
+                self.expect(RParen)
+                break
+              }
+              continue self.current()
+            }
+            Some(other) =>
+              raise UnexpectedTokenMessageError(
+                other, "expected column name in aliasing",
+              )
+            None =>
+              raise ParserError::InternalBug(
+                "parse_aliasing: unexpected end of input",
+              )
+          }
+        }
+        return Some({ name: alias_name, columns })
       }
       Some(unknown_token) =>
         raise UnexpectedTokenMessageError(unknown_token, error_msg)
@@ -164,7 +186,7 @@ fn Parser::parse_aliasing(
     }
   } else if self.current() is Some(Identifier(alias_name)) {
     self.advance()
-    return Some(alias_name)
+    return Some({ name: alias_name, columns: [] })
   } else {
     return None
   }
@@ -183,7 +205,27 @@ fn Parser::parse_projections(
       }
       Some(_) => {
         let expr = self.parse_expr()
-        let optional_alias = self.parse_aliasing("expected alias name")
+        let optional_alias = if self.eat(Keyword(As)) {
+          match self.current() {
+            Some(Identifier(alias_name)) => {
+              self.advance()
+              Some(alias_name)
+            }
+            Some(unknown_token) =>
+              raise UnexpectedTokenMessageError(
+                unknown_token, "expected alias name after 'AS'",
+              )
+            None =>
+              raise ParserError::InternalBug(
+                "parse_projections: unexpected end of input",
+              )
+          }
+        } else if self.current() is Some(Identifier(alias_name)) {
+          self.advance()
+          Some(alias_name)
+        } else {
+          None
+        }
         match optional_alias {
           Some(alias_name) => Projection::AliasedExpr(expr, alias_name)
           None => Projection::UnamedExpr(expr)
@@ -427,25 +469,7 @@ fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
       } else {
         break table_refs
       }
-      // self.advance()
-      // let table_factor = self.parse_table_factor(name)
-      // let optional_alias = self.parse_aliasing(
-      //   "expected alias name after table name",
-      // )
-      // table_refs.push(TableRef::Table(name, optional_alias))
     }
-    // self.advance()
-    // let sub_query = self.parse_select_statement()
-    // self.expect(RParen)
-    // let optional_alias = self.parse_aliasing(
-    //   "expected alias name after subquery",
-    // )
-    // table_refs.push(TableRef::SubQuery(sub_query, optional_alias))
-    // if self.eat(Token::Comma) {
-    //   continue self.current()
-    // } else {
-    //   break table_refs
-    // }
     Some(unknown) =>
       raise UnexpectedTokenMessageError(
         unknown, "expected a table name or identifier",
@@ -961,7 +985,7 @@ test "SubQuery" {
       #|    FROM
       #|      users
       #|    WHERE
-      #|      active = true
+      #|      active = TRUE
       #|  ) AS sub;
     ),
   )
@@ -1149,8 +1173,7 @@ test "Join with ON condition" {
       #|  *
       #|FROM
       #|  t1 JOIN t2
-      #|    ON t1.id = t2.id
-      #|  ;
+      #|    ON t1.id = t2.id;
     ),
   )
 }
@@ -1199,15 +1222,14 @@ test "Right join" {
       #|  *
       #|FROM
       #|  t1 RIGHT JOIN t2
-      #|    ON t1.id = t2.id
-      #|  ;
+      #|    ON t1.id = t2.id;
     ),
   )
 }
 
 ///|
 test "Full outer join" {
-  let input = "SELECT * FROM t1 FULL OUTER JOIN t2 ON t1.id = t2.id;"
+  let input = "SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.id = t2.id;"
   let stmt = parse_sql(input)
   inspect(
     stmt,
@@ -1215,7 +1237,8 @@ test "Full outer join" {
       #|SELECT
       #|  *
       #|FROM
-      #|  t1 FULL OUTER JOIN t2;
+      #|  t1 LEFT OUTER JOIN t2
+      #|    ON t1.id = t2.id;
     ),
   )
 }

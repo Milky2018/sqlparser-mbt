@@ -370,9 +370,9 @@ impl @pp.Pretty for TableRef with pretty(self) {
 ///|
 pub enum TableFactor {
   // <col_name> [AS <alias>]
-  Column(String, String?)
-  // FROM (SELECT ...) [AS alias]
-  SubQuery(SelectStmt, String?)
+  Column(String, TableAlias?)
+  // FROM (SELECT ...) [AS <alias>]
+  SubQuery(SelectStmt, TableAlias?)
 } derive(Eq)
 
 ///|
@@ -381,16 +381,35 @@ impl @pp.Pretty for TableFactor with pretty(self) {
     TableFactor::Column(name, alias_name) =>
       @pp.text(name) +
       (match alias_name {
-        Some(a) => @pp.text(" AS ") + @pp.text(a)
+        Some(a) => a.pretty()
         None => @pp.empty
       })
     TableFactor::SubQuery(stmt, alias_name) =>
       @pp.parens(@pp.nest(@pp.hardline + stmt.pretty()) + @pp.hardline) +
       (match alias_name {
-        Some(a) => @pp.text(" AS ") + @pp.text(a)
+        Some(a) => a.pretty()
         None => @pp.empty
       })
   }
+}
+
+///|
+pub struct TableAlias {
+  // AS <alias>
+  name : String
+  // AS <alias> (<col_name>, ...)
+  columns : Array[String]
+} derive(Eq)
+
+///|
+impl @pp.Pretty for TableAlias with pretty(self) {
+  @pp.text(" AS ") +
+  @pp.text(self.name) + @pp.space +
+  (if self.columns.length() > 0 {
+    @pp.parens(@pp.separate(@pp.text(", "), self.columns.map(@pp.text)))
+  } else {
+    @pp.empty
+  })
 }
 
 ///|
@@ -413,8 +432,10 @@ impl @pp.Pretty for Join with pretty(self) {
     JoinOperator::Right(constraint) => constraint.pretty()
     JoinOperator::Full(constraint) => constraint.pretty()
     JoinOperator::Inner(constraint) => constraint.pretty()
+    JoinOperator::LeftOuter(constraint) => constraint.pretty()
+    JoinOperator::RightOuter(constraint) => constraint.pretty()
+    JoinOperator::FullOuter(constraint) => constraint.pretty()
     JoinOperator::Cross => @pp.empty
-    _ => @pp.empty
   })
 }
 
