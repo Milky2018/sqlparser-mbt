@@ -14,7 +14,7 @@ pub struct Parser {
 }
 
 ///|
-fn Parser::new(input : Array[Token]) -> Parser {
+pub fn Parser::new(input : Array[Token]) -> Parser {
   { input, offset: 0 }
 }
 
@@ -346,6 +346,17 @@ fn Parser::try_binary_operator(self : Self) -> BinaryOperator? {
 ///|
 fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
   match self.current() {
+    Some(Minus) | Some(Plus) => {
+      self.advance()
+      let expr = self.parse_binary_expr(Precedence::MulDivMod.value())
+      let op = if self.current() == Some(Minus) {
+        self.advance()
+        UnaryOperator::Minus
+      } else {
+        UnaryOperator::Plus
+      }
+      Expr::UnaryOperation(op, expr)
+    }
     Some(Boolean(b)) => {
       self.advance()
       Expr::Literal(Literal::Boolean(b))
@@ -431,10 +442,8 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
         self.expect(Token::RParen)
         Exists(positive=false, sub_query)
       } else {
-        raise UnexpectedTokenMessageError(
-          self.current().unwrap(),
-          "expected 'EXISTS' after 'NOT'",
-        )
+        let expr = self.parse_binary_expr(Precedence::UnaryNot.value())
+        Expr::UnaryOperation(UnaryOperator::Not, expr)
       }
     }
     Some(Keyword(Case)) => self.parse_case_expr()
@@ -1256,6 +1265,36 @@ test "Null, true and false" {
       #|  FALSE
       #|FROM
       #|  t1;
+    ),
+  )
+}
+
+///|
+test "Unary plus and minus" {
+  let input = "SELECT +1, -2 FROM t;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  +1,
+      #|  +2
+      #|FROM
+      #|  t;
+    ),
+  )
+}
+
+test "Unary not expression" {
+  let input = "SELECT NOT a FROM t;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  NOT a
+      #|FROM
+      #|  t;
     ),
   )
 }

@@ -116,41 +116,41 @@ pub impl Show for Projection with output(self, logger) {
 
 ///|
 pub enum Expr {
-  // <identifier>
+  /// <identifier>
   Identifier(String)
-  // <identifier>.<identifier>
+  /// <identifier>.<identifier>
   CompoundIdentifier(Array[String])
-  // string, integer, double, boolean, null
+  /// string, integer, double, boolean, null
   Literal(Literal)
-  // <expr> + <expr>
+  /// <expr> + <expr>
   BinaryOperation(Expr, BinaryOperator, Expr)
-  // - <expr>
+  /// - <expr>
   UnaryOperation(UnaryOperator, Expr)
-  // sum(*)
+  /// sum(*)
   FunctionCall(String, Array[Expr])
-  // *
+  /// *
   Wildcard
-  // DATE '1998-05-19'
+  /// DATE '1998-05-19'
   Datetime(String)
-  // INTERVAL '1 day' YEAR TO MONTH
+  /// INTERVAL '1 day' YEAR TO MONTH
   Interval(String, IntervalQualifier)
-  // <expr> [NOT] LIKE <expr>
+  /// <expr> [NOT] LIKE <expr>
   Like(positive~ : Bool, Expr, Expr)
-  // <expr> [NOT] ILIKE <expr>
+  /// <expr> [NOT] ILIKE <expr>
   ILike(positive~ : Bool, Expr, Expr)
-  // (SELECT ...)
+  /// (SELECT ...)
   SubQuery(SelectStmt)
-  // [NOT] EXISTS
+  /// [NOT] EXISTS
   Exists(positive~ : Bool, SelectStmt)
-  // <expr> [NOT] BETWEEN <expr> AND <expr>
+  /// <expr> [NOT] BETWEEN <expr> AND <expr>
   Between(positive~ : Bool, Expr, Expr, Expr)
-  // EXTRACT(YEAR FROM <expr>)
+  /// EXTRACT(YEAR FROM <expr>)
   Extract(PrimaryDatetimeField, Expr)
-  // CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
+  /// CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
   Case(CaseExpr)
-  // <expr> [NOT] IN (<expr>, ...)
+  /// <expr> [NOT] IN (<expr>, ...)
   InList(positive~ : Bool, Expr, Array[Expr])
-  // <expr> [NOT] IN (SELECT ...)
+  /// <expr> [NOT] IN (SELECT ...)
   InSubQuery(positive~ : Bool, Expr, SelectStmt)
 } derive(Eq)
 
@@ -180,7 +180,7 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.space +
       wrap_parens(right, op)
     Expr::UnaryOperation(op, expr) =>
-      @pp.group(@pp.text("\{op} ") + expr.pretty())
+      op.pretty() + expr.pretty()
     Expr::FunctionCall(name, args) =>
       @pp.text(name) +
       @pp.parens(@pp.separate(@pp.text(", "), args.map(@pp.pretty)))
@@ -308,14 +308,16 @@ pub impl Show for BinaryOperator with output(self, logger) {
 
 ///|
 pub enum UnaryOperator {
-  Negate
+  Plus
+  Minus
   Not
 } derive(Eq)
 
 ///|
 impl @pp.Pretty for UnaryOperator with pretty(self) {
   match self {
-    UnaryOperator::Negate => @pp.text("-")
+    UnaryOperator::Plus => @pp.text("+")
+    UnaryOperator::Minus => @pp.text("-")
     UnaryOperator::Not => @pp.text("NOT ")
   }
 }
@@ -327,11 +329,11 @@ pub impl Show for UnaryOperator with output(self, logger) {
 
 ///|
 pub struct OrderByExpr {
-  // ORDER BY <expr>
+  /// ORDER BY <expr>
   expr : Expr
-  // ASC | DESC
+  /// ASC | DESC
   asc : Bool?
-  // NULLS FIRST | NULLS LAST
+  /// NULLS FIRST | NULLS LAST
   nulls_first : Bool?
 } derive(Eq)
 
@@ -368,10 +370,15 @@ impl @pp.Pretty for TableRef with pretty(self) {
 }
 
 ///|
+pub impl Show for TableRef with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
 pub enum TableFactor {
-  // <col_name> [AS <alias>]
+  /// <col_name> [AS <alias>]
   Column(String, TableAlias?)
-  // FROM (SELECT ...) [AS <alias>]
+  /// FROM (SELECT ...) [AS <alias>]
   SubQuery(SelectStmt, TableAlias?)
 } derive(Eq)
 
@@ -394,29 +401,39 @@ impl @pp.Pretty for TableFactor with pretty(self) {
 }
 
 ///|
+pub impl Show for TableFactor with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
 pub struct TableAlias {
-  // AS <alias>
+  /// AS <alias>
   name : String
-  // AS <alias> (<col_name>, ...)
+  /// AS <alias> (<col_name>, ...)
   columns : Array[String]
 } derive(Eq)
 
 ///|
 impl @pp.Pretty for TableAlias with pretty(self) {
   @pp.text(" AS ") +
-  @pp.text(self.name) + @pp.space +
+  @pp.text(self.name) +
   (if self.columns.length() > 0 {
-    @pp.parens(@pp.separate(@pp.text(", "), self.columns.map(@pp.text)))
+    @pp.space + @pp.parens(@pp.separate(@pp.text(", "), self.columns.map(@pp.text)))
   } else {
     @pp.empty
   })
 }
 
 ///|
+pub impl Show for TableAlias with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
 pub struct Join {
-  // JOIN <table_ref> ON <expr>
+  /// JOIN <table_ref> ON <expr>
   table_ref : TableRef
-  // LEFT JOIN | RIGHT JOIN | FULL | INNER | CROSS
+  /// LEFT JOIN | RIGHT JOIN | FULL | INNER | CROSS
   join_operator : JoinOperator
 } derive(Eq)
 
@@ -437,6 +454,11 @@ impl @pp.Pretty for Join with pretty(self) {
     JoinOperator::FullOuter(constraint) => constraint.pretty()
     JoinOperator::Cross => @pp.empty
   })
+}
+
+///|
+pub impl Show for Join with output(self, logger) {
+  self.pretty().output(logger)
 }
 
 ///|
@@ -468,10 +490,15 @@ impl @pp.Pretty for JoinOperator with pretty(self) {
 }
 
 ///|
+pub impl Show for JoinOperator with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
 pub enum JoinConstraint {
-  // ON <expr>
+  /// ON <expr>
   On(Expr)
-  // USING (<col_name>, ...)
+  /// USING (<col_name>, ...)
   Using(Array[String])
   None
 } derive(Eq)
@@ -490,15 +517,15 @@ impl @pp.Pretty for JoinConstraint with pretty(self) {
 }
 
 ///|
-pub impl Show for TableRef with output(self, logger) {
+pub impl Show for JoinConstraint with output(self, logger) {
   self.pretty().output(logger)
 }
 
 ///|
 pub enum IntervalQualifier {
-  // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  /// YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   Single(PrimaryDatetimeField)
-  // <from> TO <to>
+  /// <from> TO <to>
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
 } derive(Eq)
 
@@ -518,9 +545,9 @@ pub impl Show for IntervalQualifier with output(self, logger) {
 
 ///|
 struct PrimaryDatetimeField {
-  // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  /// YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   field : DatetimeUnit
-  // (3)
+  /// (3)
   precision : Int?
 } derive(Eq)
 
@@ -568,15 +595,13 @@ pub impl Show for DatetimeUnit with output(self, logger) {
   self.pretty().output(logger)
 }
 
-// CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
-
-///|
+///| CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
 pub struct CaseExpr {
-  // CASE [operand]
+  /// CASE [operand]
   operand : Expr?
-  // WHEN <expr> THEN <expr> [...]
+  /// WHEN <expr> THEN <expr> [...]
   when_then_clauses : Array[(Expr, Expr)]
-  // ELSE <expr>
+  /// ELSE <expr>
   else_expr : Expr?
 } derive(Eq)
 

@@ -499,8 +499,6 @@ test "TPCH 13" {
       #|ORDER BY
       #|  custdist DESC,
       #|  c_count DESC;
-
-
     ),
   )
 }

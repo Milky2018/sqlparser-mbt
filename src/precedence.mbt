@@ -25,6 +25,7 @@ pub(all) enum Precedence {
   And
   Or
   Between
+  UnaryNot
 }
 
 ///|
@@ -37,5 +38,6 @@ pub fn Precedence::value(self : Precedence) -> Int {
     PlusMinus => 30
     Or => 5
     Between => 20
+    UnaryNot => 15
   }
 }
