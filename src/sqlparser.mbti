@@ -22,6 +22,15 @@ pub(all) enum BinaryOperator {
 }
 fn BinaryOperator::get_precedence(Self) -> Precedence
 impl Eq for BinaryOperator
+impl Show for BinaryOperator
+
+pub struct CaseExpr {
+  operand : Expr?
+  when_then_clauses : Array[(Expr, Expr)]
+  else_expr : Expr?
+}
+impl Eq for CaseExpr
+impl Show for CaseExpr
 
 pub(all) enum DatetimeUnit {
   Year
@@ -32,9 +41,11 @@ pub(all) enum DatetimeUnit {
   Second
 }
 impl Eq for DatetimeUnit
+impl Show for DatetimeUnit
 
 pub(all) enum Expr {
   Identifier(String)
+  CompoundIdentifier(Array[String])
   Literal(Literal)
   BinaryOperation(Expr, BinaryOperator, Expr)
   UnaryOperation(UnaryOperator, Expr)
@@ -47,14 +58,18 @@ pub(all) enum Expr {
   SubQuery(SelectStmt)
   Exists(positive~ : Bool, SelectStmt)
   Between(positive~ : Bool, Expr, Expr, Expr)
+  Extract(PrimaryDatetimeField, Expr)
+  Case(CaseExpr)
 }
 impl Eq for Expr
+impl Show for Expr
 
 pub(all) enum IntervalQualifier {
   Single(PrimaryDatetimeField)
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
 }
 impl Eq for IntervalQualifier
+impl Show for IntervalQualifier
 
 pub(all) enum Keyword {
   Select
@@ -85,6 +100,13 @@ pub(all) enum Keyword {
   Between
   And
   Or
+  Extract
+  Case
+  When
+  Then
+  Else
+  Having
+  End
 }
 impl Eq for Keyword
 impl Show for Keyword
@@ -104,6 +126,7 @@ pub(all) enum Literal {
   Null
 }
 impl Eq for Literal
+impl Show for Literal
 
 pub struct OrderByExpr {
   expr : Expr
@@ -111,6 +134,7 @@ pub struct OrderByExpr {
   nulls_first : Bool?
 }
 impl Eq for OrderByExpr
+impl Show for OrderByExpr
 
 pub struct Parser {
   input : Array[Token]
@@ -133,6 +157,7 @@ fn Precedence::value(Self) -> Int
 
 type PrimaryDatetimeField
 impl Eq for PrimaryDatetimeField
+impl Show for PrimaryDatetimeField
 
 pub(all) enum Projection {
   Wildcard
@@ -140,6 +165,7 @@ pub(all) enum Projection {
   AliasedExpr(Expr, String)
 }
 impl Eq for Projection
+impl Show for Projection
 
 pub struct SelectStmt {
   projections : Array[Projection]
@@ -152,6 +178,7 @@ pub struct SelectStmt {
   offset : Int?
 }
 impl Eq for SelectStmt
+impl Show for SelectStmt
 
 pub suberror SqlParserError {
   LexerError(LexerError)
@@ -170,6 +197,7 @@ pub(all) enum TableRef {
   SubQuery(SelectStmt, String?)
 }
 impl Eq for TableRef
+impl Show for TableRef
 
 pub(all) enum Token {
   Keyword(Keyword)
@@ -197,6 +225,7 @@ pub(all) enum Token {
   RBrace
   LParen
   RParen
+  Period
   Unknown(Char)
   Eof
 }
@@ -208,6 +237,7 @@ pub(all) enum UnaryOperator {
   Not
 }
 impl Eq for UnaryOperator
+impl Show for UnaryOperator
 
 // Type aliases
 

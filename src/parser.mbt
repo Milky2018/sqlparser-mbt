@@ -66,6 +66,17 @@ fn Parser::peek(self : Self, nth : Int) -> Token? {
 }
 
 ///|
+fn[T] Parser::try_parse(self : Self, p : (Self) -> T raise ParserError) -> T? {
+  let start_offset = self.offset
+  Some(p(self)) catch {
+    _ => {
+      self.offset = start_offset
+      None
+    }
+  }
+}
+
+///|
 fn Parser::parse(self : Self) -> Statement raise ParserError {
   let stmt = self.parse_statement()
   self.eat(Token::Eof) |> ignore
@@ -193,7 +204,8 @@ fn Parser::get_next_bp(self : Self) -> Int raise ParserError {
       Some(Keyword(Not)) =>
         match self.peek(1) {
           Some(Keyword(Like)) | Some(Keyword(ILike)) => Precedence::Like.value()
-          Some(Keyword(Between)) => Precedence::Between.value()
+          Some(Keyword(Between)) | Some(Keyword(In)) =>
+            Precedence::Between.value()
           Some(unknown) =>
             raise UnexpectedTokenMessageError(
               unknown, "expected 'LIKE' or 'ILIKE' after 'NOT'",
@@ -203,7 +215,7 @@ fn Parser::get_next_bp(self : Self) -> Int raise ParserError {
               "get_next_bp: unexpected end of input after 'NOT'",
             )
         }
-      Some(Keyword(Between)) => Precedence::Between.value()
+      Some(Keyword(Between)) | Some(Keyword(In)) => Precedence::Between.value()
       _ => 0
     }
   }
@@ -246,6 +258,10 @@ fn Parser::parse_infix(
     self.parse_between_expr(left, true)
   } else if self.eat_tokens([Keyword(Not), Keyword(Between)]) {
     self.parse_between_expr(left, false)
+  } else if self.eat_tokens([Keyword(In)]) {
+    self.parse_in_expr(left, true)
+  } else if self.eat_tokens([Keyword(Not), Keyword(In)]) {
+    self.parse_in_expr(left, false)
   } else {
     left
   }
@@ -365,8 +381,7 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
     Some(Keyword(Case)) => self.parse_case_expr()
     Some(Token::LParen) => {
       self.advance()
-      if self.current() == Some(Keyword(Select)) {
-        let sub_query = self.parse_select_statement()
+      if self.try_parse(Parser::parse_select_statement) is Some(sub_query) {
         self.expect(Token::RParen)
         Expr::SubQuery(sub_query)
       } else {
@@ -598,7 +613,8 @@ fn Parser::parse_primary_datetime_field(
           }
           Some(other) =>
             raise UnexpectedTokenMessageError(
-              other, "expected a number after '('",
+              other,
+              "datetime \{keyword} expected a number after '('",
             )
           None => raise ParserError::InternalBug("parse_primary_datetime_field")
         }
@@ -628,6 +644,31 @@ fn Parser::parse_between_expr(
   self.expect(Keyword(And))
   let hi = self.parse_binary_expr(Precedence::Between.value())
   Expr::Between(positive~, left, low, hi)
+}
+
+///|
+fn Parser::parse_in_expr(
+  self : Self,
+  left : Expr,
+  positive : Bool
+) -> Expr raise ParserError {
+  self.expect(Token::LParen)
+  if self.try_parse(fn(p) { p.parse_select_statement() }) is Some(sub_query) {
+    self.expect(Token::RParen)
+    Expr::InSubQuery(positive~, left, sub_query)
+  } else {
+    let items = []
+    for {
+      let item = self.parse_expr()
+      items.push(item)
+      if self.eat(Token::Comma) {
+        continue
+      } else {
+        self.expect(Token::RParen)
+        break Expr::InList(positive~, left, items)
+      }
+    }
+  }
 }
 
 ///|
@@ -929,6 +970,7 @@ test "Case when" {
   )
 }
 
+///|
 test "Having" {
   let input = "SELECT col1, COUNT(*) FROM t GROUP BY col1 HAVING COUNT(*) > 1;"
   let stmt = parse_sql(input)
@@ -944,7 +986,45 @@ test "Having" {
       #|  col1
       #|HAVING
       #|  count(*) > 1;
+    ),
+  )
+}
 
+///|
+test "In list" {
+  let input = "SELECT * FROM t WHERE col1 IN (1, 2, 3);"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|WHERE
+      #|  col1 IN (1, 2, 3);
+    ),
+  )
+}
+
+///|
+test "In subquery" {
+  let input = "SELECT * FROM t WHERE col1 IN (SELECT col2 FROM t2);"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|WHERE
+      #|  col1 IN (
+      #|    SELECT
+      #|      col2
+      #|    FROM
+      #|      t2
+      #|  );
     ),
   )
 }

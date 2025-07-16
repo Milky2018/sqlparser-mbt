@@ -148,6 +148,10 @@ pub(all) enum Expr {
   Extract(PrimaryDatetimeField, Expr)
   // CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
   Case(CaseExpr)
+  // <expr> [NOT] IN (<expr>, ...)
+  InList(positive~ : Bool, Expr, Array[Expr])
+  // <expr> [NOT] IN (SELECT ...)
+  InSubQuery(positive~ : Bool, Expr, SelectStmt)
 } derive(Eq)
 
 ///|
@@ -215,6 +219,16 @@ impl @pp.Pretty for Expr with pretty(self) {
       expr.pretty() +
       @pp.char(')')
     Expr::Case(case_expr) => case_expr.pretty()
+    Expr::InList(positive~, expr, items) =>
+      expr.pretty() +
+      @pp.text(if positive { " IN (" } else { " NOT IN (" }) +
+      @pp.separate(@pp.text(", "), items.map(@pp.pretty)) +
+      @pp.char(')')
+    Expr::InSubQuery(positive~, expr, sub_query) =>
+      expr.pretty() +
+      @pp.text(if positive { " IN (" } else { " NOT IN (" }) +
+      @pp.nest(@pp.hardline + sub_query.pretty()) + @pp.hardline +
+      @pp.char(')')
   }
 }
 
@@ -270,7 +284,7 @@ pub(all) enum BinaryOperator {
 impl @pp.Pretty for BinaryOperator with pretty(self) {
   match self {
     BinaryOperator::Eq => @pp.text("=")
-    BinaryOperator::Neq => @pp.text("!=")
+    BinaryOperator::Neq => @pp.text("<>")
     BinaryOperator::Lt => @pp.text("<")
     BinaryOperator::Gt => @pp.text(">")
     BinaryOperator::LtEq => @pp.text("<=")
@@ -278,7 +292,7 @@ impl @pp.Pretty for BinaryOperator with pretty(self) {
     BinaryOperator::Spaceship => @pp.text("<=>")
     BinaryOperator::Plus => @pp.text("+")
     BinaryOperator::Minus => @pp.text("-")
-    BinaryOperator::Mul => @pp.char('*')
+    BinaryOperator::Mul => @pp.text("*")
     BinaryOperator::Div => @pp.text("/")
     BinaryOperator::Mod => @pp.text("%")
     BinaryOperator::And => @pp.hardline + @pp.text("AND")

@@ -76,7 +76,7 @@ fn Lexer::advance(self : Self) -> Unit {
 ///|
 fn Lexer::next_token(self : Self) -> Token raise LexerError {
   self.skip_whitespace()
-  let token = match self.current() {
+  match self.current() {
     Some(',') => {
       self.advance()
       Comma
@@ -188,7 +188,6 @@ fn Lexer::next_token(self : Self) -> Token raise LexerError {
     Some(c) => raise LexerError::InternalBug("Unexpected character: \{c}")
     None => Eof
   }
-  token
 }
 
 ///|
@@ -272,6 +271,7 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "else" => Keyword(Else)
     "end" => Keyword(End)
     "having" => Keyword(Having)
+    "in" => Keyword(In)
     _ => Token::Identifier(word)
   }
 }

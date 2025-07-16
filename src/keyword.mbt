@@ -35,4 +35,5 @@ pub(all) enum Keyword {
   Else
   Having
   End
+  In
 } derive(Eq, Show)
