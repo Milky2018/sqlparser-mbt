@@ -36,4 +36,13 @@ pub(all) enum Keyword {
   Having
   End
   In
+  Join
+  Left
+  Right
+  Full
+  Outer
+  Inner
+  Cross
+  On
+  Using
 } derive(Eq, Show)

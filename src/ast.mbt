@@ -1,5 +1,5 @@
 ///|
-pub(all) enum Statement {
+pub enum Statement {
   Select(SelectStmt)
   // Insert(InsertStmt)
   // Update(UpdateStmt)
@@ -93,7 +93,7 @@ pub impl Show for SelectStmt with output(self, logger) {
 }
 
 ///|
-pub(all) enum Projection {
+pub enum Projection {
   Wildcard
   UnamedExpr(Expr)
   AliasedExpr(Expr, String)
@@ -115,7 +115,7 @@ pub impl Show for Projection with output(self, logger) {
 }
 
 ///|
-pub(all) enum Expr {
+pub enum Expr {
   // <identifier>
   Identifier(String)
   // <identifier>.<identifier>
@@ -227,7 +227,8 @@ impl @pp.Pretty for Expr with pretty(self) {
     Expr::InSubQuery(positive~, expr, sub_query) =>
       expr.pretty() +
       @pp.text(if positive { " IN (" } else { " NOT IN (" }) +
-      @pp.nest(@pp.hardline + sub_query.pretty()) + @pp.hardline +
+      @pp.nest(@pp.hardline + sub_query.pretty()) +
+      @pp.hardline +
       @pp.char(')')
   }
 }
@@ -238,7 +239,7 @@ pub impl Show for Expr with output(self, logger) {
 }
 
 ///|
-pub(all) enum Literal {
+pub enum Literal {
   Integer(Int)
   Double(Double) // TODO: float32
   String(String)
@@ -263,7 +264,7 @@ pub impl Show for Literal with output(self, logger) {
 }
 
 ///|
-pub(all) enum BinaryOperator {
+pub enum BinaryOperator {
   Eq
   Neq
   Lt
@@ -306,7 +307,7 @@ pub impl Show for BinaryOperator with output(self, logger) {
 }
 
 ///|
-pub(all) enum UnaryOperator {
+pub enum UnaryOperator {
   Negate
   Not
 } derive(Eq)
@@ -355,25 +356,115 @@ pub impl Show for OrderByExpr with output(self, logger) {
 }
 
 ///|
-pub(all) enum TableRef {
-  // FROM table [AS alias]
-  Table(String, String?)
+pub struct TableRef {
+  factor : TableFactor
+  joins : Array[Join]
+} derive(Eq)
+
+///|
+impl @pp.Pretty for TableRef with pretty(self) {
+  self.factor.pretty() +
+  @pp.separate_map(@pp.hardline, self.joins, fn(join) { join.pretty() })
+}
+
+///|
+pub enum TableFactor {
+  // <col_name> [AS <alias>]
+  Column(String, String?)
   // FROM (SELECT ...) [AS alias]
   SubQuery(SelectStmt, String?)
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for TableRef with pretty(self) {
+impl @pp.Pretty for TableFactor with pretty(self) {
   match self {
-    TableRef::Table(name, None) => @pp.text(name)
-    TableRef::Table(name, Some(alias_name)) =>
-      @pp.text(name) + @pp.text(" AS ") + @pp.text(alias_name)
-    TableRef::SubQuery(stmt, alias_name_option) =>
-      @pp.parens(@pp.nest(@pp.hardline + stmt.pretty()) + @pp.hardline) +
-      (match alias_name_option {
-        Some(alias_name) => @pp.text(" AS ") + @pp.text(alias_name)
+    TableFactor::Column(name, alias_name) =>
+      @pp.text(name) +
+      (match alias_name {
+        Some(a) => @pp.text(" AS ") + @pp.text(a)
         None => @pp.empty
       })
+    TableFactor::SubQuery(stmt, alias_name) =>
+      @pp.parens(@pp.nest(@pp.hardline + stmt.pretty()) + @pp.hardline) +
+      (match alias_name {
+        Some(a) => @pp.text(" AS ") + @pp.text(a)
+        None => @pp.empty
+      })
+  }
+}
+
+///|
+pub struct Join {
+  // JOIN <table_ref> ON <expr>
+  table_ref : TableRef
+  // LEFT JOIN | RIGHT JOIN | FULL | INNER | CROSS
+  join_operator : JoinOperator
+} derive(Eq)
+
+///|
+impl @pp.Pretty for Join with pretty(self) {
+  @pp.space +
+  self.join_operator.pretty() +
+  @pp.space +
+  self.table_ref.pretty() +
+  (match self.join_operator {
+    JoinOperator::Join(constraint) => constraint.pretty()
+    JoinOperator::Left(constraint) => constraint.pretty()
+    JoinOperator::Right(constraint) => constraint.pretty()
+    JoinOperator::Full(constraint) => constraint.pretty()
+    JoinOperator::Inner(constraint) => constraint.pretty()
+    JoinOperator::Cross => @pp.empty
+    _ => @pp.empty
+  })
+}
+
+///|
+pub enum JoinOperator {
+  Join(JoinConstraint)
+  Left(JoinConstraint)
+  LeftOuter(JoinConstraint)
+  Right(JoinConstraint)
+  RightOuter(JoinConstraint)
+  Full(JoinConstraint)
+  FullOuter(JoinConstraint)
+  Inner(JoinConstraint)
+  Cross
+} derive(Eq)
+
+///|
+impl @pp.Pretty for JoinOperator with pretty(self) {
+  match self {
+    JoinOperator::Join(_) => @pp.text("JOIN")
+    JoinOperator::Left(_) => @pp.text("LEFT JOIN")
+    JoinOperator::LeftOuter(_) => @pp.text("LEFT OUTER JOIN")
+    JoinOperator::Right(_) => @pp.text("RIGHT JOIN")
+    JoinOperator::RightOuter(_) => @pp.text("RIGHT OUTER JOIN")
+    JoinOperator::Full(_) => @pp.text("FULL JOIN")
+    JoinOperator::FullOuter(_) => @pp.text("FULL OUTER JOIN")
+    JoinOperator::Inner(_) => @pp.text("INNER JOIN")
+    JoinOperator::Cross => @pp.text("CROSS JOIN")
+  }
+}
+
+///|
+pub enum JoinConstraint {
+  // ON <expr>
+  On(Expr)
+  // USING (<col_name>, ...)
+  Using(Array[String])
+  None
+} derive(Eq)
+
+///|
+impl @pp.Pretty for JoinConstraint with pretty(self) {
+  match self {
+    JoinConstraint::On(expr) =>
+      @pp.nest(@pp.hardline + @pp.text("ON ") + expr.pretty())
+    JoinConstraint::Using(cols) =>
+      @pp.text("USING (") +
+      @pp.separate(@pp.text(", "), cols.map(@pp.text)) +
+      @pp.char(')')
+    JoinConstraint::None => @pp.empty
   }
 }
 
@@ -383,7 +474,7 @@ pub impl Show for TableRef with output(self, logger) {
 }
 
 ///|
-pub(all) enum IntervalQualifier {
+pub enum IntervalQualifier {
   // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   Single(PrimaryDatetimeField)
   // <from> TO <to>
@@ -430,7 +521,7 @@ pub impl Show for PrimaryDatetimeField with output(self, logger) {
 }
 
 ///|
-pub(all) enum DatetimeUnit {
+pub enum DatetimeUnit {
   Year
   Month
   Day

@@ -272,6 +272,14 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "end" => Keyword(End)
     "having" => Keyword(Having)
     "in" => Keyword(In)
+    "join" => Keyword(Join)
+    "left" => Keyword(Left)
+    "right" => Keyword(Right)
+    "full" => Keyword(Full)
+    "outer" => Keyword(Outer)
+    "inner" => Keyword(Inner)
+    "cross" => Keyword(Cross)
+    "on" => Keyword(On)
     _ => Token::Identifier(word)
   }
 }

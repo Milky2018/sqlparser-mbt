@@ -77,10 +77,14 @@ fn[T] Parser::try_parse(self : Self, p : (Self) -> T raise ParserError) -> T? {
 }
 
 ///|
-fn Parser::parse(self : Self) -> Statement raise ParserError {
+pub fn Parser::parse(self : Self) -> Statement raise ParserError {
   let stmt = self.parse_statement()
-  self.eat(Token::Eof) |> ignore
-  stmt
+  match self.current() {
+    Some(Token::Eof) => stmt
+    Some(other) =>
+      raise UnexpectedTokenMessageError(other, "expected end of SQL")
+    None => stmt
+  }
 }
 
 ///|
@@ -94,7 +98,12 @@ fn Parser::parse_statement(self : Self) -> Statement raise ParserError {
       raise UnexpectedTokenMessageError(start, "SQL statement starter")
     None => raise ParserError::InternalBug("parse_statement")
   }
-  self.eat(Token::Semicolon) |> ignore
+  match self.current() {
+    Some(Token::Semicolon) => self.advance()
+    Some(other) =>
+      raise UnexpectedTokenMessageError(other, "expected ';' at the end of SQL")
+    None => raise ParserError::InternalBug("parse_statement: unexpected end")
+  }
   stmt
 }
 
@@ -403,37 +412,129 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
 fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
   let table_refs = []
   loop self.current() {
-    Some(Identifier(name)) => {
-      self.advance()
-      let optional_alias = self.parse_aliasing(
-        "expected alias name after table name",
-      )
-      table_refs.push(TableRef::Table(name, optional_alias))
+    Some(Identifier(_)) | Some(LParen) => {
+      table_refs.push(self.parse_table_ref())
       if self.eat(Token::Comma) {
         continue self.current()
       } else {
         break table_refs
       }
+      // self.advance()
+      // let table_factor = self.parse_table_factor(name)
+      // let optional_alias = self.parse_aliasing(
+      //   "expected alias name after table name",
+      // )
+      // table_refs.push(TableRef::Table(name, optional_alias))
     }
-    Some(LParen) => {
-      self.advance()
-      let sub_query = self.parse_select_statement()
-      self.expect(RParen)
-      let optional_alias = self.parse_aliasing(
-        "expected alias name after subquery",
-      )
-      table_refs.push(TableRef::SubQuery(sub_query, optional_alias))
-      if self.eat(Token::Comma) {
-        continue self.current()
-      } else {
-        break table_refs
-      }
-    }
+    // self.advance()
+    // let sub_query = self.parse_select_statement()
+    // self.expect(RParen)
+    // let optional_alias = self.parse_aliasing(
+    //   "expected alias name after subquery",
+    // )
+    // table_refs.push(TableRef::SubQuery(sub_query, optional_alias))
+    // if self.eat(Token::Comma) {
+    //   continue self.current()
+    // } else {
+    //   break table_refs
+    // }
     Some(unknown) =>
       raise UnexpectedTokenMessageError(
         unknown, "expected a table name or identifier",
       )
     None => raise ParserError::InternalBug("parse_table_refs")
+  }
+}
+
+///|
+fn Parser::parse_table_ref(self : Self) -> TableRef raise ParserError {
+  let factor = self.parse_table_factor()
+  let joins = []
+  for {
+    match self.current() {
+      Some(Keyword(Join))
+      | Some(Keyword(Left))
+      | Some(Keyword(Right))
+      | Some(Keyword(Full))
+      | Some(Keyword(Inner)) => {
+        let join_operator_maker = if self.eat_tokens([Keyword(Join)]) {
+          JoinOperator::Join(_)
+        } else if self.eat_tokens([Keyword(Left), Keyword(Join)]) {
+          Left(_)
+        } else if self.eat_tokens([Keyword(Left), Keyword(Outer), Keyword(Join)]) {
+          LeftOuter(_)
+        } else if self.eat_tokens([Keyword(Right), Keyword(Join)]) {
+          Right(_)
+        } else if self.eat_tokens([
+            Keyword(Right),
+            Keyword(Outer),
+            Keyword(Join),
+          ]) {
+          RightOuter(_)
+        } else if self.eat_tokens([Keyword(Full), Keyword(Join)]) {
+          Full(_)
+        } else if self.eat_tokens([Keyword(Full), Keyword(Outer), Keyword(Join)]) {
+          FullOuter(_)
+        } else if self.eat_tokens([Keyword(Inner), Keyword(Join)]) {
+          Inner(_)
+        } else {
+          raise UnexpectedTokenMessageError(
+            self.current().unwrap(),
+            "expected 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'INNER JOIN', or 'CROSS JOIN'",
+          )
+        }
+        let table_ref = self.parse_table_ref()
+        if self.eat(Keyword(On)) {
+          let constraint = self.parse_expr()
+          joins.push({
+            join_operator: join_operator_maker(On(constraint)),
+            table_ref,
+          })
+        } else {
+          joins.push({ join_operator: join_operator_maker(None), table_ref })
+        }
+      }
+      Some(Keyword(Cross)) =>
+        if self.eat_tokens([Keyword(Cross), Keyword(Join)]) {
+          let table_ref = self.parse_table_ref()
+          joins.push({ join_operator: Cross, table_ref })
+        } else {
+          raise UnexpectedTokenMessageError(
+            self.peek(1).unwrap(),
+            "expected 'CROSS JOIN'",
+          )
+        }
+      Some(_other) => break
+      None => raise ParserError::InternalBug("parse_table_ref")
+    }
+  }
+  { factor, joins }
+}
+
+///|
+fn Parser::parse_table_factor(self : Self) -> TableFactor raise ParserError {
+  match self.current() {
+    Some(Identifier(name)) => {
+      self.advance()
+      let optional_alias = self.parse_aliasing(
+        "expected alias name after table name",
+      )
+      TableFactor::Column(name, optional_alias)
+    }
+    Some(Token::LParen) => {
+      self.advance()
+      let sub_query = self.parse_select_statement()
+      self.expect(Token::RParen)
+      let optional_alias = self.parse_aliasing(
+        "expected alias name after subquery",
+      )
+      TableFactor::SubQuery(sub_query, optional_alias)
+    }
+    Some(other) =>
+      raise UnexpectedTokenMessageError(
+        other, "expected a table name or subquery",
+      )
+    None => raise ParserError::InternalBug("parse_table_factor")
   }
 }
 
@@ -542,8 +643,8 @@ fn Parser::parse_extract_expr(self : Self) -> Expr raise ParserError {
 fn Parser::parse_case_expr(self : Self) -> Expr raise ParserError {
   self.expect(Keyword(Case))
   let when_clauses = []
-  let mut else_expr = None
-  let operand = if self.current() is Some(Keyword(When)) {
+  let mut else_expr : Expr? = None
+  let operand : Expr? = if self.current() is Some(Keyword(When)) {
     None
   } else {
     Some(self.parse_expr())
@@ -1025,6 +1126,89 @@ test "In subquery" {
       #|    FROM
       #|      t2
       #|  );
+    ),
+  )
+}
+
+///|
+test "Join with ON condition" {
+  let input = "SELECT * FROM t1 JOIN t2 ON t1.id = t2.id;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1 JOIN t2
+      #|    ON t1.id = t2.id
+      #|  ;
+    ),
+  )
+}
+
+///|
+test "Cross join" {
+  let input = "SELECT * FROM t1 CROSS JOIN t2;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1 CROSS JOIN t2;
+    ),
+  )
+}
+
+///|
+test "Left join" {
+  let input = "SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.id GROUP BY x;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1 LEFT JOIN t2
+      #|    ON t1.id = t2.id
+      #|GROUP BY
+      #|  x;
+
+    ),
+  )
+}
+
+///|
+test "Right join" {
+  let input = "SELECT * FROM t1 RIGHT JOIN t2 ON t1.id = t2.id;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1 RIGHT JOIN t2
+      #|    ON t1.id = t2.id
+      #|  ;
+    ),
+  )
+}
+
+///|
+test "Full outer join" {
+  let input = "SELECT * FROM t1 FULL OUTER JOIN t2 ON t1.id = t2.id;"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1 FULL OUTER JOIN t2;
     ),
   )
 }
