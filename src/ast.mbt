@@ -179,8 +179,7 @@ impl @pp.Pretty for Expr with pretty(self) {
       op.pretty() +
       @pp.space +
       wrap_parens(right, op)
-    Expr::UnaryOperation(op, expr) =>
-      op.pretty() + expr.pretty()
+    Expr::UnaryOperation(op, expr) => op.pretty() + expr.pretty()
     Expr::FunctionCall(name, args) =>
       @pp.text(name) +
       @pp.parens(@pp.separate(@pp.text(", "), args.map(@pp.pretty)))
@@ -418,7 +417,8 @@ impl @pp.Pretty for TableAlias with pretty(self) {
   @pp.text(" AS ") +
   @pp.text(self.name) +
   (if self.columns.length() > 0 {
-    @pp.space + @pp.parens(@pp.separate(@pp.text(", "), self.columns.map(@pp.text)))
+    @pp.space +
+    @pp.parens(@pp.separate(@pp.text(", "), self.columns.map(@pp.text)))
   } else {
     @pp.empty
   })
@@ -509,9 +509,12 @@ impl @pp.Pretty for JoinConstraint with pretty(self) {
     JoinConstraint::On(expr) =>
       @pp.nest(@pp.hardline + @pp.text("ON ") + expr.pretty())
     JoinConstraint::Using(cols) =>
-      @pp.text("USING (") +
-      @pp.separate(@pp.text(", "), cols.map(@pp.text)) +
-      @pp.char(')')
+      @pp.nest(
+        @pp.hardline +
+        @pp.text("USING (") +
+        @pp.separate(@pp.text(", "), cols.map(@pp.text)) +
+        @pp.char(')'),
+      )
     JoinConstraint::None => @pp.empty
   }
 }

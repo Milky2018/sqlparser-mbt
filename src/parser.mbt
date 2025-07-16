@@ -531,6 +531,30 @@ fn Parser::parse_table_ref(self : Self) -> TableRef raise ParserError {
             join_operator: join_operator_maker(On(constraint)),
             table_ref,
           })
+        } else if self.eat(Keyword(Using)) {
+          let columns = []
+          self.expect(LParen)
+          loop self.current() {
+            Some(Identifier(col_name)) => {
+              self.advance()
+              columns.push(col_name)
+              if not(self.eat(Token::Comma)) {
+                break
+              } else {
+                continue self.current()
+              }
+            }
+            Some(other) =>
+              raise UnexpectedTokenMessageError(
+                other, "expected column name in USING clause",
+              )
+            None => raise ParserError::InternalBug("parse_table_ref")
+          }
+          self.expect(RParen)
+          joins.push({
+            join_operator: join_operator_maker(Using(columns)),
+            table_ref,
+          })
         } else {
           joins.push({ join_operator: join_operator_maker(None), table_ref })
         }
@@ -1285,6 +1309,7 @@ test "Unary plus and minus" {
   )
 }
 
+///|
 test "Unary not expression" {
   let input = "SELECT NOT a FROM t;"
   let stmt = parse_sql(input)
@@ -1295,6 +1320,22 @@ test "Unary not expression" {
       #|  NOT a
       #|FROM
       #|  t;
+    ),
+  )
+}
+
+///|
+test "Using clause in join" {
+  let input = "SELECT * FROM t1 JOIN t2 USING (id);"
+  let stmt = parse_sql(input)
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1 JOIN t2
+      #|    USING (id);
     ),
   )
 }
