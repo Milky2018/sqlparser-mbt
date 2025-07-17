@@ -6,7 +6,7 @@ fn read_and_parse(path : String) -> Statement {
       panic()
     }
   }
-  parse_sql(input) catch {
+  parse_sql(input)[0] catch {
     LexerError(e) => {
       println(e)
       panic()
@@ -501,4 +501,31 @@ test "TPCH 13" {
       #|  c_count DESC;
     ),
   )
+}
+
+///|
+test "TPCH 14" {
+  let stmt = read_and_parse("src/tpch/14.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  100 * sum(CASE
+      #|    WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1 - l_discount)
+      #|    ELSE 0
+      #|  END) / sum(l_extendedprice * (1 - l_discount)) AS promo_revenue
+      #|FROM
+      #|  lineitem,
+      #|  part
+      #|WHERE
+      #|  l_partkey = p_partkey 
+      #|  AND l_shipdate >= DATE '1995-09-01' 
+      #|  AND l_shipdate < DATE '1995-09-01' + INTERVAL '1' MONTH;
+    ),
+  )
+}
+
+test "TPCH 15" {
+  let stmt = read_and_parse("src/tpch/15.sql")
+  inspect(stmt)
 }

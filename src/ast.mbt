@@ -1,4 +1,25 @@
 ///|
+pub struct Statements {
+  /// The list of SQL statements parsed from the input.
+  stmts : Array[Statement]
+}
+
+///|
+impl @pp.Pretty for Statements with pretty(self) {
+  @pp.separate(@pp.hardline + @pp.hardline, self.stmts.map(@pp.pretty))
+}
+
+///|
+pub impl Show for Statements with output(self, logger) {
+  self.pretty().output(logger)
+}
+
+///|
+fn Statements::op_get(self : Self, index : Int) -> Statement {
+  self.stmts[index]
+}
+
+///|
 pub enum Statement {
   Select(SelectStmt)
   // Insert(InsertStmt)

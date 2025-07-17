@@ -77,14 +77,18 @@ fn[T] Parser::try_parse(self : Self, p : (Self) -> T raise ParserError) -> T? {
 }
 
 ///|
-pub fn Parser::parse(self : Self) -> Statement raise ParserError {
-  let stmt = self.parse_statement()
-  match self.current() {
-    Some(Token::Eof) => stmt
-    Some(other) =>
-      raise UnexpectedTokenMessageError(other, "expected end of SQL")
-    None => stmt
+pub fn Parser::parse(self : Self) -> Array[Statement] raise ParserError {
+  let statements = []
+  loop self.current() {
+    Some(Token::Eof) => break
+    Some(_) => {
+      let stmt = self.parse_statement()
+      statements.push(stmt)
+      continue self.current()
+    }
+    None => break
   }
+  statements
 }
 
 ///|
@@ -860,7 +864,7 @@ test "Parse simple select statement" {
     Token::Semicolon,
   ]
   let parser = Parser::new(input)
-  let stmt = parser.parse()
+  let stmt = parser.parse()[0]
   inspect(
     stmt,
     content=(
@@ -875,7 +879,7 @@ test "Parse simple select statement" {
 ///|
 test "Parse select with two columns" {
   let input = "SELECT col1, col2 FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -891,7 +895,7 @@ test "Parse select with two columns" {
 ///|
 test "Parse select with function call" {
   let input = "SELECT MAX(arg1, arg2), MIN() as m FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -907,7 +911,7 @@ test "Parse select with function call" {
 ///|
 test "Nested expression" {
   let input = "SELECT sum(l_extendedprice * (1 - l_discount)) FROM lineitem;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -922,7 +926,7 @@ test "Nested expression" {
 ///|
 test "Binary expression" {
   let input = "SELECT 1 + 2 * 3 FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -937,7 +941,7 @@ test "Binary expression" {
 ///|
 test "Complecated binary expression" {
   let input = "SELECT sum(a * (1 - b) * (2 + b)) AS c FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -952,7 +956,7 @@ test "Complecated binary expression" {
 ///|
 test "Selection clause" {
   let input = "SELECT * FROM t WHERE id = 1;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -969,7 +973,7 @@ test "Selection clause" {
 ///|
 test "Like, ilike, not like, not ilike" {
   let input = "SELECT * FROM t WHERE name LIKE 'test' AND name ILIKE 'TEST' AND name NOT LIKE 'test2' AND name NOT ILIKE 'TEST2';"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -989,7 +993,7 @@ test "Like, ilike, not like, not ilike" {
 ///|
 test "From multiple table refs" {
   let input = "SELECT * FROM t1, t2;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1005,7 +1009,7 @@ test "From multiple table refs" {
 ///|
 test "SubQuery" {
   let input = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1027,7 +1031,7 @@ test "SubQuery" {
 ///|
 test "Exists, not exists" {
   let input = "SELECT * FROM t WHERE EXISTS (SELECT 1 FROM t2) AND NOT EXISTS (SELECT 1 FROM t3);"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1055,7 +1059,7 @@ test "Exists, not exists" {
 ///|
 test "Between and" {
   let input = "SELECT * FROM t WHERE id BETWEEN 1 AND 10;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1072,7 +1076,7 @@ test "Between and" {
 ///|
 test "Compound identifiers" {
   let input = "SELECT t1.col1, t2.col2 FROM t1, t2;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1089,7 +1093,7 @@ test "Compound identifiers" {
 ///|
 test "Extract function" {
   let input = "SELECT EXTRACT(YEAR FROM date_col) FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1104,7 +1108,7 @@ test "Extract function" {
 ///|
 test "Aliasing omits AS" {
   let input = "SELECT col1 c1, col2 FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1120,7 +1124,7 @@ test "Aliasing omits AS" {
 ///|
 test "Case when" {
   let input = "SELECT CASE WHEN a > 0 THEN 'positive' WHEN a < 0 THEN 'negative' ELSE 'zero' END AS result FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1139,7 +1143,7 @@ test "Case when" {
 ///|
 test "Having" {
   let input = "SELECT col1, COUNT(*) FROM t GROUP BY col1 HAVING COUNT(*) > 1;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1159,7 +1163,7 @@ test "Having" {
 ///|
 test "In list" {
   let input = "SELECT * FROM t WHERE col1 IN (1, 2, 3);"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1176,7 +1180,7 @@ test "In list" {
 ///|
 test "In subquery" {
   let input = "SELECT * FROM t WHERE col1 IN (SELECT col2 FROM t2);"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1198,7 +1202,7 @@ test "In subquery" {
 ///|
 test "Join with ON condition" {
   let input = "SELECT * FROM t1 JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1214,7 +1218,7 @@ test "Join with ON condition" {
 ///|
 test "Cross join" {
   let input = "SELECT * FROM t1 CROSS JOIN t2;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1229,7 +1233,7 @@ test "Cross join" {
 ///|
 test "Left join" {
   let input = "SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.id GROUP BY x;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1247,7 +1251,7 @@ test "Left join" {
 ///|
 test "Right join" {
   let input = "SELECT * FROM t1 RIGHT JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1263,7 +1267,7 @@ test "Right join" {
 ///|
 test "Full outer join" {
   let input = "SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1279,7 +1283,7 @@ test "Full outer join" {
 ///|
 test "Null, true and false" {
   let input = "SELECT NULL, true, false FROM t1;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1296,7 +1300,7 @@ test "Null, true and false" {
 ///|
 test "Unary plus and minus" {
   let input = "SELECT +1, -2 FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1312,7 +1316,7 @@ test "Unary plus and minus" {
 ///|
 test "Unary not expression" {
   let input = "SELECT NOT a FROM t;"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1327,7 +1331,7 @@ test "Unary not expression" {
 ///|
 test "Using clause in join" {
   let input = "SELECT * FROM t1 JOIN t2 USING (id);"
-  let stmt = parse_sql(input)
+  let stmt = parse_sql(input)[0]
   inspect(
     stmt,
     content=(
@@ -1336,6 +1340,26 @@ test "Using clause in join" {
       #|FROM
       #|  t1 JOIN t2
       #|    USING (id);
+    ),
+  )
+}
+
+///|
+test "Multiple statements" {
+  let input = "SELECT * FROM t1; SELECT * FROM t2;"
+  let stmts = parse_sql(input)
+  inspect(
+    stmts,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1;
+      #|
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t2;
     ),
   )
 }
