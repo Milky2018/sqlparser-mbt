@@ -475,7 +475,7 @@ fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
 fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
   let table_refs = []
   loop self.current() {
-    Some(Identifier(_)) | Some(LParen) => {
+    Some(Identifier(_)) | Some(LParen) | Some(StringLiteral(_)) => {
       table_refs.push(self.parse_table_ref())
       if self.eat(Token::Comma) {
         continue self.current()
@@ -584,6 +584,13 @@ fn Parser::parse_table_ref(self : Self) -> TableRef raise ParserError {
 fn Parser::parse_table_factor(self : Self) -> TableFactor raise ParserError {
   match self.current() {
     Some(Identifier(name)) => {
+      self.advance()
+      let optional_alias = self.parse_aliasing(
+        "expected alias name after table name",
+      )
+      TableFactor::Column(name, optional_alias)
+    }
+    Some(StringLiteral(name)) => {
       self.advance()
       let optional_alias = self.parse_aliasing(
         "expected alias name after table name",
@@ -1360,6 +1367,21 @@ test "Multiple statements" {
       #|  *
       #|FROM
       #|  t2;
+    ),
+  )
+}
+
+///|
+test "String literal as column" {
+  let input = "SELECT test FROM 't';"
+  let stmt = parse_sql(input)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  test
+      #|FROM
+      #|  t;
     ),
   )
 }
