@@ -57,8 +57,8 @@ pub struct SelectStmt {
   having : Expr?
   // ORDER BY <order_by>
   order_by : Array[OrderByExpr]
-  limit : Int?
-  offset : Int?
+  limit : Expr?
+  offset : Expr?
 } derive(Eq)
 
 ///|
@@ -105,6 +105,16 @@ impl @pp.Pretty for SelectStmt with pretty(self) {
     )
   } else {
     @pp.text("")
+  }) +
+  (match self.limit {
+    Some(expr) =>
+      @pp.hardline + @pp.text("LIMIT") + @pp.nest(@pp.hardline + expr.pretty())
+    None => @pp.empty
+  }) +
+  (match self.offset {
+    Some(expr) =>
+      @pp.hardline + @pp.text("OFFSET") + @pp.nest(@pp.hardline + expr.pretty())
+    None => @pp.empty
   })
 }
 

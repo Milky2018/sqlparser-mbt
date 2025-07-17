@@ -45,4 +45,6 @@ pub(all) enum Keyword {
   Cross
   On
   Using
+  Limit
+  Offset
 } derive(Eq, Show)

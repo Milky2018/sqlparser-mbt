@@ -139,16 +139,17 @@ fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
   } else {
     []
   }
-  {
-    projections,
-    from,
-    where_clause,
-    group_by,
-    having,
-    order_by,
-    limit: None, // TODO:
-    offset: None, // TODO:
+  let limit = if self.eat(Keyword(Limit)) {
+    Some(self.parse_expr())
+  } else {
+    None
   }
+  let offset = if self.eat(Keyword(Offset)) {
+    Some(self.parse_expr())
+  } else {
+    None
+  }
+  { projections, from, where_clause, group_by, having, order_by, limit, offset }
 }
 
 ///|
@@ -1382,6 +1383,59 @@ test "String literal as column" {
       #|  test
       #|FROM
       #|  t;
+    ),
+  )
+}
+
+///|
+test "Limit and offset" {
+  let input = "SELECT * FROM t LIMIT 10 OFFSET 5;"
+  let stmt = parse_sql(input)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|LIMIT
+      #|  10
+      #|OFFSET
+      #|  5;
+    ),
+  )
+}
+
+///|
+test "Limit without offset" {
+  let input = "SELECT * FROM t LIMIT N;"
+  let stmt = parse_sql(input)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|LIMIT
+      #|  n;
+    ),
+  )
+}
+
+///|
+test "Offset without limit" {
+  let input = "SELECT * FROM t OFFSET N;"
+  let stmt = parse_sql(input)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t
+      #|OFFSET
+      #|  n;
     ),
   )
 }

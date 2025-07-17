@@ -285,6 +285,8 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "cross" => Keyword(Cross)
     "on" => Keyword(On)
     "using" => Keyword(Using)
+    "limit" => Keyword(Limit)
+    "offset" => Keyword(Offset)
     word => Token::Identifier(word)
   }
 }
