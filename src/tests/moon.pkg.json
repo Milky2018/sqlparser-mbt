@@ -1,0 +1,6 @@
+{
+  "test-import": [
+    "moonbitlang/x/fs",
+    "Milky2018/sqlparser"
+  ]
+}

@@ -15,7 +15,7 @@ pub impl Show for Statements with output(self, logger) {
 }
 
 ///|
-fn Statements::op_get(self : Self, index : Int) -> Statement {
+pub fn Statements::op_get(self : Self, index : Int) -> Statement {
   self.stmts[index]
 }
 

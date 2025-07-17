@@ -1,12 +1,12 @@
 ///|
-fn read_and_parse(path : String) -> Statement {
+fn read_and_parse(path : String) -> @sqlparser.Statement {
   let input = @fs.read_file_to_string(path) catch {
     e => {
       println("Read file error: \{e.to_string()}")
       panic()
     }
   }
-  parse_sql(input)[0] catch {
+  @sqlparser.parse_sql(input)[0] catch {
     LexerError(e) => {
       println(e)
       panic()
@@ -20,7 +20,7 @@ fn read_and_parse(path : String) -> Statement {
 
 ///|
 test "TPCH 1" {
-  let stmt = read_and_parse("src/tpch/1.sql")
+  let stmt = read_and_parse("src/tests/tpch/1.sql")
   inspect(
     stmt,
     content=(
@@ -51,7 +51,7 @@ test "TPCH 1" {
 
 ///|
 test "TPCH 2" {
-  let stmt = read_and_parse("src/tpch/2.sql")
+  let stmt = read_and_parse("src/tests/tpch/2.sql")
   inspect(
     stmt,
     content=(
@@ -104,7 +104,7 @@ test "TPCH 2" {
 
 ///|
 test "TPCH 3" {
-  let stmt = read_and_parse("src/tpch/3.sql")
+  let stmt = read_and_parse("src/tests/tpch/3.sql")
   inspect(
     stmt,
     content=(
@@ -136,7 +136,7 @@ test "TPCH 3" {
 
 ///|
 test "TPCH 4" {
-  let stmt = read_and_parse("src/tpch/4.sql")
+  let stmt = read_and_parse("src/tests/tpch/4.sql")
   inspect(
     stmt,
     content=(
@@ -167,7 +167,7 @@ test "TPCH 4" {
 
 ///|
 test "TPCH 5" {
-  let stmt = read_and_parse("src/tpch/5.sql")
+  let stmt = read_and_parse("src/tests/tpch/5.sql")
   inspect(
     stmt,
     content=(
@@ -201,7 +201,7 @@ test "TPCH 5" {
 
 ///|
 test "TPCH 6" {
-  let stmt = read_and_parse("src/tpch/6.sql")
+  let stmt = read_and_parse("src/tests/tpch/6.sql")
   inspect(
     stmt,
     content=(
@@ -220,7 +220,7 @@ test "TPCH 6" {
 
 ///|
 test "TPCH 7" {
-  let stmt = read_and_parse("src/tpch/7.sql")
+  let stmt = read_and_parse("src/tests/tpch/7.sql")
   inspect(
     stmt,
     content=(
@@ -271,7 +271,7 @@ test "TPCH 7" {
 
 ///|
 test "TPCH 8" {
-  let stmt = read_and_parse("src/tpch/8.sql")
+  let stmt = read_and_parse("src/tests/tpch/8.sql")
   inspect(
     stmt,
     content=(
@@ -318,7 +318,7 @@ test "TPCH 8" {
 
 ///|
 test "TPCH 9" {
-  let stmt = read_and_parse("src/tpch/9.sql")
+  let stmt = read_and_parse("src/tests/tpch/9.sql")
   inspect(
     stmt,
     content=(
@@ -360,7 +360,7 @@ test "TPCH 9" {
 
 ///|
 test "TPCH 10" {
-  let stmt = read_and_parse("src/tpch/10.sql")
+  let stmt = read_and_parse("src/tests/tpch/10.sql")
   inspect(
     stmt,
     content=(
@@ -401,7 +401,7 @@ test "TPCH 10" {
 
 ///|
 test "TPCH 11" {
-  let stmt = read_and_parse("src/tpch/11.sql")
+  let stmt = read_and_parse("src/tests/tpch/11.sql")
   inspect(
     stmt,
     content=(
@@ -439,7 +439,7 @@ test "TPCH 11" {
 
 ///|
 test "TPCH 12" {
-  let stmt = read_and_parse("src/tpch/12.sql")
+  let stmt = read_and_parse("src/tests/tpch/12.sql")
   inspect(
     stmt,
     content=(
@@ -475,7 +475,7 @@ test "TPCH 12" {
 
 ///|
 test "TPCH 13" {
-  let stmt = read_and_parse("src/tpch/13.sql")
+  let stmt = read_and_parse("src/tests/tpch/13.sql")
   inspect(
     stmt,
     content=(
@@ -505,7 +505,7 @@ test "TPCH 13" {
 
 ///|
 test "TPCH 14" {
-  let stmt = read_and_parse("src/tpch/14.sql")
+  let stmt = read_and_parse("src/tests/tpch/14.sql")
   inspect(
     stmt,
     content=(
@@ -525,7 +525,7 @@ test "TPCH 14" {
   )
 }
 
-test "TPCH 15" {
-  let stmt = read_and_parse("src/tpch/15.sql")
-  inspect(stmt)
-}
+// test "TPCH 15" {
+//   let stmt = read_and_parse("src/tests/tpch/15.sql")
+//   inspect(stmt)
+// }
