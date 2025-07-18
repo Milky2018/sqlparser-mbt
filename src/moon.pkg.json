@@ -1,6 +1,5 @@
 {
   "import": [
-    "moonbitlang/x/fs",
     { "path": "Yoorkin/prettyprinter", "alias": "pp" }
   ]
 }

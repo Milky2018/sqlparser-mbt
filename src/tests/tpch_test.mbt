@@ -524,8 +524,3 @@ test "TPCH 14" {
     ),
   )
 }
-
-// test "TPCH 15" {
-//   let stmt = read_and_parse("src/tests/tpch/15.sql")
-//   inspect(stmt)
-// }

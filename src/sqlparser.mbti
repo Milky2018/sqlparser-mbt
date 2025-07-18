@@ -1,10 +1,10 @@
 package "Milky2018/sqlparser"
 
 // Values
-fn parse_sql(String) -> Statement raise SqlParserError
+fn parse_sql(String) -> Statements raise SqlParserError
 
 // Types and methods
-pub(all) enum BinaryOperator {
+pub enum BinaryOperator {
   Eq
   Neq
   Lt
@@ -32,7 +32,7 @@ pub struct CaseExpr {
 impl Eq for CaseExpr
 impl Show for CaseExpr
 
-pub(all) enum DatetimeUnit {
+pub enum DatetimeUnit {
   Year
   Month
   Day
@@ -43,7 +43,7 @@ pub(all) enum DatetimeUnit {
 impl Eq for DatetimeUnit
 impl Show for DatetimeUnit
 
-pub(all) enum Expr {
+pub enum Expr {
   Identifier(String)
   CompoundIdentifier(Array[String])
   Literal(Literal)
@@ -60,16 +60,47 @@ pub(all) enum Expr {
   Between(positive~ : Bool, Expr, Expr, Expr)
   Extract(PrimaryDatetimeField, Expr)
   Case(CaseExpr)
+  InList(positive~ : Bool, Expr, Array[Expr])
+  InSubQuery(positive~ : Bool, Expr, SelectStmt)
 }
 impl Eq for Expr
 impl Show for Expr
 
-pub(all) enum IntervalQualifier {
+pub enum IntervalQualifier {
   Single(PrimaryDatetimeField)
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
 }
 impl Eq for IntervalQualifier
 impl Show for IntervalQualifier
+
+pub struct Join {
+  table_ref : TableRef
+  join_operator : JoinOperator
+}
+impl Eq for Join
+impl Show for Join
+
+pub enum JoinConstraint {
+  On(Expr)
+  Using(Array[String])
+  None
+}
+impl Eq for JoinConstraint
+impl Show for JoinConstraint
+
+pub enum JoinOperator {
+  Join(JoinConstraint)
+  Left(JoinConstraint)
+  LeftOuter(JoinConstraint)
+  Right(JoinConstraint)
+  RightOuter(JoinConstraint)
+  Full(JoinConstraint)
+  FullOuter(JoinConstraint)
+  Inner(JoinConstraint)
+  Cross
+}
+impl Eq for JoinOperator
+impl Show for JoinOperator
 
 pub(all) enum Keyword {
   Select
@@ -107,6 +138,18 @@ pub(all) enum Keyword {
   Else
   Having
   End
+  In
+  Join
+  Left
+  Right
+  Full
+  Outer
+  Inner
+  Cross
+  On
+  Using
+  Limit
+  Offset
 }
 impl Eq for Keyword
 impl Show for Keyword
@@ -118,7 +161,7 @@ fn Lexer::new(String) -> Self
 type LexerError
 impl Show for LexerError
 
-pub(all) enum Literal {
+pub enum Literal {
   Integer(Int)
   Double(Double)
   String(String)
@@ -140,6 +183,8 @@ pub struct Parser {
   input : Array[Token]
   mut offset : Int
 }
+fn Parser::new(Array[Token]) -> Self
+fn Parser::parse(Self) -> Array[Statement] raise ParserError
 
 type ParserError
 impl Show for ParserError
@@ -152,6 +197,7 @@ pub(all) enum Precedence {
   And
   Or
   Between
+  UnaryNot
 }
 fn Precedence::value(Self) -> Int
 
@@ -159,7 +205,7 @@ type PrimaryDatetimeField
 impl Eq for PrimaryDatetimeField
 impl Show for PrimaryDatetimeField
 
-pub(all) enum Projection {
+pub enum Projection {
   Wildcard
   UnamedExpr(Expr)
   AliasedExpr(Expr, String)
@@ -174,8 +220,8 @@ pub struct SelectStmt {
   group_by : Array[Expr]
   having : Expr?
   order_by : Array[OrderByExpr]
-  limit : Int?
-  offset : Int?
+  limit : Expr?
+  offset : Expr?
 }
 impl Eq for SelectStmt
 impl Show for SelectStmt
@@ -186,15 +232,35 @@ pub suberror SqlParserError {
 }
 impl Show for SqlParserError
 
-pub(all) enum Statement {
+pub enum Statement {
   Select(SelectStmt)
 }
 impl Eq for Statement
 impl Show for Statement
 
-pub(all) enum TableRef {
-  Table(String, String?)
-  SubQuery(SelectStmt, String?)
+pub struct Statements {
+  stmts : Array[Statement]
+}
+fn Statements::op_get(Self, Int) -> Statement
+impl Show for Statements
+
+pub struct TableAlias {
+  name : String
+  columns : Array[String]
+}
+impl Eq for TableAlias
+impl Show for TableAlias
+
+pub enum TableFactor {
+  Column(String, TableAlias?)
+  SubQuery(SelectStmt, TableAlias?)
+}
+impl Eq for TableFactor
+impl Show for TableFactor
+
+pub struct TableRef {
+  factor : TableFactor
+  joins : Array[Join]
 }
 impl Eq for TableRef
 impl Show for TableRef
@@ -204,6 +270,8 @@ pub(all) enum Token {
   Identifier(String)
   Number(String)
   StringLiteral(String)
+  Boolean(Bool)
+  Null
   Comma
   Semicolon
   Eq
@@ -232,8 +300,9 @@ pub(all) enum Token {
 impl Eq for Token
 impl Show for Token
 
-pub(all) enum UnaryOperator {
-  Negate
+pub enum UnaryOperator {
+  Plus
+  Minus
   Not
 }
 impl Eq for UnaryOperator
