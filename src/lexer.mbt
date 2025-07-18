@@ -1,6 +1,7 @@
 ///|
 suberror LexerError {
-  InternalBug(String)
+  UnterminatedString
+  UnknownCharacter(Char)
 } derive(Show)
 
 ///|
@@ -38,206 +39,105 @@ pub(all) enum Token {
 } derive(Eq, Show)
 
 ///|
-struct Lexer {
-  mut offset : Int
-  input : String
-}
-
-///|
-pub fn Lexer::new(input : String) -> Lexer {
-  { offset: 0, input }
-}
-
-///|
-pub fn Lexer::lex(self : Self) -> Array[Token] raise LexerError {
+pub fn lex(input : String) -> Array[Token] raise LexerError {
   let tokens = []
-  while self.offset < self.input.length() {
-    let token = self.next_token()
-    if token == Token::Eof {
-      break
+  loop input[:] {
+    [] => break
+    input => {
+      let (token, input) = next_token(input)
+      tokens.push(token)
+      continue input
     }
-    tokens.push(token)
   }
   tokens
 }
 
 ///|
-fn Lexer::current(self : Self) -> Char? {
-  if self.offset >= self.input.length() {
-    return None
+fn next_token(input : @string.View) -> (Token, @string.View) raise LexerError {
+  match skip_whitespace(input) {
+    [',', .. rest] => (Comma, rest)
+    [';', .. rest] => (Semicolon, rest)
+    ['*', .. rest] => (Mul, rest)
+    [.. "==", .. rest] => (DoubleEq, rest)
+    ['=', .. rest] => (Eq, rest)
+    [.. "<=>", .. rest] => (Spaceship, rest)
+    [.. "<>", .. rest] => (Neq, rest)
+    [.. "<=", .. rest] => (LtEq, rest)
+    ['<', .. rest] => (Lt, rest)
+    [.. ">=", .. rest] => (GtEq, rest)
+    ['>', .. rest] => (Gt, rest)
+    ['+', .. rest] => (Plus, rest)
+    [.. "--", .. rest] => {
+      let rest = skip_line_comment(rest)
+      next_token(rest)
+    }
+    ['-', .. rest] => (Minus, rest)
+    ['/', .. rest] => (Div, rest)
+    ['%', .. rest] => (Mod, rest)
+    ['(', .. rest] => (LParen, rest)
+    [')', .. rest] => (RParen, rest)
+    ['[', .. rest] => (LBracket, rest)
+    [']', .. rest] => (RBracket, rest)
+    ['{', .. rest] => (LBrace, rest)
+    ['}', .. rest] => (RBrace, rest)
+    ['\'', .. rest] => read_single_quoted_string(rest)
+    ['.', .. rest] => read_frac(rest)
+    [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
+    ['_', .. _rest] as code => read_identifier_or_keyword(code)
+    [c, .. _rest] as code if c.is_ascii_alphabetic() =>
+      read_identifier_or_keyword(code)
+    [c, .. _rest] => raise UnknownCharacter(c)
+    [] => (Eof, [])
+  }
+}
+
+///|
+fn skip_whitespace(input : @string.View) -> @string.View {
+  loop input {
+    [c, .. rest] if c.is_ascii_whitespace() => continue rest
+    input => break input
+  }
+}
+
+///|
+fn read_frac(input : @string.View) -> (Token, @string.View) {
+  let (idx, rest) = loop (input, 0) {
+    ([c, .. rest], n) if c.is_ascii_digit() => continue (rest, n + 1)
+    (rest, n) => break (n, rest)
+  }
+  if idx == 0 {
+    (Period, rest)
   } else {
-    Some(self.input.char_at(self.offset))
+    (Number("." + input.charcodes(start=0, end=idx).to_string()), rest)
   }
 }
 
 ///|
-fn Lexer::advance(self : Self) -> Unit {
-  self.offset += 1
-}
-
-///|
-fn Lexer::next_token(self : Self) -> Token raise LexerError {
-  self.skip_whitespace()
-  match self.current() {
-    Some(',') => {
-      self.advance()
-      Comma
-    }
-    Some(';') => {
-      self.advance()
-      Semicolon
-    }
-    Some('*') => {
-      self.advance()
-      Mul
-    }
-    Some('=') => {
-      self.advance()
-      if self.current() == Some('=') {
-        self.advance()
-        DoubleEq
-      } else {
-        Eq
+fn read_number(input : @string.View) -> (Token, @string.View) {
+  let (idx, rest) = loop (input, 0) {
+    ([c, .. rest], n) if c.is_ascii_digit() => continue (rest, n + 1)
+    (rest, n) => break (n, rest)
+  }
+  let (idx, rest) = match rest {
+    ['.', .. rest] =>
+      loop (rest, idx + 1) {
+        ([c, .. rest], n) if c.is_ascii_digit() => continue (rest, n + 1)
+        (rest, n) => break (n, rest)
       }
-    }
-    Some('<') => {
-      self.advance()
-      if self.current() == Some('>') {
-        self.advance()
-        Neq
-      } else if self.current() == Some('=') {
-        self.advance()
-        if self.current() == Some('>') {
-          self.advance()
-          Spaceship
-        } else {
-          LtEq
-        }
-      } else {
-        Lt
-      }
-    }
-    Some('>') => {
-      self.advance()
-      if self.current() == Some('=') {
-        self.advance()
-        GtEq
-      } else {
-        Gt
-      }
-    }
-    Some('!') => {
-      self.advance()
-      if self.current() == Some('=') {
-        self.advance()
-        Neq
-      } else {
-        Unknown('!')
-      }
-    }
-    Some('+') => {
-      self.advance()
-      Plus
-    }
-    Some('-') => {
-      self.advance()
-      if self.current() == Some('-') {
-        self.advance()
-        self.skip_line_comment()
-        return self.next_token()
-      } else {
-        Minus
-      }
-    }
-    Some('/') => {
-      self.advance()
-      Div
-    }
-    Some('%') => {
-      self.advance()
-      Mod
-    }
-    Some('(') => {
-      self.advance()
-      LParen
-    }
-    Some(')') => {
-      self.advance()
-      RParen
-    }
-    Some('[') => {
-      self.advance()
-      LBracket
-    }
-    Some(']') => {
-      self.advance()
-      RBracket
-    }
-    Some('{') => {
-      self.advance()
-      LBrace
-    }
-    Some('}') => {
-      self.advance()
-      RBrace
-    }
-    Some('\'') => self.read_single_quoted_string()
-    Some('"') => self.read_double_quoted_string()
-    Some('.') => self.read_frac()
-    Some(c) if c.is_ascii_digit() => self.read_number()
-    Some(c) if c.is_ascii_alphabetic() || c == '_' =>
-      self.read_identifier_or_keyword()
-    Some(c) => raise LexerError::InternalBug("Unexpected character: \{c}")
-    None => Eof
+    rest => (idx, rest)
   }
+  (Number(input.charcodes(start=0, end=idx).to_string()), rest)
 }
 
 ///|
-fn Lexer::skip_whitespace(self : Self) -> Unit {
-  while self.current().map_or(false, c => c.is_ascii_whitespace()) {
-    self.advance()
+fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
+  let (idx, rest) = loop (input, 0) {
+    ([c, .. rest], n) if is_ascii_alphabetic_or_digit(c) =>
+      continue (rest, n + 1)
+    (rest, n) => break (n, rest)
   }
-}
-
-///|
-fn Lexer::read_frac(self : Self) -> Token {
-  let start = self.offset
-  self.advance()
-  while self.current().map_or(false, c => c.is_ascii_digit()) {
-    self.advance()
-  }
-  let end = self.offset
-  if end == start + 1 {
-    return Token::Period
-  }
-  Token::Number(self.input.substring(start~, end~))
-}
-
-///|
-fn Lexer::read_number(self : Self) -> Token {
-  let start = self.offset
-  while self.current().map_or(false, c => c.is_ascii_digit()) {
-    self.advance()
-  }
-  if self.current() == Some('.') {
-    self.advance()
-    while self.current().map_or(false, c => c.is_ascii_digit()) {
-      self.advance()
-    }
-  }
-  let end = self.offset
-  Token::Number(self.input.substring(start~, end~))
-}
-
-///|
-fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
-  let start = self.offset
-  while self.current().map_or(false, is_ascii_alphabetic_or_digit) {
-    self.advance()
-  }
-  let end = self.offset
-  match self.input.substring(start~, end~).to_lower() {
-    "true" => Boolean(true)
+  let token = match input.charcodes(start=0, end=idx).to_lower() {
+    "true" => Token::Boolean(true)
     "false" => Boolean(false)
     "null" => Null
     "select" => Keyword(Select)
@@ -287,8 +187,9 @@ fn Lexer::read_identifier_or_keyword(self : Self) -> Token {
     "using" => Keyword(Using)
     "limit" => Keyword(Limit)
     "offset" => Keyword(Offset)
-    word => Token::Identifier(word)
+    word => Token::Identifier(word.to_string())
   }
+  (token, rest)
 }
 
 ///|
@@ -297,83 +198,52 @@ fn is_ascii_alphabetic_or_digit(ch : Char) -> Bool {
 }
 
 ///|
-fn Lexer::read_single_quoted_string(self : Self) -> Token {
-  self.advance()
+fn read_single_quoted_string(
+  input : @string.View
+) -> (Token, @string.View) raise LexerError {
   let result = StringBuilder::new()
-  for {
-    match self.current() {
-      Some('\'') => {
-        self.advance()
-        if self.current() == Some('\'') {
-          result.write_char('\'')
-          self.advance()
-        } else {
-          break
-        }
-      }
-      Some(c) => {
-        result.write_char(c)
-        self.advance()
-      }
-      None => break
+  let rest = loop input {
+    [.. "''", .. rest] => {
+      result.write_char('\'')
+      continue rest
     }
+    ['\'', .. rest] => break rest
+    [c, .. rest] => {
+      result.write_char(c)
+      continue rest
+    }
+    [] => raise LexerError::UnterminatedString
   }
-  Token::StringLiteral(result.to_string())
+  (StringLiteral(result.to_string()), rest)
 }
 
 ///|
-fn Lexer::read_double_quoted_string(self : Self) -> Token {
-  self.advance()
-  let result = StringBuilder::new()
-  for {
-    match self.current() {
-      Some('"') => {
-        self.advance()
-        if self.current() == Some('"') {
-          result.write_char('"')
-          self.advance()
-        } else {
-          break
-        }
-      }
-      Some(c) => {
-        result.write_char(c)
-        self.advance()
-      }
-      None => break
-    }
-  }
-  Token::StringLiteral(result.to_string())
-}
-
-///|
-fn Lexer::skip_line_comment(self : Self) -> Unit {
-  while not(self.current().map_or(true, c => c == '\n' || c == '\r')) {
-    self.advance()
+fn skip_line_comment(input : @string.View) -> @string.View {
+  loop input {
+    ['\r' | '\n', .. rest] => break rest
+    [_c, .. rest] => continue rest
+    [] => break []
   }
 }
 
 ///|
 test "Lexing one keyword" {
   let input = "SELECT"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let tokens = lex(input)
   inspect(tokens, content="[Keyword(Select)]")
 }
 
 ///|
 test "Lexing two keywords" {
   let input = "SELECT FROM"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let tokens = lex(input)
   inspect(tokens, content="[Keyword(Select), Keyword(From)]")
 }
 
 ///|
 test "Lexing simple query" {
   let input = "SELECT * FROM table WHERE id = 1;"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let tokens = lex(input)
   inspect(
     tokens,
     content=(
@@ -385,8 +255,7 @@ test "Lexing simple query" {
 ///|
 test "Lexing single quoted string" {
   let input = "SELECT 'Hello, World!' FROM table;"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let tokens = lex(input)
   inspect(
     tokens,
     content=(
@@ -398,8 +267,7 @@ test "Lexing single quoted string" {
 ///|
 test "Lexing single quoted string with escaped quotes" {
   let input = "SELECT 'Hello, ''World!''!' FROM table;"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let tokens = lex(input)
   inspect(
     tokens,
     content=(
@@ -410,37 +278,64 @@ test "Lexing single quoted string with escaped quotes" {
 
 ///|
 test "Lexing binary operators" {
-  let input = "< = > == != <> <= >= <=>"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let input = "< = > == <> <= >= <=>"
+  let tokens = lex(input)
+  inspect(tokens, content="[Lt, Eq, Gt, DoubleEq, Neq, LtEq, GtEq, Spaceship]")
+}
+
+///|
+test "Skip line comment" {
+  let input = "SELECT * FROM table -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n"
+  let tokens = lex(input)
   inspect(
     tokens,
-    content="[Lt, Eq, Gt, DoubleEq, Neq, Neq, LtEq, GtEq, Spaceship]",
+    content=(
+      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Eof]
+    ),
   )
 }
 
 ///|
 test "Skip line comment" {
-  let input = "SELECT * FROM table -- This is a comment\n WHERE id = 1; -- Another comment"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let input = "-- License: Apache-2.0\nSELECT * FROM table -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n 123"
+  let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
+      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Number("123")]
+    ),
+  )
+}
+
+///|
+test "Decimal point only" {
+  let input = "123 . 123 .123 123.123 .1 1.1 22.22;"
+  let tokens = lex(input)
+  inspect(
+    tokens,
+    content=(
+      #|[Number("123"), Period, Number("123"), Number(".123"), Number("123.123"), Number(".1"), Number("1.1"), Number("22.22"), Semicolon]
     ),
   )
 }
 
 ///|
 test "Decimal point" {
-  let input = "SELECT 3.14, .1 FROM table;"
-  let lexer = Lexer::new(input)
-  let tokens = lexer.lex()
+  let input = "SELECT 3.14, .11 FROM table;"
+  let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), Number("3.14"), Comma, Number(".1"), Keyword(From), Identifier("table"), Semicolon]
+      #|[Keyword(Select), Number("3.14"), Comma, Number(".11"), Keyword(From), Identifier("table"), Semicolon]
     ),
   )
+}
+
+test "Complicated" {
+  let input = "l_linestatus;\n"
+  let tokens = lex(input)
+  inspect(tokens, content=(
+    #|[Identifier("l_linestatus"), Semicolon, Eof]
+
+  ))
 }

@@ -8,844 +8,805 @@ suberror ParserError {
 } derive(Show)
 
 ///|
-pub struct Parser {
-  input : Array[Token]
-  mut offset : Int
-}
+typealias (T, ArrayView[Token]) as Parser[T]
 
 ///|
-pub fn Parser::new(input : Array[Token]) -> Parser {
-  { input, offset: 0 }
-}
-
-///|
-fn Parser::current(self : Self) -> Token? {
-  self.peek(0)
-}
-
-///|
-fn Parser::advance(self : Self) -> Unit {
-  self.offset += 1
-}
-
-///|
-fn Parser::expect(self : Self, expected : Token) -> Unit raise ParserError {
-  let cur = self.current()
-  match cur {
-    Some(c) if c == expected => self.advance()
-    Some(c) => raise UnexpectedTokenError(c, expected)
-    None =>
-      raise ParserError::InternalBug("expect: expected \{expected}, got None")
+fn expect_token(
+  tokens : ArrayView[Token],
+  expected : Token
+) -> ArrayView[Token] raise ParserError {
+  guard tokens is [token, .. tokens] && expected == token else {
+    raise UnexpectedTokenError(tokens[0], expected)
   }
+  tokens
 }
 
 ///|
-fn Parser::eat(self : Self, expected : Token) -> Bool {
-  if self.current() == Some(expected) {
-    self.advance()
-    true
-  } else {
-    false
-  }
-}
-
-///|
-fn Parser::eat_tokens(self : Self, expected : Array[Token]) -> Bool {
-  for i, token in expected {
-    if self.input.get(self.offset + i) != Some(token) {
-      return false
-    }
-  }
-  self.offset += expected.length()
-  true
-}
-
-///|
-fn Parser::peek(self : Self, nth : Int) -> Token? {
-  self.input.get(self.offset + nth)
-}
-
-///|
-fn[T] Parser::try_parse(self : Self, p : (Self) -> T raise ParserError) -> T? {
-  let start_offset = self.offset
-  Some(p(self)) catch {
-    _ => {
-      self.offset = start_offset
-      None
-    }
-  }
-}
-
-///|
-pub fn Parser::parse(self : Self) -> Array[Statement] raise ParserError {
+pub fn parse(tokens : ArrayView[Token]) -> Array[Statement] raise ParserError {
   let statements = []
-  loop self.current() {
-    Some(Token::Eof) => break
-    Some(_) => {
-      let stmt = self.parse_statement()
+  loop tokens {
+    [Token::Eof] => break
+    [] => break
+    tokens => {
+      let (stmt, tokens) = parse_statement(tokens)
       statements.push(stmt)
-      continue self.current()
+      continue tokens
     }
-    None => break
   }
   statements
 }
 
 ///|
-fn Parser::parse_statement(self : Self) -> Statement raise ParserError {
-  let stmt = match self.current() {
-    Some(Keyword(Select)) => {
-      let select_stmt = self.parse_select_statement()
-      Statement::Select(select_stmt)
+fn parse_statement(
+  tokens : ArrayView[Token]
+) -> Parser[Statement] raise ParserError {
+  let (stmt, tokens) = match tokens {
+    [Keyword(Select), .. _rest] => parse_select_statement(tokens)
+    _ => raise UnexpectedTokenError(tokens[0], Keyword(Select))
+  }
+  let tokens = expect_token(tokens, Semicolon)
+  (Select(stmt), tokens)
+}
+
+///|
+fn parse_select_statement(
+  tokens : ArrayView[Token]
+) -> Parser[SelectStmt] raise ParserError {
+  let tokens = expect_token(tokens, Keyword(Select))
+  let (projections, tokens) = parse_projections(tokens)
+  let (from, tokens) = parse_table_refs(tokens)
+  let (where_clause, tokens) = match tokens {
+    [Keyword(Where), .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      (Some(expr), tokens)
     }
-    Some(start) =>
-      raise UnexpectedTokenMessageError(start, "SQL statement starter")
-    None => raise ParserError::InternalBug("parse_statement")
+    _ => (None, tokens)
   }
-  match self.current() {
-    Some(Token::Semicolon) => self.advance()
-    Some(other) =>
-      raise UnexpectedTokenMessageError(other, "expected ';' at the end of SQL")
-    None => raise ParserError::InternalBug("parse_statement: unexpected end")
+  let (group_by, tokens) = match tokens {
+    [Keyword(Group), Keyword(By), .. tokens] => parse_group_by(tokens)
+    _ => ([], tokens)
   }
-  stmt
+  let (having, tokens) = match tokens {
+    [Keyword(Having), .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  let (order_by, tokens) = match tokens {
+    [Keyword(Order), Keyword(By), .. tokens] => parse_order_by(tokens)
+    _ => ([], tokens)
+  }
+  let (limit, tokens) = match tokens {
+    [Keyword(Limit), .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  let (offset, tokens) = match tokens {
+    [Keyword(Offset), .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  (
+    {
+      projections,
+      from,
+      where_clause,
+      group_by,
+      having,
+      order_by,
+      limit,
+      offset,
+    },
+    tokens,
+  )
 }
 
 ///|
-fn Parser::parse_select_statement(self : Self) -> SelectStmt raise ParserError {
-  self.expect(Keyword(Select))
-  let projections = self.parse_projections()
-  self.expect(Keyword(From))
-  let from = self.parse_table_refs()
-  let where_clause = if self.eat(Keyword(Where)) {
-    Some(self.parse_expr())
-  } else {
-    None
+fn parse_aliasing(
+  tokens : ArrayView[Token]
+) -> Parser[TableAlias?] raise ParserError {
+  let tokens = match tokens {
+    [Keyword(As), .. tokens] => tokens
+    tokens => tokens
   }
-  let group_by = if self.eat(Keyword(Group)) {
-    self.expect(Keyword(By))
-    self.parse_group_by()
-  } else {
-    []
-  }
-  let having = if self.eat(Keyword(Having)) {
-    Some(self.parse_expr())
-  } else {
-    None
-  }
-  let order_by = if self.eat(Keyword(Order)) {
-    self.expect(Keyword(By))
-    self.parse_order_by()
-  } else {
-    []
-  }
-  let limit = if self.eat(Keyword(Limit)) {
-    Some(self.parse_expr())
-  } else {
-    None
-  }
-  let offset = if self.eat(Keyword(Offset)) {
-    Some(self.parse_expr())
-  } else {
-    None
-  }
-  { projections, from, where_clause, group_by, having, order_by, limit, offset }
-}
-
-///|
-fn Parser::parse_aliasing(
-  self : Self,
-  error_msg : String
-) -> TableAlias? raise ParserError {
-  if self.eat(Keyword(As)) {
-    match self.current() {
-      Some(Identifier(alias_name)) => {
-        let columns = []
-        self.advance()
-        if self.eat(LParen) {
-          loop self.current() {
-            Some(Identifier(col_name)) => {
-              self.advance()
+  match tokens {
+    [Identifier(name), .. tokens] => {
+      let columns = []
+      let tokens = match tokens {
+        [LParen, .. tokens] =>
+          loop tokens {
+            [Identifier(col_name), Comma, .. tokens] => {
               columns.push(col_name)
-              if not(self.eat(Token::Comma)) {
-                self.expect(RParen)
-                break
-              }
-              continue self.current()
+              continue tokens
             }
-            Some(other) =>
+            [Identifier(col_name), RParen, .. tokens] => {
+              columns.push(col_name)
+              break tokens
+            }
+            [unknown, .. _tokens] =>
               raise UnexpectedTokenMessageError(
-                other, "expected column name in aliasing",
+                unknown, "expected column name in aliasing",
               )
-            None =>
+            [] =>
               raise ParserError::InternalBug(
-                "parse_aliasing: unexpected end of input",
+                "parse_aliasing: unexpected end of tokens",
               )
           }
-        }
-        return Some({ name: alias_name, columns })
+        tokens => tokens
       }
-      Some(unknown_token) =>
-        raise UnexpectedTokenMessageError(unknown_token, error_msg)
-      None => raise ParserError::InternalBug("parse_aliasing")
+      (Some({ name, columns }), tokens)
     }
-  } else if self.current() is Some(Identifier(alias_name)) {
-    self.advance()
-    return Some({ name: alias_name, columns: [] })
-  } else {
-    return None
+    tokens => (None, tokens)
   }
 }
 
 ///|
-fn Parser::parse_projections(
-  self : Self
-) -> Array[Projection] raise ParserError {
+fn parse_projections(
+  tokens : ArrayView[Token]
+) -> Parser[Array[Projection]] raise ParserError {
   let projections = []
-  for {
-    let proj = match self.current() {
-      Some(Token::Mul) => {
-        self.advance()
-        Projection::Wildcard
+  loop tokens {
+    [Mul, .. tokens] => {
+      projections.push(Projection::Wildcard)
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => break (projections, tokens)
       }
-      Some(_) => {
-        let expr = self.parse_expr()
-        let optional_alias = if self.eat(Keyword(As)) {
-          match self.current() {
-            Some(Identifier(alias_name)) => {
-              self.advance()
-              Some(alias_name)
-            }
-            Some(unknown_token) =>
-              raise UnexpectedTokenMessageError(
-                unknown_token, "expected alias name after 'AS'",
-              )
-            None =>
-              raise ParserError::InternalBug(
-                "parse_projections: unexpected end of input",
-              )
-          }
-        } else if self.current() is Some(Identifier(alias_name)) {
-          self.advance()
-          Some(alias_name)
-        } else {
-          None
-        }
-        match optional_alias {
-          Some(alias_name) => Projection::AliasedExpr(expr, alias_name)
-          None => Projection::UnamedExpr(expr)
-        }
-      }
-      None => raise ParserError::InternalBug("parse_projections")
     }
-    projections.push(proj)
-    if not(self.eat(Token::Comma)) {
-      return projections
+    tokens => {
+      let (expr, tokens) = parse_expr(tokens)
+      let (optional_alias, tokens) = match tokens {
+        [Keyword(As), Identifier(alias_name), .. tokens] =>
+          (Some(alias_name), tokens)
+        [Identifier(alias_name), .. tokens] => (Some(alias_name), tokens)
+        _ => (None, tokens)
+      }
+      match optional_alias {
+        Some(alias_name) =>
+          projections.push(Projection::AliasedExpr(expr, alias_name))
+        None => projections.push(Projection::UnamedExpr(expr))
+      }
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => break (projections, tokens)
+      }
     }
   }
 }
 
 ///|
-fn Parser::parse_expr(self : Self) -> Expr raise ParserError {
-  self.parse_binary_expr(0)
+fn parse_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError {
+  parse_binary_expr(tokens, 0)
 }
 
 ///|
-fn Parser::get_next_bp(self : Self) -> Int raise ParserError {
-  if self.try_binary_operator() is Some(op) {
-    op.get_precedence().value()
-  } else {
-    match self.current() {
-      Some(Keyword(Like)) | Some(Keyword(ILike)) => Precedence::Like.value()
-      Some(Keyword(Not)) =>
-        match self.peek(1) {
-          Some(Keyword(Like)) | Some(Keyword(ILike)) => Precedence::Like.value()
-          Some(Keyword(Between)) | Some(Keyword(In)) =>
-            Precedence::Between.value()
-          Some(unknown) =>
-            raise UnexpectedTokenMessageError(
-              unknown, "expected 'LIKE' or 'ILIKE' after 'NOT'",
-            )
-          None =>
-            raise ParserError::InternalBug(
-              "get_next_bp: unexpected end of input after 'NOT'",
-            )
-        }
-      Some(Keyword(Between)) | Some(Keyword(In)) => Precedence::Between.value()
-      _ => 0
-    }
+fn get_next_bp(tokens : ArrayView[Token]) -> Int {
+  match tokens {
+    [token, .. _tokens] if try_binary_operator(token) is Some(op) =>
+      op.get_precedence().value()
+    [Keyword(Like), .. _tokens]
+    | [Keyword(ILike), .. _tokens]
+    | [Keyword(Not), Keyword(Like), .. _tokens]
+    | [Keyword(Not), Keyword(ILike), .. _tokens] => Precedence::Like.value()
+    [Keyword(Between), .. _tokens]
+    | [Keyword(In), .. _tokens]
+    | [Keyword(Not), Keyword(Between), .. _tokens]
+    | [Keyword(Not), Keyword(In), .. _tokens] => Precedence::Between.value()
+    _ => 0
   }
 }
 
 ///|
-fn Parser::parse_binary_expr(
-  self : Self,
+fn parse_binary_expr(
+  tokens : ArrayView[Token],
   min_bp : Int
-) -> Expr raise ParserError {
-  let mut expr = self.parse_primary_expr()
+) -> Parser[Expr] raise ParserError {
+  let mut expr_tokens = parse_primary_expr(tokens)
   for {
-    let next_bp = self.get_next_bp()
+    let expr = expr_tokens.0
+    let tokens = expr_tokens.1
+    let next_bp = get_next_bp(tokens)
     if next_bp <= min_bp {
-      return expr
+      return (expr, tokens)
     }
-    expr = self.parse_infix(expr, next_bp)
+    expr_tokens = parse_infix(tokens, expr, next_bp)
   }
 }
 
 ///|
-fn Parser::parse_infix(
-  self : Self,
+fn parse_infix(
+  tokens : ArrayView[Token],
   left : Expr,
   min_bp : Int
-) -> Expr raise ParserError {
-  if self.try_binary_operator() is Some(op) {
-    self.advance()
-    let right = self.parse_binary_expr(min_bp)
-    Expr::BinaryOperation(left, op, right)
-  } else if self.eat_tokens([Keyword(Like)]) {
-    Expr::Like(positive=true, left, self.parse_binary_expr(min_bp))
-  } else if self.eat_tokens([Keyword(ILike)]) {
-    Expr::ILike(positive=true, left, self.parse_binary_expr(min_bp))
-  } else if self.eat_tokens([Keyword(Not), Keyword(Like)]) {
-    Expr::Like(positive=false, left, self.parse_binary_expr(min_bp))
-  } else if self.eat_tokens([Keyword(Not), Keyword(ILike)]) {
-    Expr::ILike(positive=false, left, self.parse_binary_expr(min_bp))
-  } else if self.eat_tokens([Keyword(Between)]) {
-    self.parse_between_expr(left, true)
-  } else if self.eat_tokens([Keyword(Not), Keyword(Between)]) {
-    self.parse_between_expr(left, false)
-  } else if self.eat_tokens([Keyword(In)]) {
-    self.parse_in_expr(left, true)
-  } else if self.eat_tokens([Keyword(Not), Keyword(In)]) {
-    self.parse_in_expr(left, false)
-  } else {
-    left
+) -> Parser[Expr] raise ParserError {
+  match tokens {
+    [token, .. tokens] if try_binary_operator(token) is Some(op) => {
+      let (right, tokens) = parse_binary_expr(tokens, min_bp)
+      let expr = Expr::BinaryOperation(left, op, right)
+      (expr, tokens)
+    }
+    [Keyword(Like), .. tokens] => {
+      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let expr = Expr::Like(positive=true, left, right)
+      (expr, tokens)
+    }
+    [Keyword(ILike), .. tokens] => {
+      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let expr = Expr::ILike(positive=true, left, right)
+      (expr, tokens)
+    }
+    [Keyword(Not), Keyword(Like), .. tokens] => {
+      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let expr = Expr::Like(positive=false, left, right)
+      (expr, tokens)
+    }
+    [Keyword(Not), Keyword(ILike), .. tokens] => {
+      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let expr = Expr::ILike(positive=false, left, right)
+      (expr, tokens)
+    }
+    [Keyword(Between), .. tokens] => parse_between_expr(tokens, left, true)
+    [Keyword(Not), Keyword(Between), .. tokens] =>
+      parse_between_expr(tokens, left, false)
+    [Keyword(In), .. tokens] => parse_in_expr(tokens, left, true)
+    [Keyword(Not), Keyword(In), .. tokens] => parse_in_expr(tokens, left, false)
+    _ => (left, tokens)
   }
 }
 
 ///|
-fn Parser::try_binary_operator(self : Self) -> BinaryOperator? {
-  match self.current() {
-    Some(token) =>
-      match token {
-        Token::Mul => Some(BinaryOperator::Mul)
-        Token::Plus => Some(BinaryOperator::Plus)
-        Token::Minus => Some(BinaryOperator::Minus)
-        Token::Div => Some(BinaryOperator::Div)
-        Token::Mod => Some(BinaryOperator::Mod)
-        Token::Eq => Some(BinaryOperator::Eq)
-        Token::Neq => Some(BinaryOperator::Neq)
-        Token::Lt => Some(BinaryOperator::Lt)
-        Token::Gt => Some(BinaryOperator::Gt)
-        Token::LtEq => Some(BinaryOperator::LtEq)
-        Token::GtEq => Some(BinaryOperator::GtEq)
-        Token::Spaceship => Some(BinaryOperator::Spaceship)
-        Keyword(And) => Some(BinaryOperator::And)
-        Keyword(Or) => Some(BinaryOperator::Or)
-        _ => None
-      }
-    None => None
+fn try_binary_operator(token : Token) -> BinaryOperator? {
+  match token {
+    Token::Mul => Some(BinaryOperator::Mul)
+    Token::Plus => Some(BinaryOperator::Plus)
+    Token::Minus => Some(BinaryOperator::Minus)
+    Token::Div => Some(BinaryOperator::Div)
+    Token::Mod => Some(BinaryOperator::Mod)
+    Token::Eq => Some(BinaryOperator::Eq)
+    Token::Neq => Some(BinaryOperator::Neq)
+    Token::Lt => Some(BinaryOperator::Lt)
+    Token::Gt => Some(BinaryOperator::Gt)
+    Token::LtEq => Some(BinaryOperator::LtEq)
+    Token::GtEq => Some(BinaryOperator::GtEq)
+    Token::Spaceship => Some(BinaryOperator::Spaceship)
+    Keyword(And) => Some(BinaryOperator::And)
+    Keyword(Or) => Some(BinaryOperator::Or)
+    _ => None
   }
 }
 
 ///|
-fn Parser::parse_primary_expr(self : Self) -> Expr raise ParserError {
-  match self.current() {
-    Some(Minus) | Some(Plus) => {
-      self.advance()
-      let expr = self.parse_binary_expr(Precedence::MulDivMod.value())
-      let op = if self.current() == Some(Minus) {
-        self.advance()
-        UnaryOperator::Minus
-      } else {
-        UnaryOperator::Plus
-      }
-      Expr::UnaryOperation(op, expr)
+fn parse_primary_expr(
+  tokens : ArrayView[Token]
+) -> Parser[Expr] raise ParserError {
+  match tokens {
+    [Minus as op, .. tokens] | [Plus as op, .. tokens] => {
+      let (expr, tokens) = parse_binary_expr(
+        tokens,
+        Precedence::MulDivMod.value(),
+      )
+      let op = if op == Minus { UnaryOperator::Minus } else { Plus }
+      (UnaryOperation(op, expr), tokens)
     }
-    Some(Boolean(b)) => {
-      self.advance()
-      Expr::Literal(Literal::Boolean(b))
-    }
-    Some(Null) => {
-      self.advance()
-      Expr::Literal(Literal::Null)
-    }
-    Some(Number(n)) => {
-      self.advance()
+    [Boolean(b), .. tokens] => (Literal(Literal::Boolean(b)), tokens)
+    [Null, .. tokens] => (Literal(Literal::Null), tokens)
+    [Number(n), .. tokens] =>
       if n.contains_char('.') {
         let v = @strconv.parse_double(n) catch {
           StrConvError(e) =>
             raise ParserError::InternalBug("parse_primary_expr: \{e}")
         }
-        Expr::Literal(Literal::Double(v))
+        (Literal(Literal::Double(v)), tokens)
       } else {
         let v = @strconv.parse_int(n) catch {
           StrConvError(e) =>
             raise ParserError::InternalBug("parse_primary_expr: \{e}")
         }
-        Expr::Literal(Literal::Integer(v))
+        (Literal(Literal::Integer(v)), tokens)
       }
-    }
-    Some(StringLiteral(s)) => {
-      self.advance()
-      Expr::Literal(Literal::String(s))
-    }
-    Some(Keyword(Date)) => self.parse_date_expr()
-    Some(Keyword(Interval)) => self.parse_interval_expr()
-    Some(Keyword(Extract)) => self.parse_extract_expr()
-    Some(Identifier(name)) => {
-      self.advance()
-      if self.eat(Token::LParen) {
-        let args = []
-        if not(self.eat(Token::RParen)) {
-          for {
-            let arg = self.parse_expr()
-            args.push(arg)
-            if self.eat(Token::Comma) {
-              continue
-            } else {
-              self.expect(Token::RParen)
-              break
-            }
+    [StringLiteral(s), .. tokens] => (Literal(Literal::String(s)), tokens)
+    [Keyword(Date), .. tokens] => parse_date_expr(tokens)
+    [Keyword(Interval), .. tokens] => parse_interval_expr(tokens)
+    [Keyword(Extract), .. tokens] => parse_extract_expr(tokens)
+    [Identifier(name), LParen, .. tokens] => {
+      let args = []
+      loop tokens {
+        [RParen, .. tokens] => break (FunctionCall(name, args), tokens)
+        tokens => {
+          let (arg, tokens) = parse_expr(tokens)
+          args.push(arg)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            [RParen, .. tokens] => break (FunctionCall(name, args), tokens)
+            _ =>
+              raise UnexpectedTokenMessageError(
+                tokens[0],
+                "expected ',' or ')'",
+              )
           }
         }
-        Expr::FunctionCall(name, args)
-      } else if self.eat(Token::Period) {
-        let parts = [name]
-        loop self.current() {
-          Some(Token::Identifier(part)) => {
-            self.advance()
-            parts.push(part)
-            if self.eat(Token::Period) {
-              continue self.current()
-            } else {
-              break Expr::CompoundIdentifier(parts)
-            }
-          }
-          Some(other) =>
-            raise UnexpectedTokenMessageError(
-              other, "expected another identifier after '.'",
-            )
-          None => raise ParserError::InternalBug("parse_primary_expr")
+      }
+    }
+    [Identifier(name), Period, .. tokens] => {
+      let parts = [name]
+      loop tokens {
+        [Identifier(part), Period, .. tokens] => {
+          parts.push(part)
+          continue tokens
         }
-      } else {
-        Expr::Identifier(name)
-      }
-    }
-    Some(Keyword(Exists)) => {
-      self.advance()
-      self.expect(Token::LParen)
-      let sub_query = self.parse_select_statement()
-      self.expect(Token::RParen)
-      Exists(positive=true, sub_query)
-    }
-    Some(Keyword(Not)) => {
-      self.advance()
-      if self.eat(Keyword(Exists)) {
-        self.expect(Token::LParen)
-        let sub_query = self.parse_select_statement()
-        self.expect(Token::RParen)
-        Exists(positive=false, sub_query)
-      } else {
-        let expr = self.parse_binary_expr(Precedence::UnaryNot.value())
-        Expr::UnaryOperation(UnaryOperator::Not, expr)
-      }
-    }
-    Some(Keyword(Case)) => self.parse_case_expr()
-    Some(Token::LParen) => {
-      self.advance()
-      if self.try_parse(Parser::parse_select_statement) is Some(sub_query) {
-        self.expect(Token::RParen)
-        Expr::SubQuery(sub_query)
-      } else {
-        let expr = self.parse_expr()
-        self.expect(Token::RParen)
-        expr
-      }
-    }
-    Some(Token::Mul) => {
-      self.advance()
-      Expr::Wildcard
-    }
-    Some(token) => raise UnimplementedError("parse_primary_expr: \{token}")
-    None => raise ParserError::InternalBug("parse_primary_expr")
-  }
-}
-
-///|
-fn Parser::parse_table_refs(self : Self) -> Array[TableRef] raise ParserError {
-  let table_refs = []
-  loop self.current() {
-    Some(Identifier(_)) | Some(LParen) | Some(StringLiteral(_)) => {
-      table_refs.push(self.parse_table_ref())
-      if self.eat(Token::Comma) {
-        continue self.current()
-      } else {
-        break table_refs
-      }
-    }
-    Some(unknown) =>
-      raise UnexpectedTokenMessageError(
-        unknown, "expected a table name or identifier",
-      )
-    None => raise ParserError::InternalBug("parse_table_refs")
-  }
-}
-
-///|
-fn Parser::parse_table_ref(self : Self) -> TableRef raise ParserError {
-  let factor = self.parse_table_factor()
-  let joins = []
-  for {
-    match self.current() {
-      Some(Keyword(Join))
-      | Some(Keyword(Left))
-      | Some(Keyword(Right))
-      | Some(Keyword(Full))
-      | Some(Keyword(Inner)) => {
-        let join_operator_maker = if self.eat_tokens([Keyword(Join)]) {
-          JoinOperator::Join(_)
-        } else if self.eat_tokens([Keyword(Left), Keyword(Join)]) {
-          Left(_)
-        } else if self.eat_tokens([Keyword(Left), Keyword(Outer), Keyword(Join)]) {
-          LeftOuter(_)
-        } else if self.eat_tokens([Keyword(Right), Keyword(Join)]) {
-          Right(_)
-        } else if self.eat_tokens([
-            Keyword(Right),
-            Keyword(Outer),
-            Keyword(Join),
-          ]) {
-          RightOuter(_)
-        } else if self.eat_tokens([Keyword(Full), Keyword(Join)]) {
-          Full(_)
-        } else if self.eat_tokens([Keyword(Full), Keyword(Outer), Keyword(Join)]) {
-          FullOuter(_)
-        } else if self.eat_tokens([Keyword(Inner), Keyword(Join)]) {
-          Inner(_)
-        } else {
+        [Identifier(part), .. tokens] => {
+          parts.push(part)
+          break (CompoundIdentifier(parts), tokens)
+        }
+        [token, .. _tokens] =>
           raise UnexpectedTokenMessageError(
-            self.current().unwrap(),
-            "expected 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'INNER JOIN', or 'CROSS JOIN'",
+            token, "expected another identifier after '.'",
           )
-        }
-        let table_ref = self.parse_table_ref()
-        if self.eat(Keyword(On)) {
-          let constraint = self.parse_expr()
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_primary_expr: unexpected end of tokens",
+          )
+      }
+    }
+    [Identifier(name), .. tokens] => (Identifier(name), tokens)
+    [Keyword(Exists), LParen, .. tokens] => {
+      let (sub_query, tokens) = parse_select_statement(tokens)
+      match tokens {
+        [RParen, .. tokens] => (Expr::Exists(positive=true, sub_query), tokens)
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected ')'")
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_primary_expr: unexpected end of tokens",
+          )
+      }
+    }
+    [Keyword(Not), Keyword(Exists), LParen, .. tokens] => {
+      let (sub_query, tokens) = parse_select_statement(tokens)
+      match tokens {
+        [RParen, .. tokens] => (Expr::Exists(positive=false, sub_query), tokens)
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected ')'")
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_primary_expr: unexpected end of tokens",
+          )
+      }
+    }
+    [Keyword(Not), .. tokens] => {
+      let (expr, tokens) = parse_binary_expr(
+        tokens,
+        Precedence::UnaryNot.value(),
+      )
+      (Expr::UnaryOperation(UnaryOperator::Not, expr), tokens)
+    }
+    [Keyword(Case), .. tokens] => parse_case_expr(tokens)
+    [Token::LParen, .. tokens] => {
+      let (expr, tokens) = try parse_select_statement(tokens) catch {
+        _ => parse_expr(tokens)
+      } noraise {
+        (stmt, tokens) => (Expr::SubQuery(stmt), tokens)
+      }
+      let tokens = expect_token(tokens, RParen)
+      (expr, tokens)
+    }
+    [Token::Mul, .. tokens] => (Expr::Wildcard, tokens)
+    [token, .. _tokens] =>
+      raise UnimplementedError("parse_primary_expr: \{token}")
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_primary_expr: unexpected end of tokens",
+      )
+  }
+}
+
+///|
+fn parse_table_refs(
+  tokens : ArrayView[Token]
+) -> Parser[Array[TableRef]] raise ParserError {
+  let tokens = expect_token(tokens, Keyword(From))
+  let table_refs = []
+  loop tokens {
+    tokens => {
+      let (table_ref, tokens) = parse_table_ref(tokens)
+      table_refs.push(table_ref)
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        tokens => break (table_refs, tokens)
+      }
+    }
+  }
+}
+
+///|
+fn parse_table_ref(
+  tokens : ArrayView[Token]
+) -> Parser[TableRef] raise ParserError {
+  let (factor, tokens) = parse_table_factor(tokens)
+  let joins = []
+  let tokens = loop tokens {
+    tokens if tokens[0] is Keyword(Join) ||
+      tokens[0] is Keyword(Left) ||
+      tokens[0] is Keyword(Right) ||
+      tokens[0] is Keyword(Full) ||
+      tokens[0] is Keyword(Inner) => {
+      let (join_operator_maker, tokens) = match tokens {
+        [Keyword(Join), .. tokens] => (JoinOperator::Join(_), tokens)
+        [Keyword(Left), Keyword(Join), .. tokens] =>
+          (JoinOperator::Left(_), tokens)
+        [Keyword(Left), Keyword(Outer), Keyword(Join), .. tokens] =>
+          (JoinOperator::LeftOuter(_), tokens)
+        [Keyword(Right), Keyword(Join), .. tokens] =>
+          (JoinOperator::Right(_), tokens)
+        [Keyword(Right), Keyword(Outer), Keyword(Join), .. tokens] =>
+          (JoinOperator::RightOuter(_), tokens)
+        [Keyword(Full), Keyword(Join), .. tokens] =>
+          (JoinOperator::Full(_), tokens)
+        [Keyword(Full), Keyword(Outer), Keyword(Join), .. tokens] =>
+          (JoinOperator::FullOuter(_), tokens)
+        [Keyword(Inner), Keyword(Join), .. tokens] =>
+          (JoinOperator::Inner(_), tokens)
+        _ =>
+          raise UnexpectedTokenMessageError(
+            tokens[0],
+            "expected 'JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN', 'FULL OUTER JOIN', 'INNER JOIN'",
+          )
+      }
+      let (table_ref, tokens) = parse_table_ref(tokens)
+      match tokens {
+        [Keyword(On), .. tokens] => {
+          let (constraint, tokens) = parse_expr(tokens)
           joins.push({
             join_operator: join_operator_maker(On(constraint)),
             table_ref,
           })
-        } else if self.eat(Keyword(Using)) {
+          continue tokens
+        }
+        [Keyword(Using), .. tokens] => {
           let columns = []
-          self.expect(LParen)
-          loop self.current() {
-            Some(Identifier(col_name)) => {
-              self.advance()
-              columns.push(col_name)
-              if not(self.eat(Token::Comma)) {
-                break
-              } else {
-                continue self.current()
+          let tokens = match tokens {
+            [LParen, .. tokens] =>
+              loop tokens {
+                [Identifier(col_name), Comma, .. tokens] => {
+                  columns.push(col_name)
+                  continue tokens
+                }
+                [Identifier(col_name), RParen, .. tokens] => {
+                  columns.push(col_name)
+                  break tokens
+                }
+                [unknown, .. _tokens] =>
+                  raise UnexpectedTokenMessageError(
+                    unknown, "expected column name in USING clause",
+                  )
+                [] =>
+                  raise ParserError::InternalBug(
+                    "parse_table_ref: unexpected end of tokens",
+                  )
               }
-            }
-            Some(other) =>
+            [token, .. _tokens] =>
               raise UnexpectedTokenMessageError(
-                other, "expected column name in USING clause",
+                token, "expected '(' after 'USING'",
               )
-            None => raise ParserError::InternalBug("parse_table_ref")
+            [] =>
+              raise ParserError::InternalBug(
+                "parse_table_ref: unexpected end of tokens",
+              )
           }
-          self.expect(RParen)
           joins.push({
             join_operator: join_operator_maker(Using(columns)),
             table_ref,
           })
-        } else {
+          continue tokens
+        }
+        tokens => {
           joins.push({ join_operator: join_operator_maker(None), table_ref })
+          continue tokens
         }
       }
-      Some(Keyword(Cross)) =>
-        if self.eat_tokens([Keyword(Cross), Keyword(Join)]) {
-          let table_ref = self.parse_table_ref()
-          joins.push({ join_operator: Cross, table_ref })
-        } else {
-          raise UnexpectedTokenMessageError(
-            self.peek(1).unwrap(),
-            "expected 'CROSS JOIN'",
-          )
-        }
-      Some(_other) => break
-      None => raise ParserError::InternalBug("parse_table_ref")
     }
+    [Keyword(Cross), Keyword(Join), .. tokens] => {
+      let (table_ref, tokens) = parse_table_ref(tokens)
+      joins.push({ join_operator: JoinOperator::Cross, table_ref })
+      continue tokens
+    }
+    tokens => break tokens
   }
-  { factor, joins }
+  ({ factor, joins }, tokens)
 }
 
 ///|
-fn Parser::parse_table_factor(self : Self) -> TableFactor raise ParserError {
-  match self.current() {
-    Some(Identifier(name)) => {
-      self.advance()
-      let optional_alias = self.parse_aliasing(
-        "expected alias name after table name",
-      )
-      TableFactor::Column(name, optional_alias)
+fn parse_table_factor(
+  tokens : ArrayView[Token]
+) -> Parser[TableFactor] raise ParserError {
+  match tokens {
+    [Identifier(name), .. tokens] => {
+      let (optional_alias, tokens) = parse_aliasing(tokens)
+      (TableFactor::Column(name, optional_alias), tokens)
     }
-    Some(StringLiteral(name)) => {
-      self.advance()
-      let optional_alias = self.parse_aliasing(
-        "expected alias name after table name",
-      )
-      TableFactor::Column(name, optional_alias)
+    [StringLiteral(name), .. tokens] => {
+      let (optional_alias, tokens) = parse_aliasing(tokens)
+      (TableFactor::Column(name, optional_alias), tokens)
     }
-    Some(Token::LParen) => {
-      self.advance()
-      let sub_query = self.parse_select_statement()
-      self.expect(Token::RParen)
-      let optional_alias = self.parse_aliasing(
-        "expected alias name after subquery",
-      )
-      TableFactor::SubQuery(sub_query, optional_alias)
+    [Token::LParen, .. tokens] => {
+      let (sub_query, tokens) = parse_select_statement(tokens)
+      let tokens = expect_token(tokens, RParen)
+      let (optional_alias, tokens) = parse_aliasing(tokens)
+      (TableFactor::SubQuery(sub_query, optional_alias), tokens)
     }
-    Some(other) =>
+    [token, .. _tokens] =>
       raise UnexpectedTokenMessageError(
-        other, "expected a table name or subquery",
+        token, "expected a table name or subquery",
       )
-    None => raise ParserError::InternalBug("parse_table_factor")
-  }
-}
-
-///|
-fn Parser::parse_group_by(self : Self) -> Array[Expr] raise ParserError {
-  let group_by = []
-  for {
-    let expr = self.parse_expr()
-    group_by.push(expr)
-    if not(self.eat(Token::Comma)) {
-      return group_by
-    }
-  }
-  raise ParserError::InternalBug("parse_group_by: unexpected end of input")
-}
-
-///|
-fn Parser::parse_order_by(self : Self) -> Array[OrderByExpr] raise ParserError {
-  let order_by = []
-  for {
-    let order_by_expr = self.parse_order_by_expr()
-    order_by.push(order_by_expr)
-    if not(self.eat(Token::Comma)) {
-      return order_by
-    }
-  }
-  raise ParserError::InternalBug("parse_order_by: unexpected end of input")
-}
-
-///|
-fn Parser::parse_order_by_expr(self : Self) -> OrderByExpr raise ParserError {
-  let expr = self.parse_expr()
-  let asc = if self.eat(Keyword(Asc)) {
-    Some(true)
-  } else if self.eat(Keyword(Desc)) {
-    Some(false)
-  } else {
-    None
-  }
-  let nulls_first = if self.eat(Keyword(Nulls)) {
-    if self.eat(Keyword(First)) {
-      Some(true)
-    } else if self.eat(Keyword(Last)) {
-      Some(false)
-    } else {
-      raise UnexpectedTokenMessageError(
-        self.current().unwrap(),
-        "expected 'FIRST' or 'LAST' after 'NULLS'",
-      )
-    }
-  } else {
-    None
-  }
-  { expr, asc, nulls_first }
-}
-
-///|
-fn Parser::parse_date_expr(self : Self) -> Expr raise ParserError {
-  self.expect(Keyword(Date))
-  match self.current() {
-    Some(Token::StringLiteral(s)) => {
-      self.advance()
-      Expr::Datetime(s)
-    }
-    Some(unknown_token) =>
-      raise UnexpectedTokenMessageError(
-        unknown_token, "expected a string literal after 'DATE'",
-      )
-    None =>
-      raise ParserError::InternalBug("parse_date_expr: unexpected end of input")
-  }
-}
-
-///|
-fn Parser::parse_interval_expr(self : Self) -> Expr raise ParserError {
-  self.expect(Keyword(Interval))
-  match self.current() {
-    Some(Token::StringLiteral(s)) => {
-      self.advance()
-      let qualifier = self.parse_interval_qualifier()
-      Expr::Interval(s, qualifier)
-    }
-    Some(unknown_token) =>
-      raise UnexpectedTokenMessageError(
-        unknown_token, "expected a string literal after 'INTERVAL'",
-      )
-    None =>
+    [] =>
       raise ParserError::InternalBug(
-        "parse_interval_expr: unexpected end of input",
+        "parse_table_factor: unexpected end of tokens",
       )
   }
 }
 
 ///|
-fn Parser::parse_extract_expr(self : Self) -> Expr raise ParserError {
-  self.expect(Keyword(Extract))
-  self.expect(Token::LParen)
-  let field = self.parse_primary_datetime_field()
-  self.expect(Keyword(From))
-  let expr = self.parse_expr()
-  self.expect(Token::RParen)
-  Expr::Extract(field, expr)
+fn parse_group_by(
+  tokens : ArrayView[Token]
+) -> Parser[Array[Expr]] raise ParserError {
+  let group_by = []
+  loop tokens {
+    tokens => {
+      let (expr, tokens) = parse_expr(tokens)
+      group_by.push(expr)
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => break (group_by, tokens)
+      }
+    }
+  }
 }
 
 ///|
-fn Parser::parse_case_expr(self : Self) -> Expr raise ParserError {
-  self.expect(Keyword(Case))
-  let when_clauses = []
-  let mut else_expr : Expr? = None
-  let operand : Expr? = if self.current() is Some(Keyword(When)) {
-    None
-  } else {
-    Some(self.parse_expr())
-  }
-  loop self.current() {
-    Some(Keyword(When)) => {
-      self.advance()
-      let condition = self.parse_expr()
-      self.expect(Keyword(Then))
-      let result = self.parse_expr()
-      when_clauses.push((condition, result))
-      continue self.current()
+fn parse_order_by(
+  tokens : ArrayView[Token]
+) -> Parser[Array[OrderByExpr]] raise ParserError {
+  let order_by = []
+  loop tokens {
+    tokens => {
+      let (order_by_expr, tokens) = parse_order_by_expr(tokens)
+      order_by.push(order_by_expr)
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => break (order_by, tokens)
+      }
     }
-    Some(Keyword(Else)) => {
-      self.advance()
+  }
+}
+
+///|
+fn parse_order_by_expr(
+  tokens : ArrayView[Token]
+) -> Parser[OrderByExpr] raise ParserError {
+  let (expr, tokens) = parse_expr(tokens)
+  let (asc, tokens) = match tokens {
+    [Keyword(Asc), .. tokens] => (Some(true), tokens)
+    [Keyword(Desc), .. tokens] => (Some(false), tokens)
+    _ => (None, tokens)
+  }
+  let (nulls_first, tokens) = match tokens {
+    [Keyword(Nulls), Keyword(First), .. tokens] => (Some(true), tokens)
+    [Keyword(Nulls), Keyword(Last), .. tokens] => (Some(false), tokens)
+    _ => (None, tokens)
+  }
+  ({ expr, asc, nulls_first }, tokens)
+}
+
+///|
+fn parse_date_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError {
+  match tokens {
+    [StringLiteral(s), .. tokens] => (Expr::Datetime(s), tokens)
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected a string literal after 'DATE'",
+      )
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_date_expr: unexpected end of tokens",
+      )
+  }
+}
+
+///|
+fn parse_interval_expr(
+  tokens : ArrayView[Token]
+) -> Parser[Expr] raise ParserError {
+  match tokens {
+    [StringLiteral(s), .. tokens] => {
+      let (qualifier, tokens) = parse_interval_qualifier(tokens)
+      (Expr::Interval(s, qualifier), tokens)
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected a string literal after 'INTERVAL'",
+      )
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_interval_expr: unexpected end of tokens",
+      )
+  }
+}
+
+///|
+fn parse_extract_expr(
+  tokens : ArrayView[Token]
+) -> Parser[Expr] raise ParserError {
+  match tokens {
+    [LParen, .. tokens] => {
+      let (field, tokens) = parse_primary_datetime_field(tokens)
+      let tokens = expect_token(tokens, Keyword(From))
+      let (expr, tokens) = parse_expr(tokens)
+      let tokens = expect_token(tokens, RParen)
+      (Expr::Extract(field, expr), tokens)
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected 'EXTRACT('")
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_extract_expr: unexpected end of tokens",
+      )
+  }
+}
+
+///|
+fn parse_case_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError {
+  let when_then_clauses = []
+  let mut else_expr : Expr? = None
+  let (operand, tokens) : (Expr?, _) = match tokens {
+    [Keyword(When), ..] => (None, tokens)
+    tokens => {
+      let (expr, tokens) = parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+  }
+  loop tokens {
+    [Keyword(When), .. tokens] => {
+      let (condition, tokens) = parse_expr(tokens)
+      let tokens = expect_token(tokens, Keyword(Then))
+      let (result, tokens) = parse_expr(tokens)
+      when_then_clauses.push((condition, result))
+      continue tokens
+    }
+    [Keyword(Else), .. tokens] => {
       if else_expr is Some(_e) {
         raise MultipleElseInCaseExprError
       }
-      else_expr = Some(self.parse_expr())
-      continue self.current()
+      let (expr, tokens) = parse_expr(tokens)
+      else_expr = Some(expr)
+      continue tokens
     }
-    Some(Keyword(End)) => {
-      self.advance()
-      break Expr::Case({ when_then_clauses: when_clauses, else_expr, operand })
+    [Keyword(End), .. tokens] => {
+      let case_expr = Expr::Case({ when_then_clauses, else_expr, operand })
+      break (case_expr, tokens)
     }
-    Some(other) =>
+    [token, .. _tokens] =>
       raise UnexpectedTokenMessageError(
-        other, "expected 'WHEN', 'ELSE', or 'END'",
+        token, "expected 'WHEN', 'ELSE', or 'END'",
       )
-    None =>
-      raise ParserError::InternalBug("parse_case_expr: unexpected end of input")
-  }
-}
-
-///|
-fn Parser::parse_interval_qualifier(
-  self : Self
-) -> IntervalQualifier raise ParserError {
-  let field1 = self.parse_primary_datetime_field()
-  if self.eat(Keyword(To)) {
-    let field2 = self.parse_primary_datetime_field()
-    IntervalQualifier::Range(field1, field2)
-  } else {
-    IntervalQualifier::Single(field1)
-  }
-}
-
-///|
-fn Parser::parse_primary_datetime_field(
-  self : Self
-) -> PrimaryDatetimeField raise ParserError {
-  match self.current() {
-    Some(keyword) if datetime_unit_from_keyword(keyword) is Some(field) => {
-      self.advance()
-      let precision = if self.eat(Token::LParen) {
-        match self.current() {
-          Some(Number(n)) => {
-            self.advance()
-            self.expect(Token::RParen)
-            let p = @strconv.parse_int(n) catch {
-              StrConvError(e) =>
-                raise ParserError::InternalBug(
-                  "parse_primary_datetime_field: \{e}",
-                )
-            }
-            Some(p)
-          }
-          Some(other) =>
-            raise UnexpectedTokenMessageError(
-              other,
-              "datetime \{keyword} expected a number after '('",
-            )
-          None => raise ParserError::InternalBug("parse_primary_datetime_field")
-        }
-      } else {
-        None
-      }
-      { field, precision }
-    }
-    Some(other) =>
-      raise UnexpectedTokenMessageError(
-        other, "expected a primary datetime field keyword (YEAR, MONTH, etc.)",
-      )
-    None =>
+    [] =>
       raise ParserError::InternalBug(
-        "parse_primary_datetime_field: unexpected end of input",
+        "parse_case_expr: unexpected end of tokens",
       )
   }
 }
 
 ///|
-fn Parser::parse_between_expr(
-  self : Self,
-  left : Expr,
-  positive : Bool
-) -> Expr raise ParserError {
-  let low = self.parse_binary_expr(Precedence::Between.value())
-  self.expect(Keyword(And))
-  let hi = self.parse_binary_expr(Precedence::Between.value())
-  Expr::Between(positive~, left, low, hi)
+fn parse_interval_qualifier(
+  tokens : ArrayView[Token]
+) -> Parser[IntervalQualifier] raise ParserError {
+  let (field1, tokens) = parse_primary_datetime_field(tokens)
+  match tokens {
+    [Keyword(To), .. tokens] => {
+      let field2 = parse_primary_datetime_field(tokens)
+      match field2 {
+        (field2, tokens) => (IntervalQualifier::Range(field1, field2), tokens)
+      }
+    }
+    _ => (IntervalQualifier::Single(field1), tokens)
+  }
 }
 
 ///|
-fn Parser::parse_in_expr(
-  self : Self,
+fn parse_primary_datetime_field(
+  tokens : ArrayView[Token]
+) -> Parser[PrimaryDatetimeField] raise ParserError {
+  match tokens {
+    [keyword, .. tokens] if datetime_unit_from_keyword(keyword) is Some(field) => {
+      let (precision, tokens) = match tokens {
+        [LParen, Number(n), RParen, .. tokens] => {
+          let p = @strconv.parse_int(n) catch {
+            StrConvError(e) =>
+              raise ParserError::InternalBug(
+                "parse_primary_datetime_field: \{e}",
+              )
+          }
+          (Some(p), tokens)
+        }
+        tokens => (None, tokens)
+      }
+      ({ field, precision }, tokens)
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected a datetime unit keyword (e.g., YEAR, MONTH, DAY, etc.)",
+      )
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_primary_datetime_field: unexpected end of tokens",
+      )
+  }
+}
+
+///|
+fn parse_between_expr(
+  tokens : ArrayView[Token],
   left : Expr,
   positive : Bool
-) -> Expr raise ParserError {
-  self.expect(Token::LParen)
-  if self.try_parse(fn(p) { p.parse_select_statement() }) is Some(sub_query) {
-    self.expect(Token::RParen)
-    Expr::InSubQuery(positive~, left, sub_query)
-  } else {
-    let items = []
-    for {
-      let item = self.parse_expr()
-      items.push(item)
-      if self.eat(Token::Comma) {
-        continue
-      } else {
-        self.expect(Token::RParen)
-        break Expr::InList(positive~, left, items)
-      }
+) -> Parser[Expr] raise ParserError {
+  let (low, tokens) = parse_binary_expr(tokens, Precedence::Between.value())
+  match tokens {
+    [Keyword(And), .. tokens] => {
+      let (hi, tokens) = parse_binary_expr(tokens, Precedence::Between.value())
+      (Expr::Between(positive~, left, low, hi), tokens)
     }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected 'AND'")
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_between_expr: unexpected end of tokens",
+      )
+  }
+}
+
+///|
+fn parse_in_expr(
+  tokens : ArrayView[Token],
+  left : Expr,
+  positive : Bool
+) -> Parser[Expr] raise ParserError {
+  let tokens = expect_token(tokens, LParen)
+  try parse_select_statement(tokens) catch {
+    _ => {
+      let items = []
+      let tokens = loop tokens {
+        tokens => {
+          let (item, tokens) = parse_expr(tokens)
+          items.push(item)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            [RParen, .. tokens] => break tokens
+            [token, .. _tokens] =>
+              raise UnexpectedTokenMessageError(token, "expected ',' or ')'")
+            [] =>
+              raise ParserError::InternalBug(
+                "parse_in_expr: unexpected end of tokens",
+              )
+          }
+        }
+      }
+      (Expr::InList(positive~, left, items), tokens)
+    }
+  } noraise {
+    (stmt, tokens) =>
+      match tokens {
+        [RParen, .. tokens] => (Expr::InSubQuery(positive~, left, stmt), tokens)
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected ')'")
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_in_expr: unexpected end of tokens",
+          )
+      }
   }
 }
 
@@ -864,15 +825,14 @@ fn datetime_unit_from_keyword(keyword : Token) -> DatetimeUnit? {
 
 ///|
 test "Parse simple select statement" {
-  let input = [
+  let tokens = [
     Keyword(Select),
     Token::Mul,
     Keyword(From),
     Token::Identifier("t"),
     Token::Semicolon,
   ]
-  let parser = Parser::new(input)
-  let stmt = parser.parse()[0]
+  let stmt = parse(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -886,8 +846,8 @@ test "Parse simple select statement" {
 
 ///|
 test "Parse select with two columns" {
-  let input = "SELECT col1, col2 FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT col1, col2 FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -902,8 +862,8 @@ test "Parse select with two columns" {
 
 ///|
 test "Parse select with function call" {
-  let input = "SELECT MAX(arg1, arg2), MIN() as m FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT MAX(arg1, arg2), MIN() as m FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -918,8 +878,8 @@ test "Parse select with function call" {
 
 ///|
 test "Nested expression" {
-  let input = "SELECT sum(l_extendedprice * (1 - l_discount)) FROM lineitem;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT sum(l_extendedprice * (1 - l_discount)) FROM lineitem;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -933,8 +893,8 @@ test "Nested expression" {
 
 ///|
 test "Binary expression" {
-  let input = "SELECT 1 + 2 * 3 FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT 1 + 2 * 3 FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -948,8 +908,8 @@ test "Binary expression" {
 
 ///|
 test "Complecated binary expression" {
-  let input = "SELECT sum(a * (1 - b) * (2 + b)) AS c FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT sum(a * (1 - b) * (2 + b)) AS c FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -963,8 +923,8 @@ test "Complecated binary expression" {
 
 ///|
 test "Selection clause" {
-  let input = "SELECT * FROM t WHERE id = 1;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t WHERE id = 1;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -980,8 +940,8 @@ test "Selection clause" {
 
 ///|
 test "Like, ilike, not like, not ilike" {
-  let input = "SELECT * FROM t WHERE name LIKE 'test' AND name ILIKE 'TEST' AND name NOT LIKE 'test2' AND name NOT ILIKE 'TEST2';"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t WHERE name LIKE 'test' AND name ILIKE 'TEST' AND name NOT LIKE 'test2' AND name NOT ILIKE 'TEST2';"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1000,8 +960,8 @@ test "Like, ilike, not like, not ilike" {
 
 ///|
 test "From multiple table refs" {
-  let input = "SELECT * FROM t1, t2;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1, t2;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1016,8 +976,8 @@ test "From multiple table refs" {
 
 ///|
 test "SubQuery" {
-  let input = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1038,8 +998,8 @@ test "SubQuery" {
 
 ///|
 test "Exists, not exists" {
-  let input = "SELECT * FROM t WHERE EXISTS (SELECT 1 FROM t2) AND NOT EXISTS (SELECT 1 FROM t3);"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t WHERE EXISTS (SELECT 1 FROM t2) AND NOT EXISTS (SELECT 1 FROM t3);"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1066,8 +1026,8 @@ test "Exists, not exists" {
 
 ///|
 test "Between and" {
-  let input = "SELECT * FROM t WHERE id BETWEEN 1 AND 10;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t WHERE id BETWEEN 1 AND 10;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1083,8 +1043,8 @@ test "Between and" {
 
 ///|
 test "Compound identifiers" {
-  let input = "SELECT t1.col1, t2.col2 FROM t1, t2;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT t1.col1, t2.col2 FROM t1, t2;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1100,8 +1060,8 @@ test "Compound identifiers" {
 
 ///|
 test "Extract function" {
-  let input = "SELECT EXTRACT(YEAR FROM date_col) FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT EXTRACT(YEAR FROM date_col) FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1115,8 +1075,8 @@ test "Extract function" {
 
 ///|
 test "Aliasing omits AS" {
-  let input = "SELECT col1 c1, col2 FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT col1 c1, col2 FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1131,8 +1091,8 @@ test "Aliasing omits AS" {
 
 ///|
 test "Case when" {
-  let input = "SELECT CASE WHEN a > 0 THEN 'positive' WHEN a < 0 THEN 'negative' ELSE 'zero' END AS result FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT CASE WHEN a > 0 THEN 'positive' WHEN a < 0 THEN 'negative' ELSE 'zero' END AS result FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1150,8 +1110,8 @@ test "Case when" {
 
 ///|
 test "Having" {
-  let input = "SELECT col1, COUNT(*) FROM t GROUP BY col1 HAVING COUNT(*) > 1;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT col1, COUNT(*) FROM t GROUP BY col1 HAVING COUNT(*) > 1;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1170,8 +1130,8 @@ test "Having" {
 
 ///|
 test "In list" {
-  let input = "SELECT * FROM t WHERE col1 IN (1, 2, 3);"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t WHERE col1 IN (1, 2, 3);"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1187,8 +1147,8 @@ test "In list" {
 
 ///|
 test "In subquery" {
-  let input = "SELECT * FROM t WHERE col1 IN (SELECT col2 FROM t2);"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t WHERE col1 IN (SELECT col2 FROM t2);"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1209,8 +1169,8 @@ test "In subquery" {
 
 ///|
 test "Join with ON condition" {
-  let input = "SELECT * FROM t1 JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1 JOIN t2 ON t1.id = t2.id;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1225,8 +1185,8 @@ test "Join with ON condition" {
 
 ///|
 test "Cross join" {
-  let input = "SELECT * FROM t1 CROSS JOIN t2;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1 CROSS JOIN t2;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1240,8 +1200,8 @@ test "Cross join" {
 
 ///|
 test "Left join" {
-  let input = "SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.id GROUP BY x;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.id GROUP BY x;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1258,8 +1218,8 @@ test "Left join" {
 
 ///|
 test "Right join" {
-  let input = "SELECT * FROM t1 RIGHT JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1 RIGHT JOIN t2 ON t1.id = t2.id;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1274,8 +1234,8 @@ test "Right join" {
 
 ///|
 test "Full outer join" {
-  let input = "SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.id = t2.id;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1290,8 +1250,8 @@ test "Full outer join" {
 
 ///|
 test "Null, true and false" {
-  let input = "SELECT NULL, true, false FROM t1;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT NULL, true, false FROM t1;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1307,14 +1267,14 @@ test "Null, true and false" {
 
 ///|
 test "Unary plus and minus" {
-  let input = "SELECT +1, -2 FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT +1, -2 FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
       #|SELECT
       #|  +1,
-      #|  +2
+      #|  -2
       #|FROM
       #|  t;
     ),
@@ -1323,8 +1283,8 @@ test "Unary plus and minus" {
 
 ///|
 test "Unary not expression" {
-  let input = "SELECT NOT a FROM t;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT NOT a FROM t;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1338,8 +1298,8 @@ test "Unary not expression" {
 
 ///|
 test "Using clause in join" {
-  let input = "SELECT * FROM t1 JOIN t2 USING (id);"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t1 JOIN t2 USING (id);"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1354,8 +1314,8 @@ test "Using clause in join" {
 
 ///|
 test "Multiple statements" {
-  let input = "SELECT * FROM t1; SELECT * FROM t2;"
-  let stmts = parse_sql(input)
+  let tokens = "SELECT * FROM t1; SELECT * FROM t2;"
+  let stmts = parse_sql(tokens)
   inspect(
     stmts,
     content=(
@@ -1374,8 +1334,8 @@ test "Multiple statements" {
 
 ///|
 test "String literal as column" {
-  let input = "SELECT test FROM 't';"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT test FROM 't';"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1389,8 +1349,8 @@ test "String literal as column" {
 
 ///|
 test "Limit and offset" {
-  let input = "SELECT * FROM t LIMIT 10 OFFSET 5;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t LIMIT 10 OFFSET 5;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1408,8 +1368,8 @@ test "Limit and offset" {
 
 ///|
 test "Limit without offset" {
-  let input = "SELECT * FROM t LIMIT N;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t LIMIT N;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
@@ -1425,8 +1385,8 @@ test "Limit without offset" {
 
 ///|
 test "Offset without limit" {
-  let input = "SELECT * FROM t OFFSET N;"
-  let stmt = parse_sql(input)[0]
+  let tokens = "SELECT * FROM t OFFSET N;"
+  let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
