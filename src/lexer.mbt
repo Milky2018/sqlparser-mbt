@@ -189,6 +189,7 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "offset" => Keyword(Offset)
     "create" => Keyword(Create)
     "table" => Keyword(Table)
+    "integer" => Keyword(Integer)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

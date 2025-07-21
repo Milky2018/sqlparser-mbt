@@ -49,4 +49,5 @@ pub(all) enum Keyword {
   Offset
   Create
   Table
+  Integer
 } derive(Eq, Show)

@@ -17,13 +17,6 @@ fn[T, U] Parser::map(self : Parser[T], f : (T) -> U) -> Parser[U] {
 }
 
 ///|
-fn[T, U] Parser::bind(self : Parser[T], f : (T) -> Parser[U]) -> Parser[U] {
-  let (result, _tokens) = self
-  let (next_result, next_tokens) = f(result)
-  (next_result, next_tokens)
-}
-
-///|
 fn expect_token(
   tokens : ArrayView[Token],
   expected : Token

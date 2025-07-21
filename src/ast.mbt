@@ -702,7 +702,7 @@ pub struct CreateTableStmt {
   /// CREATE TABLE <table_name>
   name : String
   /// (<col_name> <col_type>, ...)
-  columns : Array[(String, String)]
+  columns : Array[ColumnDef]
   /// PRIMARY KEY <key>
   primary_key : String?
 } derive(Eq)
@@ -711,10 +711,42 @@ pub struct CreateTableStmt {
 impl @pp.Pretty for CreateTableStmt with pretty(self) {
   @pp.text("CREATE TABLE ") +
   @pp.text(self.name) +
-  @pp.parens(
-    @pp.separate(
-      @pp.text(", "),
-      self.columns.map(fn(col) { @pp.text("\{col.0} \{col.1}") }),
-    ),
-  )
+  @pp.text(" (") +
+  @pp.nest(
+    @pp.hardline +
+    @pp.separate(@pp.text(", ") + @pp.hardline, self.columns.map(@pp.pretty)),
+  ) +
+  @pp.hardline +
+  @pp.text(")")
+}
+
+///|
+pub struct ColumnDef {
+  name : String
+  data_type : DataType
+  // options
+} derive(Eq)
+
+///|
+impl @pp.Pretty for ColumnDef with pretty(self) {
+  @pp.text(self.name) + @pp.space + self.data_type.pretty()
+}
+
+///|
+pub enum DataType {
+  Integer
+  // Double
+  // String
+  // Boolean
+  // Date
+  // Datetime
+  // Timestamp
+  // Interval
+} derive(Eq)
+
+///|
+impl @pp.Pretty for DataType with pretty(self) {
+  match self {
+    Integer => @pp.text("INTEGER")
+  }
 }
