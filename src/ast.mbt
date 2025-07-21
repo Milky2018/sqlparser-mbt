@@ -724,12 +724,16 @@ impl @pp.Pretty for CreateTableStmt with pretty(self) {
 pub struct ColumnDef {
   name : String
   data_type : DataType
-  // options
+  options : Array[ColumnDefOption]
 } derive(Eq)
 
 ///|
 impl @pp.Pretty for ColumnDef with pretty(self) {
-  @pp.text(self.name) + @pp.space + self.data_type.pretty()
+  @pp.text(self.name) +
+  @pp.space +
+  self.data_type.pretty() +
+  @pp.space +
+  @pp.separate(@pp.space, self.options.map(@pp.pretty))
 }
 
 ///|
@@ -761,5 +765,21 @@ impl @pp.Pretty for DataType with pretty(self) {
     Boolean => @pp.text("BOOLEAN")
     Timestamp => @pp.text("TIMESTAMP")
     Blob => @pp.text("BLOB")
+  }
+}
+
+///|
+pub enum ColumnDefOption {
+  NotNull
+  Unique
+  Default(Expr)
+} derive(Eq)
+
+///|
+impl @pp.Pretty for ColumnDefOption with pretty(self) {
+  match self {
+    NotNull => @pp.text("NOT NULL")
+    Unique => @pp.text("UNIQUE")
+    Default(expr) => @pp.text("DEFAULT ") + expr.pretty()
   }
 }

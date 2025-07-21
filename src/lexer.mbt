@@ -11,7 +11,6 @@ pub(all) enum Token {
   Number(String)
   StringLiteral(String)
   Boolean(Bool)
-  Null
   Comma
   Semicolon
   Eq
@@ -139,7 +138,6 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
   let token = match input.charcodes(start=0, end=idx).to_lower() {
     "true" => Token::Boolean(true)
     "false" => Boolean(false)
-    "null" => Null
     "select" => Keyword(Select)
     "from" => Keyword(From)
     "where" => Keyword(Where)
@@ -206,6 +204,9 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "float" => Keyword(Float)
     "timestamp" => Keyword(Timestamp)
     "blob" => Keyword(Blob)
+    "null" => Keyword(Null)
+    "default" => Keyword(Default)
+    "unique" => Keyword(Unique)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

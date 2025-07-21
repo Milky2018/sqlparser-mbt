@@ -33,7 +33,8 @@ fn parse_column_defs(
     loop tokens {
       [Identifier(name), .. tokens] => {
         let (data_type, tokens) = parse_data_type(tokens)
-        columns.push({ name, data_type })
+        let (options, tokens) = parse_column_def_option(tokens)
+        columns.push({ name, data_type, options })
         // let (option, tokens) = try parse_column_option() {} noraise {}
         match tokens {
           [Comma, .. tokens] => continue tokens
@@ -137,6 +138,45 @@ test "Many kinds of data types" {
       #|  updated_at TIMESTAMP, 
       #|  description TEXT, 
       #|  profile_picture BLOB
+      #|);
+    ),
+  )
+}
+
+///|
+fn parse_column_def_option(
+  tokens : ArrayView[Token]
+) -> Parser[Array[ColumnDefOption]] raise ParserError {
+  let options = []
+  let tokens = loop tokens {
+    [Keyword(Unique), .. tokens] => {
+      options.push(ColumnDefOption::Unique)
+      continue tokens
+    }
+    [Keyword(Not), Keyword(Null), .. tokens] => {
+      options.push(NotNull)
+      continue tokens
+    }
+    [Keyword(Default), .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      options.push(Default(expr))
+      continue tokens
+    }
+    tokens => break tokens
+  }
+  (options, tokens)
+}
+
+///|
+test "With options" {
+  let tokens = "CREATE TABLE users (id INTEGER NOT NULL, name INTEGER DEFAULT 18);"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  id INTEGER NOT NULL, 
+      #|  name INTEGER DEFAULT 18
       #|);
     ),
   )

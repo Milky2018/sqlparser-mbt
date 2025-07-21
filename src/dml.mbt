@@ -1,4 +1,3 @@
-
 ///|
 fn parse_select_statement(
   tokens : ArrayView[Token]
@@ -245,7 +244,7 @@ fn parse_primary_expr(
       (UnaryOperation(op, expr), tokens)
     }
     [Boolean(b), .. tokens] => (Literal(Literal::Boolean(b)), tokens)
-    [Null, .. tokens] => (Literal(Literal::Null), tokens)
+    [Keyword(Null), .. tokens] => (Literal(Literal::Null), tokens)
     [Number(n), .. tokens] =>
       if n.contains_char('.') {
         let v = @strconv.parse_double(n) catch {
@@ -870,7 +869,16 @@ test "Selection clause" {
 
 ///|
 test "Like, ilike, not like, not ilike" {
-  let tokens = "SELECT * FROM t WHERE name LIKE 'test' AND name ILIKE 'TEST' AND name NOT LIKE 'test2' AND name NOT ILIKE 'TEST2';"
+  let tokens =
+    #|SELECT 
+    #|  * 
+    #|FROM 
+    #|  t 
+    #|WHERE 
+    #|  name LIKE 'test' 
+    #|  AND name ILIKE 'TEST' 
+    #|  AND name NOT LIKE 'test2' 
+    #|  AND name NOT ILIKE 'TEST2';
   let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
