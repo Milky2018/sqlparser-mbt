@@ -62,6 +62,32 @@ fn parse_data_type(
 ) -> Parser[DataType] raise ParserError {
   match tokens {
     [Keyword(Integer), .. tokens] => (Integer, tokens)
+    [Keyword(Int), .. tokens] => (Integer, tokens)
+    [Keyword(Float), LParen, Number(n), RParen, .. tokens] => {
+      let n = @strconv.parse_int(n) catch {
+        _ => raise ParserError::InvalidDataTypeError(n)
+      }
+      (Float(Some(n)), tokens)
+    }
+    [Keyword(Float), .. tokens] => (Float(None), tokens)
+    [Keyword(Real), .. tokens] => (Real, tokens)
+    [Keyword(Double), .. tokens] => (Double, tokens)
+    [Keyword(Char), LParen, Number(n), RParen, .. tokens] => {
+      let n = @strconv.parse_int(n) catch {
+        _ => raise ParserError::InvalidDataTypeError(n)
+      }
+      (Char(n), tokens)
+    }
+    [Keyword(Varchar), LParen, Number(n), RParen, .. tokens] => {
+      let n = @strconv.parse_int(n) catch {
+        _ => raise ParserError::InvalidDataTypeError(n)
+      }
+      (Varchar(n), tokens)
+    }
+    [Keyword(Text), .. tokens] => (Text, tokens)
+    [Keyword(Boolean), .. tokens] => (Boolean, tokens)
+    [Keyword(Timestamp), .. tokens] => (Timestamp, tokens)
+    [Keyword(Blob), .. tokens] => (Blob, tokens)
     [token, .. _tokens] =>
       raise UnexpectedTokenMessageError(token, "expected data type")
     [] => raise InternalBug("parse_data_type: unexpected end of tokens")
@@ -78,6 +104,39 @@ test "Create table with two columns" {
       #|CREATE TABLE users (
       #|  id INTEGER, 
       #|  name INTEGER
+      #|);
+    ),
+  )
+}
+
+///|
+test "Many kinds of data types" {
+  let tokens =
+    #|CREATE TABLE users (
+    #|  id INTEGER,
+    #|  name VARCHAR(100),
+    #|  age INT,
+    #|  active BOOLEAN,
+    #|  balance FLOAT(2),
+    #|  created_at TIMESTAMP,
+    #|  updated_at TIMESTAMP,
+    #|  description TEXT,
+    #|  profile_picture BLOB
+    #|);
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  id INTEGER, 
+      #|  name VARCHAR(100), 
+      #|  age INTEGER, 
+      #|  active BOOLEAN, 
+      #|  balance FLOAT(2), 
+      #|  created_at TIMESTAMP, 
+      #|  updated_at TIMESTAMP, 
+      #|  description TEXT, 
+      #|  profile_picture BLOB
       #|);
     ),
   )

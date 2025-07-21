@@ -735,12 +735,15 @@ impl @pp.Pretty for ColumnDef with pretty(self) {
 ///|
 pub enum DataType {
   Integer
-  // Double
-  // String
-  // Boolean
-  // Date
-  // Datetime
-  // Timestamp
+  Float(Int?)
+  Real
+  Double
+  Char(Int)
+  Varchar(Int)
+  Text
+  Boolean
+  Timestamp
+  Blob
   // Interval
 } derive(Eq)
 
@@ -748,5 +751,15 @@ pub enum DataType {
 impl @pp.Pretty for DataType with pretty(self) {
   match self {
     Integer => @pp.text("INTEGER")
+    Float(Some(p)) => @pp.text("FLOAT(\{p})")
+    Float(None) => @pp.text("FLOAT")
+    Real => @pp.text("REAL")
+    Double => @pp.text("DOUBLE")
+    Char(size) => @pp.text("CHAR(\{size})")
+    Varchar(size) => @pp.text("VARCHAR(\{size})")
+    Text => @pp.text("TEXT")
+    Boolean => @pp.text("BOOLEAN")
+    Timestamp => @pp.text("TIMESTAMP")
+    Blob => @pp.text("BLOB")
   }
 }

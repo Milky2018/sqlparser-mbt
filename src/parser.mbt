@@ -5,6 +5,7 @@ suberror ParserError {
   MultipleElseInCaseExprError
   UnimplementedError(String)
   InternalBug(String)
+  InvalidDataTypeError(String)
 } derive(Show)
 
 ///|
@@ -21,10 +22,11 @@ fn expect_token(
   tokens : ArrayView[Token],
   expected : Token
 ) -> ArrayView[Token] raise ParserError {
-  guard tokens is [token, .. tokens] && expected == token else {
-    raise UnexpectedTokenError(tokens[0], expected)
+  match tokens {
+    [token, .. tokens] if token == expected => tokens
+    [token, .. _tokens] => raise UnexpectedTokenError(token, expected)
+    [] => raise UnexpectedTokenError(Token::Eof, expected)
   }
-  tokens
 }
 
 ///|

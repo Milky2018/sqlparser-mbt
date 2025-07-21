@@ -50,4 +50,20 @@ pub(all) enum Keyword {
   Create
   Table
   Integer
+  Int
+  Smallint
+  Bigint
+  Real
+  Double
+  Precision
+  Char
+  Character
+  Varchar
+  Varing
+  Text
+  Time
+  Boolean
+  Float
+  Timestamp
+  Blob 
 } derive(Eq, Show)
