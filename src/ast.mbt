@@ -45,17 +45,17 @@ pub impl Show for Statement with output(self, logger) {
 
 ///|
 pub struct SelectStmt {
-  // SELECT <projections>
+  /// SELECT <projections>
   projections : Array[Projection]
-  // FROM <table_refs>
+  /// FROM <table_refs>
   from : Array[TableRef]
-  // WHERE <where_clause>
+  /// WHERE <where_clause>
   where_clause : Expr?
-  // GROUP BY <group_by>
+  /// GROUP BY <group_by>
   group_by : Array[Expr]
-  // HAVING <expr>
+  /// HAVING <expr>
   having : Expr?
-  // ORDER BY <order_by>
+  /// ORDER BY <order_by>
   order_by : Array[OrderByExpr]
   limit : Expr?
   offset : Expr?

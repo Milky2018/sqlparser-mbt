@@ -331,11 +331,14 @@ test "Decimal point" {
   )
 }
 
+///|
 test "Complicated" {
   let input = "l_linestatus;\n"
   let tokens = lex(input)
-  inspect(tokens, content=(
-    #|[Identifier("l_linestatus"), Semicolon, Eof]
-
-  ))
+  inspect(
+    tokens,
+    content=(
+      #|[Identifier("l_linestatus"), Semicolon, Eof]
+    ),
+  )
 }
