@@ -47,4 +47,6 @@ pub(all) enum Keyword {
   Using
   Limit
   Offset
+  Create
+  Table
 } derive(Eq, Show)

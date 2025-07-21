@@ -25,6 +25,7 @@ pub enum Statement {
   // Insert(InsertStmt)
   // Update(UpdateStmt)
   // Delete(DeleteStmt)
+  CreateTable(CreateTableStmt)
 } derive(Eq)
 
 ///|
@@ -34,6 +35,7 @@ impl @pp.Pretty for Statement with pretty(self) {
     // Statement::Insert(stmt) => @pp.text("Insert: \{stmt}")
     // Statement::Update(stmt) => @pp.text("Update: \{stmt}")
     // Statement::Delete(stmt) => @pp.text("Delete: \{stmt}")
+    CreateTable(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -691,6 +693,28 @@ test "Case when" {
       #|  WHEN c THEN d
       #|  ELSE e
       #|END
+    ),
+  )
+}
+
+///|
+pub struct CreateTableStmt {
+  /// CREATE TABLE <table_name>
+  name : String
+  /// (<col_name> <col_type>, ...)
+  columns : Array[(String, String)]
+  /// PRIMARY KEY <key>
+  primary_key : String?
+} derive(Eq)
+
+///|
+impl @pp.Pretty for CreateTableStmt with pretty(self) {
+  @pp.text("CREATE TABLE ") +
+  @pp.text(self.name) +
+  @pp.parens(
+    @pp.separate(
+      @pp.text(", "),
+      self.columns.map(fn(col) { @pp.text("\{col.0} \{col.1}") }),
     ),
   )
 }
