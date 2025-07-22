@@ -1,25 +1,5 @@
 ///|
-fn read_and_parse(path : String) -> @sqlparser.Statement {
-  let input = @fs.read_file_to_string(path) catch {
-    e => {
-      println("Read file error: \{e.to_string()}")
-      panic()
-    }
-  }
-  @sqlparser.parse_sql(input)[0] catch {
-    LexerError(e) => {
-      println(e)
-      panic()
-    }
-    ParserError(e) => {
-      println(e)
-      panic()
-    }
-  }
-}
-
-///|
-fn read_and_parse_many(path : String) -> @sqlparser.Statements {
+fn read_and_parse(path : String) -> @sqlparser.Statements {
   let input = @fs.read_file_to_string(path) catch {
     e => {
       println("Read file error: \{e.to_string()}")
@@ -269,12 +249,14 @@ test "TPCH 7" {
       #|      AND c_custkey = o_custkey 
       #|      AND s_nationkey = n1.n_nationkey 
       #|      AND c_nationkey = n2.n_nationkey 
-      #|      AND (
+      #|      AND ((
       #|        n1.n_name = 'FRANCE' 
-      #|        AND n2.n_name = 'GERMANY' 
-      #|        OR n1.n_name = 'GERMANY' 
-      #|        AND n2.n_name = 'FRANCE'
+      #|        AND n2.n_name = 'GERMANY'
       #|      ) 
+      #|      OR (
+      #|        n1.n_name = 'GERMANY' 
+      #|        AND n2.n_name = 'FRANCE'
+      #|      )) 
       #|      AND l_shipdate BETWEEN DATE '1995-01-01' AND DATE '1996-12-31'
       #|  ) AS shipping
       #|GROUP BY
@@ -547,7 +529,7 @@ test "TPCH 14" {
 
 ///|
 test "TPCH 15" {
-  let stmt = read_and_parse_many("src/tests/tpch/15.sql")
+  let stmt = read_and_parse("src/tests/tpch/15.sql")
   inspect(
     stmt,
     content=(
@@ -584,7 +566,310 @@ test "TPCH 15" {
       #|  s_suppkey;
       #|
       #|DROP VIEW revenue0;
-
     ),
   )
+}
+
+///|
+test "TPCH 16" {
+  let stmt = read_and_parse("src/tests/tpch/16.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  p_brand,
+      #|  p_type,
+      #|  p_size,
+      #|  count(DISTINCT ps_suppkey) AS supplier_cnt
+      #|FROM
+      #|  partsupp,
+      #|  part
+      #|WHERE
+      #|  p_partkey = ps_partkey 
+      #|  AND p_brand <> 'Brand#45' 
+      #|  AND p_type NOT LIKE 'MEDIUM POLISHED%' 
+      #|  AND p_size IN (49, 14, 23, 45, 19, 3, 36, 9) 
+      #|  AND ps_suppkey NOT IN (
+      #|    SELECT
+      #|      s_suppkey
+      #|    FROM
+      #|      supplier
+      #|    WHERE
+      #|      s_comment LIKE '%Customer%Complaints%'
+      #|  )
+      #|GROUP BY
+      #|  p_brand,
+      #|  p_type,
+      #|  p_size
+      #|ORDER BY
+      #|  supplier_cnt DESC,
+      #|  p_brand,
+      #|  p_type,
+      #|  p_size;
+    ),
+  )
+}
+
+///|
+test "TPCH 17" {
+  let stmt = read_and_parse("src/tests/tpch/17.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  sum(l_extendedprice) / 7 AS avg_yearly
+      #|FROM
+      #|  lineitem,
+      #|  part
+      #|WHERE
+      #|  p_partkey = l_partkey 
+      #|  AND p_brand = 'Brand#23' 
+      #|  AND p_container = 'MED BOX' 
+      #|  AND l_quantity < (
+      #|    SELECT
+      #|      0.2 * avg(l_quantity)
+      #|    FROM
+      #|      lineitem
+      #|    WHERE
+      #|      l_partkey = p_partkey
+      #|  );
+    ),
+  )
+}
+
+///|
+test "TPCH 18" {
+  let stmt = read_and_parse("src/tests/tpch/18.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  c_name,
+      #|  c_custkey,
+      #|  o_orderkey,
+      #|  o_orderdate,
+      #|  o_totalprice,
+      #|  sum(l_quantity)
+      #|FROM
+      #|  customer,
+      #|  orders,
+      #|  lineitem
+      #|WHERE
+      #|  o_orderkey IN (
+      #|    SELECT
+      #|      l_orderkey
+      #|    FROM
+      #|      lineitem
+      #|    GROUP BY
+      #|      l_orderkey
+      #|    HAVING
+      #|      sum(l_quantity) > 300
+      #|  ) 
+      #|  AND c_custkey = o_custkey 
+      #|  AND o_orderkey = l_orderkey
+      #|GROUP BY
+      #|  c_name,
+      #|  c_custkey,
+      #|  o_orderkey,
+      #|  o_orderdate,
+      #|  o_totalprice
+      #|ORDER BY
+      #|  o_totalprice DESC,
+      #|  o_orderdate;
+    ),
+  )
+}
+
+///|
+test "TPCH 19" {
+  let stmt = read_and_parse("src/tests/tpch/19.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  sum(l_extendedprice * (1 - l_discount)) AS revenue
+      #|FROM
+      #|  lineitem,
+      #|  part
+      #|WHERE
+      #|  (
+      #|    p_partkey = l_partkey 
+      #|    AND p_brand = 'Brand#12' 
+      #|    AND p_container IN ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG') 
+      #|    AND l_quantity >= 1 
+      #|    AND l_quantity <= 1 + 10 
+      #|    AND p_size BETWEEN 1 AND 5 
+      #|    AND l_shipmode IN ('AIR', 'AIR REG') 
+      #|    AND l_shipinstruct = 'DELIVER IN PERSON'
+      #|  ) 
+      #|  OR (
+      #|    p_partkey = l_partkey 
+      #|    AND p_brand = 'Brand#23' 
+      #|    AND p_container IN ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK') 
+      #|    AND l_quantity >= 10 
+      #|    AND l_quantity <= 10 + 10 
+      #|    AND p_size BETWEEN 1 AND 10 
+      #|    AND l_shipmode IN ('AIR', 'AIR REG') 
+      #|    AND l_shipinstruct = 'DELIVER IN PERSON'
+      #|  ) 
+      #|  OR (
+      #|    p_partkey = l_partkey 
+      #|    AND p_brand = 'Brand#34' 
+      #|    AND p_container IN ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG') 
+      #|    AND l_quantity >= 20 
+      #|    AND l_quantity <= 20 + 10 
+      #|    AND p_size BETWEEN 1 AND 15 
+      #|    AND l_shipmode IN ('AIR', 'AIR REG') 
+      #|    AND l_shipinstruct = 'DELIVER IN PERSON'
+      #|  );
+    ),
+  )
+}
+
+///|
+test "TPCH 20" {
+  let stmt = read_and_parse("src/tests/tpch/20.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  s_name,
+      #|  s_address
+      #|FROM
+      #|  supplier,
+      #|  nation
+      #|WHERE
+      #|  s_suppkey IN (
+      #|    SELECT
+      #|      ps_suppkey
+      #|    FROM
+      #|      partsupp
+      #|    WHERE
+      #|      ps_partkey IN (
+      #|        SELECT
+      #|          p_partkey
+      #|        FROM
+      #|          part
+      #|        WHERE
+      #|          p_name LIKE 'forest%'
+      #|      ) 
+      #|      AND ps_availqty > (
+      #|        SELECT
+      #|          0.5 * sum(l_quantity)
+      #|        FROM
+      #|          lineitem
+      #|        WHERE
+      #|          l_partkey = ps_partkey 
+      #|          AND l_suppkey = ps_suppkey 
+      #|          AND l_shipdate >= DATE '1994-01-01' 
+      #|          AND l_shipdate < DATE '1994-01-01' + INTERVAL '1' YEAR
+      #|      )
+      #|  ) 
+      #|  AND s_nationkey = n_nationkey 
+      #|  AND n_name = 'CANADA'
+      #|ORDER BY
+      #|  s_name;
+    ),
+  )
+}
+
+///|
+test "TPCH 20" {
+  let stmt = read_and_parse("src/tests/tpch/20.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  s_name,
+      #|  s_address
+      #|FROM
+      #|  supplier,
+      #|  nation
+      #|WHERE
+      #|  s_suppkey IN (
+      #|    SELECT
+      #|      ps_suppkey
+      #|    FROM
+      #|      partsupp
+      #|    WHERE
+      #|      ps_partkey IN (
+      #|        SELECT
+      #|          p_partkey
+      #|        FROM
+      #|          part
+      #|        WHERE
+      #|          p_name LIKE 'forest%'
+      #|      ) 
+      #|      AND ps_availqty > (
+      #|        SELECT
+      #|          0.5 * sum(l_quantity)
+      #|        FROM
+      #|          lineitem
+      #|        WHERE
+      #|          l_partkey = ps_partkey 
+      #|          AND l_suppkey = ps_suppkey 
+      #|          AND l_shipdate >= DATE '1994-01-01' 
+      #|          AND l_shipdate < DATE '1994-01-01' + INTERVAL '1' YEAR
+      #|      )
+      #|  ) 
+      #|  AND s_nationkey = n_nationkey 
+      #|  AND n_name = 'CANADA'
+      #|ORDER BY
+      #|  s_name;
+    ),
+  )
+}
+
+///|
+test "TPCH 21" {
+  let stmt = read_and_parse("src/tests/tpch/21.sql")
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  s_name,
+      #|  count(*) AS numwait
+      #|FROM
+      #|  supplier,
+      #|  lineitem AS l1,
+      #|  orders,
+      #|  nation
+      #|WHERE
+      #|  s_suppkey = l1.l_suppkey 
+      #|  AND o_orderkey = l1.l_orderkey 
+      #|  AND o_orderstatus = 'F' 
+      #|  AND l1.l_receiptdate > l1.l_commitdate 
+      #|  AND EXISTS (
+      #|  SELECT
+      #|      *
+      #|    FROM
+      #|      lineitem AS l2
+      #|    WHERE
+      #|      l2.l_orderkey = l1.l_orderkey 
+      #|      AND l2.l_suppkey <> l1.l_suppkey
+      #|  ) 
+      #|  AND NOT EXISTS (
+      #|  SELECT
+      #|      *
+      #|    FROM
+      #|      lineitem AS l3
+      #|    WHERE
+      #|      l3.l_orderkey = l1.l_orderkey 
+      #|      AND l3.l_suppkey <> l1.l_suppkey 
+      #|      AND l3.l_receiptdate > l3.l_commitdate
+      #|  ) 
+      #|  AND s_nationkey = n_nationkey 
+      #|  AND n_name = 'SAUDI ARABIA'
+      #|GROUP BY
+      #|  s_name
+      #|ORDER BY
+      #|  numwait DESC,
+      #|  s_name;
+    ),
+  )
+}
+
+test "TPCH 22" {
+  let stmt = read_and_parse("src/tests/tpch/22.sql")
+  inspect(stmt) 
 }

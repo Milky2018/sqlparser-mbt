@@ -71,4 +71,6 @@ pub(all) enum Keyword {
   Unique
   View
   Drop
+  Distinct
+  All
 } derive(Eq, Show)

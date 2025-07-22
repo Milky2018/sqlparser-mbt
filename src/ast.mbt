@@ -164,7 +164,7 @@ pub enum Expr {
   /// - <expr>
   UnaryOperation(UnaryOperator, Expr)
   /// sum(*)
-  FunctionCall(String, Array[Expr])
+  FunctionCall(String, DuplicateTreatment?, Array[Expr])
   /// *
   Wildcard
   /// DATE '1998-05-19'
@@ -193,7 +193,8 @@ pub enum Expr {
 
 ///|
 fn wrap_parens(expr : Expr, current_op : BinaryOperator) -> @pp.Document {
-  if expr is Expr::BinaryOperation(_, Or, _) {
+  if current_op == BinaryOperator::Or &&
+    expr is Expr::BinaryOperation(_, And, _) {
     @pp.parens(@pp.nest(@pp.hardline + expr.pretty()) + @pp.hardline)
   } else if expr is Expr::BinaryOperation(_, op, _) &&
     op.get_precedence().value() < current_op.get_precedence().value() {
@@ -217,9 +218,12 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.space +
       wrap_parens(right, op)
     Expr::UnaryOperation(op, expr) => op.pretty() + expr.pretty()
-    Expr::FunctionCall(name, args) =>
+    Expr::FunctionCall(name, dup, args) =>
       @pp.text(name) +
-      @pp.parens(@pp.separate(@pp.text(", "), args.map(@pp.pretty)))
+      @pp.parens(
+        (if dup is Some(dup) { dup.pretty() + @pp.space } else { @pp.empty }) +
+        @pp.separate(@pp.text(", "), args.map(@pp.pretty)),
+      )
     Expr::Wildcard => @pp.char('*')
     Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
     Interval(s, qualifier) =>
@@ -824,11 +828,29 @@ impl @pp.Pretty for ViewColumnDef with pretty(self) {
   @pp.text(self.name)
 }
 
+///|
 pub struct DropViewStmt {
   /// DROP VIEW <view_name>
   name : String
 } derive(Eq)
 
+///|
 impl @pp.Pretty for DropViewStmt with pretty(self) {
   @pp.text("DROP VIEW ") + @pp.text(self.name)
+}
+
+///|
+pub enum DuplicateTreatment {
+  /// DISTINCT
+  Distinct
+  /// ALL
+  All
+} derive(Eq)
+
+///|
+impl @pp.Pretty for DuplicateTreatment with pretty(self) {
+  match self {
+    DuplicateTreatment::Distinct => @pp.text("DISTINCT")
+    DuplicateTreatment::All => @pp.text("ALL")
+  }
 }

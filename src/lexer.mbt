@@ -209,6 +209,8 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "unique" => Keyword(Unique)
     "view" => Keyword(View)
     "drop" => Keyword(Drop)
+    "distinct" => Keyword(Distinct)
+    "all" => Keyword(All)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

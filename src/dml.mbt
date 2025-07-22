@@ -265,14 +265,20 @@ fn parse_primary_expr(
     [Keyword(Extract), .. tokens] => parse_extract_expr(tokens)
     [Identifier(name), LParen, .. tokens] => {
       let args = []
+      let (dup, tokens) = match tokens {
+        [Keyword(Distinct), .. tokens] =>
+          (Some(DuplicateTreatment::Distinct), tokens)
+        [Keyword(All), .. tokens] => (Some(DuplicateTreatment::All), tokens)
+        tokens => (None, tokens)
+      }
       loop tokens {
-        [RParen, .. tokens] => break (FunctionCall(name, args), tokens)
+        [RParen, .. tokens] => break (FunctionCall(name, dup, args), tokens)
         tokens => {
           let (arg, tokens) = parse_expr(tokens)
           args.push(arg)
           match tokens {
             [Comma, .. tokens] => continue tokens
-            [RParen, .. tokens] => break (FunctionCall(name, args), tokens)
+            [RParen, .. tokens] => break (FunctionCall(name, dup, args), tokens)
             _ =>
               raise UnexpectedTokenMessageError(
                 tokens[0],
@@ -1334,6 +1340,21 @@ test "Offset without limit" {
       #|  t
       #|OFFSET
       #|  n;
+    ),
+  )
+}
+
+///|
+test "Duplicate treatment" {
+  let tokens = "SELECT COUNT(DISTINCT *) FROM t;"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  count(DISTINCT *)
+      #|FROM
+      #|  t;
     ),
   )
 }
