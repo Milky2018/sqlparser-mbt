@@ -72,7 +72,7 @@ test "Parse simple select statement" {
     Token::Identifier("t"),
     Token::Semicolon,
   ]
-  let stmt = parse(tokens)[0]
+  let stmt = parse(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(

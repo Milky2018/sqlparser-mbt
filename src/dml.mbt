@@ -818,7 +818,7 @@ fn parse_substring_expr(
 ///|
 test "Parse select with two columns" {
   let tokens = "SELECT col1, col2 FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -834,7 +834,7 @@ test "Parse select with two columns" {
 ///|
 test "Parse select with function call" {
   let tokens = "SELECT MAX(arg1, arg2), MIN() as m FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -850,7 +850,7 @@ test "Parse select with function call" {
 ///|
 test "Nested expression" {
   let tokens = "SELECT sum(l_extendedprice * (1 - l_discount)) FROM lineitem;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -865,7 +865,7 @@ test "Nested expression" {
 ///|
 test "Binary expression" {
   let tokens = "SELECT 1 + 2 * 3 FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -880,7 +880,7 @@ test "Binary expression" {
 ///|
 test "Complecated binary expression" {
   let tokens = "SELECT sum(a * (1 - b) * (2 + b)) AS c FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -895,7 +895,7 @@ test "Complecated binary expression" {
 ///|
 test "Selection clause" {
   let tokens = "SELECT * FROM t WHERE id = 1;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -921,7 +921,7 @@ test "Like, ilike, not like, not ilike" {
     #|  AND name ILIKE 'TEST' 
     #|  AND name NOT LIKE 'test2' 
     #|  AND name NOT ILIKE 'TEST2';
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -941,7 +941,7 @@ test "Like, ilike, not like, not ilike" {
 ///|
 test "From multiple table refs" {
   let tokens = "SELECT * FROM t1, t2;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -957,7 +957,7 @@ test "From multiple table refs" {
 ///|
 test "SubQuery" {
   let tokens = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -979,7 +979,7 @@ test "SubQuery" {
 ///|
 test "Exists, not exists" {
   let tokens = "SELECT * FROM t WHERE EXISTS (SELECT 1 FROM t2) AND NOT EXISTS (SELECT 1 FROM t3);"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1007,7 +1007,7 @@ test "Exists, not exists" {
 ///|
 test "Between and" {
   let tokens = "SELECT * FROM t WHERE id BETWEEN 1 AND 10;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1024,7 +1024,7 @@ test "Between and" {
 ///|
 test "Compound identifiers" {
   let tokens = "SELECT t1.col1, t2.col2 FROM t1, t2;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1041,7 +1041,7 @@ test "Compound identifiers" {
 ///|
 test "Extract function" {
   let tokens = "SELECT EXTRACT(YEAR FROM date_col) FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1056,7 +1056,7 @@ test "Extract function" {
 ///|
 test "Aliasing omits AS" {
   let tokens = "SELECT col1 c1, col2 FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1072,7 +1072,7 @@ test "Aliasing omits AS" {
 ///|
 test "Case when" {
   let tokens = "SELECT CASE WHEN a > 0 THEN 'positive' WHEN a < 0 THEN 'negative' ELSE 'zero' END AS result FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1091,7 +1091,7 @@ test "Case when" {
 ///|
 test "Having" {
   let tokens = "SELECT col1, COUNT(*) FROM t GROUP BY col1 HAVING COUNT(*) > 1;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1111,7 +1111,7 @@ test "Having" {
 ///|
 test "In list" {
   let tokens = "SELECT * FROM t WHERE col1 IN (1, 2, 3);"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1128,7 +1128,7 @@ test "In list" {
 ///|
 test "In subquery" {
   let tokens = "SELECT * FROM t WHERE col1 IN (SELECT col2 FROM t2);"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1150,7 +1150,7 @@ test "In subquery" {
 ///|
 test "Join with ON condition" {
   let tokens = "SELECT * FROM t1 JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1166,7 +1166,7 @@ test "Join with ON condition" {
 ///|
 test "Cross join" {
   let tokens = "SELECT * FROM t1 CROSS JOIN t2;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1181,7 +1181,7 @@ test "Cross join" {
 ///|
 test "Left join" {
   let tokens = "SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.id GROUP BY x;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1199,7 +1199,7 @@ test "Left join" {
 ///|
 test "Right join" {
   let tokens = "SELECT * FROM t1 RIGHT JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1215,7 +1215,7 @@ test "Right join" {
 ///|
 test "Full outer join" {
   let tokens = "SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.id = t2.id;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1231,7 +1231,7 @@ test "Full outer join" {
 ///|
 test "Null, true and false" {
   let tokens = "SELECT NULL, true, false FROM t1;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1248,7 +1248,7 @@ test "Null, true and false" {
 ///|
 test "Unary plus and minus" {
   let tokens = "SELECT +1, -2 FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1264,7 +1264,7 @@ test "Unary plus and minus" {
 ///|
 test "Unary not expression" {
   let tokens = "SELECT NOT a FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1279,7 +1279,7 @@ test "Unary not expression" {
 ///|
 test "Using clause in join" {
   let tokens = "SELECT * FROM t1 JOIN t2 USING (id);"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1295,7 +1295,7 @@ test "Using clause in join" {
 ///|
 test "Multiple statements" {
   let tokens = "SELECT * FROM t1; SELECT * FROM t2;"
-  let stmts = parse_sql(tokens)
+  let stmts = parse_sql(tokens) |> pretty_print
   inspect(
     stmts,
     content=(
@@ -1315,7 +1315,7 @@ test "Multiple statements" {
 ///|
 test "String literal as column" {
   let tokens = "SELECT test FROM 't';"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1330,7 +1330,7 @@ test "String literal as column" {
 ///|
 test "Limit and offset" {
   let tokens = "SELECT * FROM t LIMIT 10 OFFSET 5;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1349,7 +1349,7 @@ test "Limit and offset" {
 ///|
 test "Limit without offset" {
   let tokens = "SELECT * FROM t LIMIT N;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1366,7 +1366,7 @@ test "Limit without offset" {
 ///|
 test "Offset without limit" {
   let tokens = "SELECT * FROM t OFFSET N;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1383,7 +1383,7 @@ test "Offset without limit" {
 ///|
 test "Duplicate treatment" {
   let tokens = "SELECT COUNT(DISTINCT *) FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1398,7 +1398,7 @@ test "Duplicate treatment" {
 ///|
 test "Substring" {
   let tokens = "SELECT SUBSTRING(col FROM 1 FOR 5) FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1413,7 +1413,7 @@ test "Substring" {
 ///|
 test "Substring with start only" {
   let tokens = "SELECT SUBSTRING(col FROM 1) FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1428,7 +1428,7 @@ test "Substring with start only" {
 ///|
 test "Substring another way" {
   let tokens = "SELECT SUBSTRING(col, 1, 5) FROM t;"
-  let stmt = parse_sql(tokens)[0]
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(

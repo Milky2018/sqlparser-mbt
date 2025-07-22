@@ -1,17 +1,17 @@
 ///|
+pub fn[T : @pp.Pretty] pretty_print(obj : T) -> String {
+  @pp.pretty(obj).to_string()
+}
+
+///|
 pub struct Statements {
   /// The list of SQL statements parsed from the input.
   stmts : Array[Statement]
 }
 
 ///|
-impl @pp.Pretty for Statements with pretty(self) {
+pub impl @pp.Pretty for Statements with pretty(self) {
   @pp.separate(@pp.hardline + @pp.hardline, self.stmts.map(@pp.pretty))
-}
-
-///|
-pub impl Show for Statements with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -31,7 +31,7 @@ pub enum Statement {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for Statement with pretty(self) {
+pub impl @pp.Pretty for Statement with pretty(self) {
   (match self {
     Statement::Select(stmt) => stmt.pretty()
     // Statement::Insert(stmt) => @pp.text("Insert: \{stmt}")
@@ -42,11 +42,6 @@ impl @pp.Pretty for Statement with pretty(self) {
     DropView(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
-}
-
-///|
-pub impl Show for Statement with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -68,7 +63,7 @@ pub struct SelectStmt {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for SelectStmt with pretty(self) {
+pub impl @pp.Pretty for SelectStmt with pretty(self) {
   @pp.text("SELECT") +
   @pp.nest(
     @pp.hardline +
@@ -125,11 +120,6 @@ impl @pp.Pretty for SelectStmt with pretty(self) {
 }
 
 ///|
-pub impl Show for SelectStmt with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub enum Projection {
   Wildcard
   UnamedExpr(Expr)
@@ -137,18 +127,13 @@ pub enum Projection {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for Projection with pretty(self) {
+pub impl @pp.Pretty for Projection with pretty(self) {
   match self {
     Projection::Wildcard => @pp.char('*')
     Projection::UnamedExpr(expr) => expr.pretty()
     Projection::AliasedExpr(expr, alias_name) =>
       expr.pretty() + @pp.text(" AS ") + @pp.text(alias_name)
   }
-}
-
-///|
-pub impl Show for Projection with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -213,7 +198,7 @@ fn wrap_parens(expr : Expr, current_op : BinaryOperator) -> @pp.Document {
 }
 
 ///|
-impl @pp.Pretty for Expr with pretty(self) {
+pub impl @pp.Pretty for Expr with pretty(self) {
   match self {
     Expr::Identifier(name) => @pp.text(name)
     Expr::CompoundIdentifier(parts) =>
@@ -294,11 +279,6 @@ impl @pp.Pretty for Expr with pretty(self) {
 }
 
 ///|
-pub impl Show for Expr with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub enum Literal {
   Integer(Int)
   Double(Double) // TODO: float32
@@ -308,7 +288,7 @@ pub enum Literal {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for Literal with pretty(self) {
+pub impl @pp.Pretty for Literal with pretty(self) {
   match self {
     Literal::Integer(value) => @pp.text("\{value}")
     Literal::Double(value) => @pp.text("\{value}")
@@ -316,11 +296,6 @@ impl @pp.Pretty for Literal with pretty(self) {
     Literal::Boolean(value) => @pp.text(if value { "TRUE" } else { "FALSE" })
     Literal::Null => @pp.text("NULL")
   }
-}
-
-///|
-pub impl Show for Literal with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -342,7 +317,7 @@ pub enum BinaryOperator {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for BinaryOperator with pretty(self) {
+pub impl @pp.Pretty for BinaryOperator with pretty(self) {
   match self {
     BinaryOperator::Eq => @pp.text("=")
     BinaryOperator::Neq => @pp.text("<>")
@@ -362,11 +337,6 @@ impl @pp.Pretty for BinaryOperator with pretty(self) {
 }
 
 ///|
-pub impl Show for BinaryOperator with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub enum UnaryOperator {
   Plus
   Minus
@@ -374,17 +344,12 @@ pub enum UnaryOperator {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for UnaryOperator with pretty(self) {
+pub impl @pp.Pretty for UnaryOperator with pretty(self) {
   match self {
     UnaryOperator::Plus => @pp.text("+")
     UnaryOperator::Minus => @pp.text("-")
     UnaryOperator::Not => @pp.text("NOT ")
   }
-}
-
-///|
-pub impl Show for UnaryOperator with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -398,7 +363,7 @@ pub struct OrderByExpr {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for OrderByExpr with pretty(self) {
+pub impl @pp.Pretty for OrderByExpr with pretty(self) {
   self.expr.pretty() +
   (match self.asc {
     Some(true) => @pp.text(" ASC")
@@ -413,25 +378,15 @@ impl @pp.Pretty for OrderByExpr with pretty(self) {
 }
 
 ///|
-pub impl Show for OrderByExpr with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub struct TableRef {
   factor : TableFactor
   joins : Array[Join]
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for TableRef with pretty(self) {
+pub impl @pp.Pretty for TableRef with pretty(self) {
   self.factor.pretty() +
   @pp.separate_map(@pp.hardline, self.joins, fn(join) { join.pretty() })
-}
-
-///|
-pub impl Show for TableRef with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -443,7 +398,7 @@ pub enum TableFactor {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for TableFactor with pretty(self) {
+pub impl @pp.Pretty for TableFactor with pretty(self) {
   match self {
     TableFactor::Column(name, alias_name) =>
       @pp.text(name) +
@@ -461,11 +416,6 @@ impl @pp.Pretty for TableFactor with pretty(self) {
 }
 
 ///|
-pub impl Show for TableFactor with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub struct TableAlias {
   /// AS <alias>
   name : String
@@ -474,7 +424,7 @@ pub struct TableAlias {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for TableAlias with pretty(self) {
+pub impl @pp.Pretty for TableAlias with pretty(self) {
   @pp.text(" AS ") +
   @pp.text(self.name) +
   (if self.columns.length() > 0 {
@@ -486,11 +436,6 @@ impl @pp.Pretty for TableAlias with pretty(self) {
 }
 
 ///|
-pub impl Show for TableAlias with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub struct Join {
   /// JOIN <table_ref> ON <expr>
   table_ref : TableRef
@@ -499,7 +444,7 @@ pub struct Join {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for Join with pretty(self) {
+pub impl @pp.Pretty for Join with pretty(self) {
   @pp.space +
   self.join_operator.pretty() +
   @pp.space +
@@ -518,11 +463,6 @@ impl @pp.Pretty for Join with pretty(self) {
 }
 
 ///|
-pub impl Show for Join with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub enum JoinOperator {
   Join(JoinConstraint)
   Left(JoinConstraint)
@@ -536,7 +476,7 @@ pub enum JoinOperator {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for JoinOperator with pretty(self) {
+pub impl @pp.Pretty for JoinOperator with pretty(self) {
   match self {
     JoinOperator::Join(_) => @pp.text("JOIN")
     JoinOperator::Left(_) => @pp.text("LEFT JOIN")
@@ -551,11 +491,6 @@ impl @pp.Pretty for JoinOperator with pretty(self) {
 }
 
 ///|
-pub impl Show for JoinOperator with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub enum JoinConstraint {
   /// ON <expr>
   On(Expr)
@@ -565,7 +500,7 @@ pub enum JoinConstraint {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for JoinConstraint with pretty(self) {
+pub impl @pp.Pretty for JoinConstraint with pretty(self) {
   match self {
     JoinConstraint::On(expr) =>
       @pp.nest(@pp.hardline + @pp.text("ON ") + expr.pretty())
@@ -581,11 +516,6 @@ impl @pp.Pretty for JoinConstraint with pretty(self) {
 }
 
 ///|
-pub impl Show for JoinConstraint with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
 pub enum IntervalQualifier {
   /// YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   Single(PrimaryDatetimeField)
@@ -594,17 +524,12 @@ pub enum IntervalQualifier {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for IntervalQualifier with pretty(self) {
+pub impl @pp.Pretty for IntervalQualifier with pretty(self) {
   match self {
     IntervalQualifier::Single(field) => field.pretty()
     IntervalQualifier::Range(from, to) =>
       @pp.group(from.pretty() + @pp.text(" TO ") + to.pretty())
   }
-}
-
-///|
-pub impl Show for IntervalQualifier with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -616,7 +541,7 @@ struct PrimaryDatetimeField {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for PrimaryDatetimeField with pretty(self) {
+pub impl @pp.Pretty for PrimaryDatetimeField with pretty(self) {
   self.field.pretty() +
   @pp.group(
     if self.precision is Some(p) {
@@ -625,11 +550,6 @@ impl @pp.Pretty for PrimaryDatetimeField with pretty(self) {
       @pp.text("")
     },
   )
-}
-
-///|
-pub impl Show for PrimaryDatetimeField with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///|
@@ -643,7 +563,7 @@ pub enum DatetimeUnit {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for DatetimeUnit with pretty(self) {
+pub impl @pp.Pretty for DatetimeUnit with pretty(self) {
   match self {
     DatetimeUnit::Year => @pp.text("YEAR")
     DatetimeUnit::Month => @pp.text("MONTH")
@@ -652,11 +572,6 @@ impl @pp.Pretty for DatetimeUnit with pretty(self) {
     DatetimeUnit::Minute => @pp.text("MINUTE")
     DatetimeUnit::Second => @pp.text("SECOND")
   }
-}
-
-///|
-pub impl Show for DatetimeUnit with output(self, logger) {
-  self.pretty().output(logger)
 }
 
 ///| CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
@@ -670,7 +585,7 @@ pub struct CaseExpr {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for CaseExpr with pretty(self) {
+pub impl @pp.Pretty for CaseExpr with pretty(self) {
   @pp.text("CASE") +
   (match self.operand {
     Some(op) => @pp.space + op.pretty()
@@ -699,33 +614,6 @@ impl @pp.Pretty for CaseExpr with pretty(self) {
 }
 
 ///|
-pub impl Show for CaseExpr with output(self, logger) {
-  self.pretty().output(logger)
-}
-
-///|
-test "Case when" {
-  let expr = {
-    operand: Some(Expr::Identifier("x")),
-    when_then_clauses: [
-      (Expr::Identifier("a"), Expr::Identifier("b")),
-      (Expr::Identifier("c"), Expr::Identifier("d")),
-    ],
-    else_expr: Some(Expr::Identifier("e")),
-  }
-  inspect(
-    expr,
-    content=(
-      #|CASE x
-      #|  WHEN a THEN b
-      #|  WHEN c THEN d
-      #|  ELSE e
-      #|END
-    ),
-  )
-}
-
-///|
 pub struct CreateTableStmt {
   /// CREATE TABLE <table_name>
   name : String
@@ -736,7 +624,7 @@ pub struct CreateTableStmt {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for CreateTableStmt with pretty(self) {
+pub impl @pp.Pretty for CreateTableStmt with pretty(self) {
   @pp.text("CREATE TABLE ") +
   @pp.text(self.name) +
   @pp.text(" (") +
@@ -756,7 +644,7 @@ pub struct ColumnDef {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for ColumnDef with pretty(self) {
+pub impl @pp.Pretty for ColumnDef with pretty(self) {
   @pp.text(self.name) +
   @pp.space +
   self.data_type.pretty() +
@@ -779,7 +667,7 @@ pub enum DataType {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for DataType with pretty(self) {
+pub impl @pp.Pretty for DataType with pretty(self) {
   match self {
     Integer => @pp.text("INTEGER")
     Float(Some(p)) => @pp.text("FLOAT(\{p})")
@@ -803,7 +691,7 @@ pub enum ColumnDefOption {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for ColumnDefOption with pretty(self) {
+pub impl @pp.Pretty for ColumnDefOption with pretty(self) {
   match self {
     NotNull => @pp.text(" NOT NULL")
     Unique => @pp.text(" UNIQUE")
@@ -822,7 +710,7 @@ struct CreateViewStmt {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for CreateViewStmt with pretty(self) {
+pub impl @pp.Pretty for CreateViewStmt with pretty(self) {
   @pp.text("CREATE VIEW ") +
   @pp.text(self.name) +
   (if self.columns.length() > 0 {
@@ -844,7 +732,7 @@ pub struct ViewColumnDef {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for ViewColumnDef with pretty(self) {
+pub impl @pp.Pretty for ViewColumnDef with pretty(self) {
   @pp.text(self.name)
 }
 
@@ -855,7 +743,7 @@ pub struct DropViewStmt {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for DropViewStmt with pretty(self) {
+pub impl @pp.Pretty for DropViewStmt with pretty(self) {
   @pp.text("DROP VIEW ") + @pp.text(self.name)
 }
 
@@ -868,7 +756,7 @@ pub enum DuplicateTreatment {
 } derive(Eq)
 
 ///|
-impl @pp.Pretty for DuplicateTreatment with pretty(self) {
+pub impl @pp.Pretty for DuplicateTreatment with pretty(self) {
   match self {
     DuplicateTreatment::Distinct => @pp.text("DISTINCT")
     DuplicateTreatment::All => @pp.text("ALL")

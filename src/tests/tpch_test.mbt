@@ -20,7 +20,7 @@ fn read_and_parse(path : String) -> @sqlparser.Statements {
 
 ///|
 test "TPCH 1" {
-  let stmt = read_and_parse("src/tests/tpch/1.sql")
+  let stmt = read_and_parse("src/tests/tpch/1.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -51,7 +51,7 @@ test "TPCH 1" {
 
 ///|
 test "TPCH 2" {
-  let stmt = read_and_parse("src/tests/tpch/2.sql")
+  let stmt = read_and_parse("src/tests/tpch/2.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -104,7 +104,7 @@ test "TPCH 2" {
 
 ///|
 test "TPCH 3" {
-  let stmt = read_and_parse("src/tests/tpch/3.sql")
+  let stmt = read_and_parse("src/tests/tpch/3.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -136,7 +136,7 @@ test "TPCH 3" {
 
 ///|
 test "TPCH 4" {
-  let stmt = read_and_parse("src/tests/tpch/4.sql")
+  let stmt = read_and_parse("src/tests/tpch/4.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -167,7 +167,7 @@ test "TPCH 4" {
 
 ///|
 test "TPCH 5" {
-  let stmt = read_and_parse("src/tests/tpch/5.sql")
+  let stmt = read_and_parse("src/tests/tpch/5.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -201,7 +201,7 @@ test "TPCH 5" {
 
 ///|
 test "TPCH 6" {
-  let stmt = read_and_parse("src/tests/tpch/6.sql")
+  let stmt = read_and_parse("src/tests/tpch/6.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -220,7 +220,7 @@ test "TPCH 6" {
 
 ///|
 test "TPCH 7" {
-  let stmt = read_and_parse("src/tests/tpch/7.sql")
+  let stmt = read_and_parse("src/tests/tpch/7.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -273,7 +273,7 @@ test "TPCH 7" {
 
 ///|
 test "TPCH 8" {
-  let stmt = read_and_parse("src/tests/tpch/8.sql")
+  let stmt = read_and_parse("src/tests/tpch/8.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -320,7 +320,7 @@ test "TPCH 8" {
 
 ///|
 test "TPCH 9" {
-  let stmt = read_and_parse("src/tests/tpch/9.sql")
+  let stmt = read_and_parse("src/tests/tpch/9.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -362,7 +362,7 @@ test "TPCH 9" {
 
 ///|
 test "TPCH 10" {
-  let stmt = read_and_parse("src/tests/tpch/10.sql")
+  let stmt = read_and_parse("src/tests/tpch/10.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -403,7 +403,7 @@ test "TPCH 10" {
 
 ///|
 test "TPCH 11" {
-  let stmt = read_and_parse("src/tests/tpch/11.sql")
+  let stmt = read_and_parse("src/tests/tpch/11.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -441,7 +441,7 @@ test "TPCH 11" {
 
 ///|
 test "TPCH 12" {
-  let stmt = read_and_parse("src/tests/tpch/12.sql")
+  let stmt = read_and_parse("src/tests/tpch/12.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -477,7 +477,7 @@ test "TPCH 12" {
 
 ///|
 test "TPCH 13" {
-  let stmt = read_and_parse("src/tests/tpch/13.sql")
+  let stmt = read_and_parse("src/tests/tpch/13.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -507,7 +507,7 @@ test "TPCH 13" {
 
 ///|
 test "TPCH 14" {
-  let stmt = read_and_parse("src/tests/tpch/14.sql")
+  let stmt = read_and_parse("src/tests/tpch/14.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -529,7 +529,7 @@ test "TPCH 14" {
 
 ///|
 test "TPCH 15" {
-  let stmt = read_and_parse("src/tests/tpch/15.sql")
+  let stmt = read_and_parse("src/tests/tpch/15.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -572,7 +572,7 @@ test "TPCH 15" {
 
 ///|
 test "TPCH 16" {
-  let stmt = read_and_parse("src/tests/tpch/16.sql")
+  let stmt = read_and_parse("src/tests/tpch/16.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -612,7 +612,7 @@ test "TPCH 16" {
 
 ///|
 test "TPCH 17" {
-  let stmt = read_and_parse("src/tests/tpch/17.sql")
+  let stmt = read_and_parse("src/tests/tpch/17.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -639,7 +639,7 @@ test "TPCH 17" {
 
 ///|
 test "TPCH 18" {
-  let stmt = read_and_parse("src/tests/tpch/18.sql")
+  let stmt = read_and_parse("src/tests/tpch/18.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -682,7 +682,7 @@ test "TPCH 18" {
 
 ///|
 test "TPCH 19" {
-  let stmt = read_and_parse("src/tests/tpch/19.sql")
+  let stmt = read_and_parse("src/tests/tpch/19.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -728,7 +728,7 @@ test "TPCH 19" {
 
 ///|
 test "TPCH 20" {
-  let stmt = read_and_parse("src/tests/tpch/20.sql")
+  let stmt = read_and_parse("src/tests/tpch/20.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -775,7 +775,7 @@ test "TPCH 20" {
 
 ///|
 test "TPCH 20" {
-  let stmt = read_and_parse("src/tests/tpch/20.sql")
+  let stmt = read_and_parse("src/tests/tpch/20.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -822,7 +822,7 @@ test "TPCH 20" {
 
 ///|
 test "TPCH 21" {
-  let stmt = read_and_parse("src/tests/tpch/21.sql")
+  let stmt = read_and_parse("src/tests/tpch/21.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(
@@ -871,7 +871,7 @@ test "TPCH 21" {
 
 ///|
 test "TPCH 22" {
-  let stmt = read_and_parse("src/tests/tpch/22.sql")
+  let stmt = read_and_parse("src/tests/tpch/22.sql") |> @sqlparser.pretty_print
   inspect(
     stmt,
     content=(

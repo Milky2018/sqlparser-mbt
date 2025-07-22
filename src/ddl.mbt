@@ -21,6 +21,7 @@ fn parse_create_table_statement(
 test "Create table" {
   let tokens = "CREATE TABLE users;"
   let stmt = parse_sql(tokens)[0]
+  let stmt = pretty_print(stmt)
   inspect(
     stmt,
     content=(
@@ -106,6 +107,7 @@ fn parse_data_type(
 test "Create table with two columns" {
   let tokens = "CREATE TABLE users (id INTEGER, name INTEGER);"
   let stmt = parse_sql(tokens)[0]
+  let stmt = pretty_print(stmt)
   inspect(
     stmt,
     content=(
@@ -132,6 +134,7 @@ test "Many kinds of data types" {
     #|  profile_picture BLOB
     #|);
   let stmt = parse_sql(tokens)[0]
+  let stmt = pretty_print(stmt)
   inspect(
     stmt,
     content=(
@@ -178,6 +181,7 @@ fn parse_column_def_option(
 test "With options" {
   let tokens = "CREATE TABLE users (id INTEGER NOT NULL UNIQUE, name INTEGER DEFAULT 18);"
   let stmt = parse_sql(tokens)[0]
+  let stmt = pretty_print(stmt)
   inspect(
     stmt,
     content=(
@@ -245,6 +249,7 @@ fn parse_view_column_def(
 test "Create view with columns" {
   let tokens = "CREATE VIEW user_view (id, name) AS SELECT id, name FROM users;"
   let stmt = parse_sql(tokens)[0]
+  let stmt = pretty_print(stmt)
   inspect(
     stmt,
     content=(
@@ -277,6 +282,7 @@ fn parse_drop_view_statement(
 test "Drop view statement" {
   let tokens = "DROP VIEW user_view;"
   let stmt = parse_sql(tokens)[0]
+  let stmt = pretty_print(stmt)
   inspect(
     stmt,
     content=(
