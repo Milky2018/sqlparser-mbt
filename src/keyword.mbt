@@ -75,4 +75,6 @@ pub(all) enum Keyword {
   All
   Substring
   For
+  Primary
+  Key
 } derive(Eq, Show)

@@ -3,6 +3,7 @@ pub fn[T : @pp.Pretty] pretty_print(obj : T) -> String {
   @pp.pretty(obj).to_string()
 }
 
+///|
 pub fn[T : Show] structural_print(obj : T) -> String {
   obj.to_string()
 }
@@ -62,13 +63,18 @@ pub struct SelectStmt {
   having : Expr?
   /// ORDER BY <order_by>
   order_by : Array[OrderByExpr]
+  /// LIMIT <expr>
   limit : Expr?
+  /// OFFSET <expr>
   offset : Expr?
+  ///
+  distinct : Bool
 } derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for SelectStmt with pretty(self) {
   @pp.text("SELECT") +
+  (if self.distinct { @pp.text(" DISTINCT") } else { @pp.empty }) +
   @pp.nest(
     @pp.hardline +
     @pp.separate(@pp.char(',') + @pp.hardline, self.projections.map(@pp.pretty)),
@@ -658,6 +664,8 @@ pub impl @pp.Pretty for ColumnDef with pretty(self) {
 ///|
 pub enum DataType {
   Integer
+  Smallint
+  Bigint
   Float(Int?)
   Real
   Double
@@ -674,6 +682,8 @@ pub enum DataType {
 pub impl @pp.Pretty for DataType with pretty(self) {
   match self {
     Integer => @pp.text("INTEGER")
+    Smallint => @pp.text("SMALLINT")
+    Bigint => @pp.text("BIGINT")
     Float(Some(p)) => @pp.text("FLOAT(\{p})")
     Float(None) => @pp.text("FLOAT")
     Real => @pp.text("REAL")
@@ -692,6 +702,7 @@ pub enum ColumnDefOption {
   NotNull
   Unique
   Default(Expr)
+  PrimaryKey
 } derive(Eq, Show)
 
 ///|
@@ -700,6 +711,7 @@ pub impl @pp.Pretty for ColumnDefOption with pretty(self) {
     NotNull => @pp.text(" NOT NULL")
     Unique => @pp.text(" UNIQUE")
     Default(expr) => @pp.text(" DEFAULT ") + expr.pretty()
+    PrimaryKey => @pp.text(" PRIMARY KEY")
   }
 }
 

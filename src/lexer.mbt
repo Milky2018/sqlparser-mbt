@@ -213,6 +213,8 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "all" => Keyword(All)
     "substring" => Keyword(Substring)
     "for" => Keyword(For)
+    "primary" => Keyword(Primary)
+    "key" => Keyword(Key)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

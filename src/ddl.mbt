@@ -70,8 +70,9 @@ fn parse_data_type(
   tokens : ArrayView[Token]
 ) -> Parser[DataType] raise ParserError {
   match tokens {
-    [Keyword(Integer), .. tokens] => (Integer, tokens)
-    [Keyword(Int), .. tokens] => (Integer, tokens)
+    [Keyword(Integer) | Keyword(Int), .. tokens] => (Integer, tokens)
+    [Keyword(Smallint), .. tokens] => (Smallint, tokens)
+    [Keyword(Bigint), .. tokens] => (Bigint, tokens)
     [Keyword(Float), LParen, Number(n), RParen, .. tokens] => {
       let n = @strconv.parse_int(n) catch {
         _ => raise ParserError::InvalidDataTypeError(n)
@@ -159,6 +160,10 @@ fn parse_column_def_option(
 ) -> Parser[Array[ColumnDefOption]] raise ParserError {
   let options = []
   let tokens = loop tokens {
+    [Keyword(Primary), Keyword(Key), .. tokens] => {
+      options.push(ColumnDefOption::PrimaryKey)
+      continue tokens
+    }
     [Keyword(Unique), .. tokens] => {
       options.push(ColumnDefOption::Unique)
       continue tokens

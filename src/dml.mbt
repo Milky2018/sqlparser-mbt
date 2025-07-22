@@ -3,6 +3,10 @@ fn parse_select_statement(
   tokens : ArrayView[Token]
 ) -> Parser[SelectStmt] raise ParserError {
   let tokens = expect_token(tokens, Keyword(Select))
+  let (distinct, tokens) = match tokens {
+    [Keyword(Distinct), .. tokens] => (true, tokens)
+    tokens => (false, tokens)
+  }
   let (projections, tokens) = parse_projections(tokens)
   let (from, tokens) = parse_table_refs(tokens)
   let (where_clause, tokens) = match tokens {
@@ -51,6 +55,7 @@ fn parse_select_statement(
       order_by,
       limit,
       offset,
+      distinct,
     },
     tokens,
   )
