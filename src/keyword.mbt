@@ -79,4 +79,5 @@ pub(all) enum Keyword {
   Key
   Foreign
   References
+  Check
 } derive(Eq, Show)

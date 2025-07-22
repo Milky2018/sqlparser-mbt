@@ -317,6 +317,11 @@ fn parse_table_constraint(
     }
     [Keyword(Foreign), Keyword(Key), LParen, ..] as tokens =>
       parse_foreign_key_constraint(tokens)
+    [Keyword(Check), LParen, .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      let tokens = expect_token(tokens, RParen)
+      (TableConstraint::Check(expr), tokens)
+    }
     [token, .. _tokens] =>
       raise UnexpectedTokenMessageError(token, "expected table constraint")
     [] => raise InternalBug("parse_table_constraint: unexpected end of tokens")
@@ -341,8 +346,8 @@ test "Table constraints" {
       #|  id INTEGER PRIMARY KEY, 
       #|  name VARCHAR(100) UNIQUE, 
       #|  age INTEGER, 
-      #|  PRIMARY KEY(id, name), 
-      #|  UNIQUE(name)
+      #|  PRIMARY KEY (id, name), 
+      #|  UNIQUE (name)
       #|);
     ),
   )
@@ -360,30 +365,34 @@ fn parse_foreign_key_constraint(
   let (columns, tokens) = parse_order_by(tokens)
   let tokens = expect_token(tokens, RParen)
   let tokens = expect_token(tokens, Keyword(References))
-  guard tokens is [Identifier(foreign_table), LParen, .. tokens] else {
-    raise UnexpectedTokenError(
+  guard tokens is [Identifier(foreign_table), .. tokens] else {
+    raise UnexpectedTokenMessageError(
       tokens[0],
-      Token::Identifier("foreign_table".to_string()),
+      "expected foreign table name and foreign key columns",
     )
   }
   let foreign_columns = []
-  let tokens = loop tokens {
-    [Identifier(col), Comma, .. tokens] => {
-      foreign_columns.push(col)
-      continue tokens
+  let tokens = if tokens is [LParen, .. tokens] {
+    loop tokens {
+      [Identifier(col), Comma, .. tokens] => {
+        foreign_columns.push(col)
+        continue tokens
+      }
+      [Identifier(col), RParen, .. tokens] => {
+        foreign_columns.push(col)
+        break tokens
+      }
+      [token, .. _tokens] =>
+        raise UnexpectedTokenMessageError(
+          token, "expected foreign key column definition",
+        )
+      [] =>
+        raise InternalBug(
+          "parse_foreign_key_constraint: unexpected end of tokens",
+        )
     }
-    [Identifier(col), RParen, .. tokens] => {
-      foreign_columns.push(col)
-      break tokens
-    }
-    [token, .. _tokens] =>
-      raise UnexpectedTokenMessageError(
-        token, "expected foreign key column definition",
-      )
-    [] =>
-      raise InternalBug(
-        "parse_foreign_key_constraint: unexpected end of tokens",
-      )
+  } else {
+    tokens
   }
   (ForeignKey(foreign_columns~, foreign_table~, columns~), tokens)
 }
@@ -403,7 +412,49 @@ test "Foreign key" {
       #|CREATE TABLE users (
       #|  id INTEGER PRIMARY KEY, 
       #|  name VARCHAR(100) UNIQUE, 
-      #|  FOREIGN KEY(id) REFERENCES other_table(other_id)
+      #|  FOREIGN KEY (id) REFERENCES other_table (other_id)
+      #|);
+    ),
+  )
+}
+
+///|
+test "Foreign key without columns" {
+  let tokens =
+    #|CREATE TABLE users (
+    #|  id INTEGER PRIMARY KEY,
+    #|  name VARCHAR(100) UNIQUE,
+    #|  FOREIGN KEY (name) REFERENCES other_table
+    #|);
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  id INTEGER PRIMARY KEY, 
+      #|  name VARCHAR(100) UNIQUE, 
+      #|  FOREIGN KEY (name) REFERENCES other_table
+      #|);
+    ),
+  )
+}
+
+///|
+test "Check" {
+  let tokens =
+    #|CREATE TABLE users (
+    #|  id INTEGER PRIMARY KEY,
+    #|  name VARCHAR(100) UNIQUE,
+    #|  CHECK (id > 0)
+    #|);
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  id INTEGER PRIMARY KEY, 
+      #|  name VARCHAR(100) UNIQUE, 
+      #|  CHECK (id > 0)
       #|);
     ),
   )

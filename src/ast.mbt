@@ -815,7 +815,11 @@ pub impl @pp.Pretty for TableConstraint with pretty(self) {
       @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.pretty))) +
       @pp.text(" REFERENCES ") +
       @pp.text(foreign_table) +
-      @pp.parens(@pp.separate(@pp.text(", "), foreign_columns.map(@pp.text)))
+      (if foreign_columns.length() == 0 {
+        @pp.empty
+      } else {
+        @pp.space + @pp.parens(@pp.separate(@pp.text(", "), foreign_columns.map(@pp.text)))
+      })
     Check(expr) => @pp.text("CHECK (") + expr.pretty() + @pp.char(')')
   }
 }
