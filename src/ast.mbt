@@ -3,11 +3,15 @@ pub fn[T : @pp.Pretty] pretty_print(obj : T) -> String {
   @pp.pretty(obj).to_string()
 }
 
+pub fn[T : Show] structural_print(obj : T) -> String {
+  obj.to_string()
+}
+
 ///|
 pub struct Statements {
   /// The list of SQL statements parsed from the input.
   stmts : Array[Statement]
-}
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for Statements with pretty(self) {
@@ -28,7 +32,7 @@ pub enum Statement {
   CreateTable(CreateTableStmt)
   CreateView(CreateViewStmt)
   DropView(DropViewStmt)
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for Statement with pretty(self) {
@@ -60,7 +64,7 @@ pub struct SelectStmt {
   order_by : Array[OrderByExpr]
   limit : Expr?
   offset : Expr?
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for SelectStmt with pretty(self) {
@@ -124,7 +128,7 @@ pub enum Projection {
   Wildcard
   UnamedExpr(Expr)
   AliasedExpr(Expr, String)
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for Projection with pretty(self) {
@@ -182,7 +186,7 @@ pub enum Expr {
   /// SUBSTRING(<expr>, <expr>, <expr>)
   /// ```
   Substring(Expr, Expr?, Expr?)
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 fn wrap_parens(expr : Expr, current_op : BinaryOperator) -> @pp.Document {
@@ -285,7 +289,7 @@ pub enum Literal {
   String(String)
   Boolean(Bool)
   Null
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for Literal with pretty(self) {
@@ -314,7 +318,7 @@ pub enum BinaryOperator {
   Mod
   And
   Or
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for BinaryOperator with pretty(self) {
@@ -341,7 +345,7 @@ pub enum UnaryOperator {
   Plus
   Minus
   Not
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for UnaryOperator with pretty(self) {
@@ -360,7 +364,7 @@ pub struct OrderByExpr {
   asc : Bool?
   /// NULLS FIRST | NULLS LAST
   nulls_first : Bool?
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for OrderByExpr with pretty(self) {
@@ -381,7 +385,7 @@ pub impl @pp.Pretty for OrderByExpr with pretty(self) {
 pub struct TableRef {
   factor : TableFactor
   joins : Array[Join]
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for TableRef with pretty(self) {
@@ -395,7 +399,7 @@ pub enum TableFactor {
   Column(String, TableAlias?)
   /// FROM (SELECT ...) [AS <alias>]
   SubQuery(SelectStmt, TableAlias?)
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for TableFactor with pretty(self) {
@@ -421,7 +425,7 @@ pub struct TableAlias {
   name : String
   /// AS <alias> (<col_name>, ...)
   columns : Array[String]
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for TableAlias with pretty(self) {
@@ -441,7 +445,7 @@ pub struct Join {
   table_ref : TableRef
   /// LEFT JOIN | RIGHT JOIN | FULL | INNER | CROSS
   join_operator : JoinOperator
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for Join with pretty(self) {
@@ -473,7 +477,7 @@ pub enum JoinOperator {
   FullOuter(JoinConstraint)
   Inner(JoinConstraint)
   Cross
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for JoinOperator with pretty(self) {
@@ -497,7 +501,7 @@ pub enum JoinConstraint {
   /// USING (<col_name>, ...)
   Using(Array[String])
   None
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for JoinConstraint with pretty(self) {
@@ -521,7 +525,7 @@ pub enum IntervalQualifier {
   Single(PrimaryDatetimeField)
   /// <from> TO <to>
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for IntervalQualifier with pretty(self) {
@@ -538,7 +542,7 @@ struct PrimaryDatetimeField {
   field : DatetimeUnit
   /// (3)
   precision : Int?
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for PrimaryDatetimeField with pretty(self) {
@@ -560,7 +564,7 @@ pub enum DatetimeUnit {
   Hour
   Minute
   Second
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for DatetimeUnit with pretty(self) {
@@ -582,7 +586,7 @@ pub struct CaseExpr {
   when_then_clauses : Array[(Expr, Expr)]
   /// ELSE <expr>
   else_expr : Expr?
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for CaseExpr with pretty(self) {
@@ -621,7 +625,7 @@ pub struct CreateTableStmt {
   columns : Array[ColumnDef]
   /// PRIMARY KEY <key>
   primary_key : String?
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for CreateTableStmt with pretty(self) {
@@ -641,7 +645,7 @@ pub struct ColumnDef {
   name : String
   data_type : DataType
   options : Array[ColumnDefOption]
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for ColumnDef with pretty(self) {
@@ -664,7 +668,7 @@ pub enum DataType {
   Timestamp
   Blob
   // Interval
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for DataType with pretty(self) {
@@ -688,7 +692,7 @@ pub enum ColumnDefOption {
   NotNull
   Unique
   Default(Expr)
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for ColumnDefOption with pretty(self) {
@@ -707,7 +711,7 @@ struct CreateViewStmt {
   columns : Array[ViewColumnDef]
   /// AS <select_stmt>
   query : SelectStmt
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for CreateViewStmt with pretty(self) {
@@ -729,7 +733,7 @@ pub impl @pp.Pretty for CreateViewStmt with pretty(self) {
 ///|
 pub struct ViewColumnDef {
   name : String
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for ViewColumnDef with pretty(self) {
@@ -740,7 +744,7 @@ pub impl @pp.Pretty for ViewColumnDef with pretty(self) {
 pub struct DropViewStmt {
   /// DROP VIEW <view_name>
   name : String
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for DropViewStmt with pretty(self) {
@@ -753,7 +757,7 @@ pub enum DuplicateTreatment {
   Distinct
   /// ALL
   All
-} derive(Eq)
+} derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for DuplicateTreatment with pretty(self) {
