@@ -24,3 +24,12 @@ test {
   "SELECT a FROM some_schema.foo WHERE a > 12 OR b > 3 AND NOT c LIMIT 10;"
   |> pass
 }
+
+///|
+test {
+  (
+    #|SELECT col1 AS myname, col2, 'test' FROM "table", foo AS t WHERE age > 12 AND zipcode = 12345 GROUP BY col1;
+  )
+  |> pass
+}
+

@@ -82,6 +82,7 @@ fn next_token(input : @string.View) -> (Token, @string.View) raise LexerError {
     ['{', .. rest] => (LBrace, rest)
     ['}', .. rest] => (RBrace, rest)
     ['\'', .. rest] => read_single_quoted_string(rest)
+    ['"', .. rest] => read_double_quoted_string(rest)
     ['.', .. rest] => read_frac(rest)
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
     ['_', .. _rest] as code => read_identifier_or_keyword(code)
@@ -248,6 +249,38 @@ fn read_single_quoted_string(
     [] => raise LexerError::UnterminatedString
   }
   (StringLiteral(result.to_string()), rest)
+}
+
+///|
+fn read_double_quoted_string(
+  input : @string.View
+) -> (Token, @string.View) raise LexerError {
+  let result = StringBuilder::new()
+  let rest = loop input {
+    [.. "\\\"", .. rest] => {
+      result.write_char('\"')
+      continue rest
+    }
+    ['"', .. rest] => break rest
+    [c, .. rest] => {
+      result.write_char(c)
+      continue rest
+    }
+    [] => raise LexerError::UnterminatedString
+  }
+  (StringLiteral(result.to_string()), rest)
+}
+
+///|
+test "Double quoted string" {
+  let input = "\"Hello,\\\" World!\""
+  let tokens = lex(input)
+  inspect(
+    tokens,
+    content=(
+      #|[StringLiteral("Hello,\" World!")]
+    ),
+  )
 }
 
 ///|
