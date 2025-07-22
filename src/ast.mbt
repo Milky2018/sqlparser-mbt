@@ -189,6 +189,14 @@ pub enum Expr {
   InList(positive~ : Bool, Expr, Array[Expr])
   /// <expr> [NOT] IN (SELECT ...)
   InSubQuery(positive~ : Bool, Expr, SelectStmt)
+  /// ```sql
+  /// SUBSTRING(<expr> [FROM <expr>] [FOR <expr>])
+  /// ```
+  /// or
+  /// ```sql
+  /// SUBSTRING(<expr>, <expr>, <expr>)
+  /// ```
+  Substring(Expr, Expr?, Expr?)
 } derive(Eq)
 
 ///|
@@ -269,6 +277,18 @@ impl @pp.Pretty for Expr with pretty(self) {
       @pp.text(if positive { " IN (" } else { " NOT IN (" }) +
       @pp.nest(@pp.hardline + sub_query.pretty()) +
       @pp.hardline +
+      @pp.char(')')
+    Expr::Substring(expr, from, for_expr) =>
+      @pp.text("SUBSTRING(") +
+      expr.pretty() +
+      (match from {
+        Some(from_expr) => @pp.text(" FROM ") + from_expr.pretty()
+        None => @pp.empty
+      }) +
+      (match for_expr {
+        Some(for_expr) => @pp.text(" FOR ") + for_expr.pretty()
+        None => @pp.empty
+      }) +
       @pp.char(')')
   }
 }

@@ -73,4 +73,6 @@ pub(all) enum Keyword {
   Drop
   Distinct
   All
+  Substring
+  For
 } derive(Eq, Show)

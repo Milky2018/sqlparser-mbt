@@ -57,6 +57,9 @@ pub struct CreateTableStmt {
 }
 impl Eq for CreateTableStmt
 
+type CreateViewStmt
+impl Eq for CreateViewStmt
+
 pub enum DataType {
   Integer
   Float(Int?)
@@ -82,13 +85,24 @@ pub enum DatetimeUnit {
 impl Eq for DatetimeUnit
 impl Show for DatetimeUnit
 
+pub struct DropViewStmt {
+  name : String
+}
+impl Eq for DropViewStmt
+
+pub enum DuplicateTreatment {
+  Distinct
+  All
+}
+impl Eq for DuplicateTreatment
+
 pub enum Expr {
   Identifier(String)
   CompoundIdentifier(Array[String])
   Literal(Literal)
   BinaryOperation(Expr, BinaryOperator, Expr)
   UnaryOperation(UnaryOperator, Expr)
-  FunctionCall(String, Array[Expr])
+  FunctionCall(String, DuplicateTreatment?, Array[Expr])
   Wildcard
   Datetime(String)
   Interval(String, IntervalQualifier)
@@ -101,6 +115,7 @@ pub enum Expr {
   Case(CaseExpr)
   InList(positive~ : Bool, Expr, Array[Expr])
   InSubQuery(positive~ : Bool, Expr, SelectStmt)
+  Substring(Expr, Expr?, Expr?)
 }
 impl Eq for Expr
 impl Show for Expr
@@ -211,6 +226,12 @@ pub(all) enum Keyword {
   Null
   Default
   Unique
+  View
+  Drop
+  Distinct
+  All
+  Substring
+  For
 }
 impl Eq for Keyword
 impl Show for Keyword
@@ -285,6 +306,8 @@ impl Show for SqlParserError
 pub enum Statement {
   Select(SelectStmt)
   CreateTable(CreateTableStmt)
+  CreateView(CreateViewStmt)
+  DropView(DropViewStmt)
 }
 impl Eq for Statement
 impl Show for Statement
@@ -357,6 +380,11 @@ pub enum UnaryOperator {
 }
 impl Eq for UnaryOperator
 impl Show for UnaryOperator
+
+pub struct ViewColumnDef {
+  name : String
+}
+impl Eq for ViewColumnDef
 
 // Type aliases
 

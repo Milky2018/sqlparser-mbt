@@ -263,6 +263,7 @@ fn parse_primary_expr(
     [Keyword(Date), .. tokens] => parse_date_expr(tokens)
     [Keyword(Interval), .. tokens] => parse_interval_expr(tokens)
     [Keyword(Extract), .. tokens] => parse_extract_expr(tokens)
+    [Keyword(Substring), .. tokens] => parse_substring_expr(tokens)
     [Identifier(name), LParen, .. tokens] => {
       let args = []
       let (dup, tokens) = match tokens {
@@ -777,6 +778,41 @@ fn datetime_unit_from_keyword(keyword : Token) -> DatetimeUnit? {
     Keyword(Second) => Some(Second)
     _ => None
   }
+}
+
+///|
+fn parse_substring_expr(
+  tokens : ArrayView[Token]
+) -> Parser[Expr] raise ParserError {
+  let tokens = expect_token(tokens, LParen)
+  let (expr, tokens) = parse_expr(tokens)
+  let (start, len, tokens) = match tokens {
+    [Keyword(From), .. tokens] => {
+      let (start_expr, tokens) = parse_expr(tokens)
+      let (len_expr, tokens) = match tokens {
+        [Keyword(For), .. tokens] => {
+          let (len_expr, tokens) = parse_expr(tokens)
+          (Some(len_expr), tokens)
+        }
+        _ => (None, tokens)
+      }
+      (Some(start_expr), len_expr, tokens)
+    }
+    [Comma, .. tokens] => {
+      let (start_expr, tokens) = parse_expr(tokens)
+      let (len_expr, tokens) = match tokens {
+        [Comma, .. tokens] => {
+          let (len_expr, tokens) = parse_expr(tokens)
+          (Some(len_expr), tokens)
+        }
+        _ => (None, tokens)
+      }
+      (Some(start_expr), len_expr, tokens)
+    }
+    tokens => (None, None, tokens)
+  }
+  let tokens = expect_token(tokens, RParen)
+  (Substring(expr, start, len), tokens)
 }
 
 ///|
@@ -1353,6 +1389,51 @@ test "Duplicate treatment" {
     content=(
       #|SELECT
       #|  count(DISTINCT *)
+      #|FROM
+      #|  t;
+    ),
+  )
+}
+
+///|
+test "Substring" {
+  let tokens = "SELECT SUBSTRING(col FROM 1 FOR 5) FROM t;"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  SUBSTRING(col FROM 1 FOR 5)
+      #|FROM
+      #|  t;
+    ),
+  )
+}
+
+///|
+test "Substring with start only" {
+  let tokens = "SELECT SUBSTRING(col FROM 1) FROM t;"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  SUBSTRING(col FROM 1)
+      #|FROM
+      #|  t;
+    ),
+  )
+}
+
+///|
+test "Substring another way" {
+  let tokens = "SELECT SUBSTRING(col, 1, 5) FROM t;"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  SUBSTRING(col FROM 1 FOR 5)
       #|FROM
       #|  t;
     ),

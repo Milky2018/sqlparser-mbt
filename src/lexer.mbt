@@ -211,6 +211,8 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "drop" => Keyword(Drop)
     "distinct" => Keyword(Distinct)
     "all" => Keyword(All)
+    "substring" => Keyword(Substring)
+    "for" => Keyword(For)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)
@@ -272,7 +274,6 @@ test "Lexing simple query" {
     tokens,
     content=(
       #|[Keyword(Select), Mul, Keyword(From), Keyword(Table), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
-
     ),
   )
 }
@@ -285,7 +286,6 @@ test "Lexing single quoted string" {
     tokens,
     content=(
       #|[Keyword(Select), StringLiteral("Hello, World!"), Keyword(From), Identifier("t"), Semicolon]
-
     ),
   )
 }
@@ -298,7 +298,6 @@ test "Lexing single quoted string with escaped quotes" {
     tokens,
     content=(
       #|[Keyword(Select), StringLiteral("Hello, 'World!'!"), Keyword(From), Identifier("t"), Semicolon]
-
     ),
   )
 }
@@ -318,7 +317,6 @@ test "Skip line comment" {
     tokens,
     content=(
       #|[Keyword(Select), Mul, Keyword(From), Identifier("t"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Eof]
-
     ),
   )
 }
@@ -331,7 +329,6 @@ test "Skip line comment" {
     tokens,
     content=(
       #|[Keyword(Select), Mul, Keyword(From), Identifier("t"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Number("123")]
-
     ),
   )
 }
@@ -356,7 +353,6 @@ test "Decimal point" {
     tokens,
     content=(
       #|[Keyword(Select), Number("3.14"), Comma, Number(".11"), Keyword(From), Identifier("t"), Semicolon]
-
     ),
   )
 }
