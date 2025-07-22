@@ -365,12 +365,7 @@ fn parse_foreign_key_constraint(
   let (columns, tokens) = parse_order_by(tokens)
   let tokens = expect_token(tokens, RParen)
   let tokens = expect_token(tokens, Keyword(References))
-  guard tokens is [Identifier(foreign_table), .. tokens] else {
-    raise UnexpectedTokenMessageError(
-      tokens[0],
-      "expected foreign table name and foreign key columns",
-    )
-  }
+  let (foreign_table, tokens) = parse_object_name(tokens)
   let foreign_columns = []
   let tokens = if tokens is [LParen, .. tokens] {
     loop tokens {

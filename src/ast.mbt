@@ -405,7 +405,7 @@ pub impl @pp.Pretty for TableRef with pretty(self) {
 ///|
 pub enum TableFactor {
   /// <col_name> [AS <alias>]
-  Column(String, TableAlias?)
+  Column(ObjectName, TableAlias?)
   /// FROM (SELECT ...) [AS <alias>]
   SubQuery(SelectStmt, TableAlias?)
 } derive(Eq, Show)
@@ -414,7 +414,7 @@ pub enum TableFactor {
 pub impl @pp.Pretty for TableFactor with pretty(self) {
   match self {
     TableFactor::Column(name, alias_name) =>
-      @pp.text(name) +
+      name.pretty() +
       (match alias_name {
         Some(a) => a.pretty()
         None => @pp.empty
@@ -798,7 +798,7 @@ pub enum TableConstraint {
   PrimaryKey(Array[OrderByExpr])
   ForeignKey(
     columns~ : Array[OrderByExpr],
-    foreign_table~ : String,
+    foreign_table~ : ObjectName,
     foreign_columns~ : Array[String]
   )
   Check(Expr)
@@ -817,7 +817,7 @@ pub impl @pp.Pretty for TableConstraint with pretty(self) {
       @pp.text("FOREIGN KEY ") +
       @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.pretty))) +
       @pp.text(" REFERENCES ") +
-      @pp.text(foreign_table) +
+      foreign_table.pretty() +
       (if foreign_columns.length() == 0 {
         @pp.empty
       } else {
@@ -826,4 +826,15 @@ pub impl @pp.Pretty for TableConstraint with pretty(self) {
       })
     Check(expr) => @pp.text("CHECK (") + expr.pretty() + @pp.char(')')
   }
+}
+
+///|
+pub struct ObjectName {
+  /// <identifier>.<identifier>.<identifier>
+  parts : Array[String]
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for ObjectName with pretty(self) {
+  @pp.separate(@pp.text("."), self.parts.map(@pp.text))
 }

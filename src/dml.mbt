@@ -245,7 +245,14 @@ fn parse_primary_expr(
         tokens,
         Precedence::MulDivMod.value(),
       )
-      let op = if op == Minus { UnaryOperator::Minus } else { Plus }
+      let op = match op {
+        Minus => UnaryOperator::Minus
+        Plus => UnaryOperator::Plus
+        _ =>
+          raise ParserError::InternalBug(
+            "parse_primary_expr: unexpected operator",
+          )
+      }
       (UnaryOperation(op, expr), tokens)
     }
     [PlaceHolder, .. tokens] => (PlaceHolder, tokens)
@@ -488,13 +495,10 @@ fn parse_table_factor(
   tokens : ArrayView[Token]
 ) -> Parser[TableFactor] raise ParserError {
   match tokens {
-    [Identifier(name), .. tokens] => {
+    [Identifier(_) | StringLiteral(_), ..] as tokens => {
+      let (object_name, tokens) = parse_object_name(tokens)
       let (optional_alias, tokens) = parse_aliasing(tokens)
-      (TableFactor::Column(name, optional_alias), tokens)
-    }
-    [StringLiteral(name), .. tokens] => {
-      let (optional_alias, tokens) = parse_aliasing(tokens)
-      (TableFactor::Column(name, optional_alias), tokens)
+      (TableFactor::Column(object_name, optional_alias), tokens)
     }
     [Token::LParen, .. tokens] => {
       let (sub_query, tokens) = parse_select_statement(tokens)
@@ -1444,4 +1448,29 @@ test "Substring another way" {
       #|  t;
     ),
   )
+}
+
+///|
+fn parse_object_name(
+  tokens : ArrayView[Token]
+) -> Parser[ObjectName] raise ParserError {
+  let parts = []
+  loop tokens {
+    [Identifier(part) | StringLiteral(part), Period, .. tokens] => {
+      parts.push(part)
+      continue tokens
+    }
+    [Identifier(part) | StringLiteral(part), .. tokens] => {
+      parts.push(part)
+      break ({ parts, }, tokens)
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected another identifier after '.'",
+      )
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_object_name: unexpected end of tokens",
+      )
+  }
 }
