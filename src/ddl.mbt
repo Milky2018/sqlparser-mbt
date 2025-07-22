@@ -6,8 +6,8 @@ fn parse_create_table_statement(
   let tokens = expect_token(tokens, Keyword(Table))
   match tokens {
     [Token::Identifier(name), .. tokens] => {
-      let (columns, tokens) = parse_column_defs(tokens)
-      ({ name, columns, primary_key: None }, tokens)
+      let ((columns, constraints), tokens) = parse_column_defs(tokens)
+      ({ name, columns, constraints }, tokens)
     }
     _ =>
       raise UnexpectedTokenError(
@@ -20,8 +20,7 @@ fn parse_create_table_statement(
 ///|
 test "Create table" {
   let tokens = "CREATE TABLE users;"
-  let stmt = parse_sql(tokens)[0]
-  let stmt = pretty_print(stmt)
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -35,15 +34,15 @@ test "Create table" {
 ///|
 fn parse_column_defs(
   tokens : ArrayView[Token]
-) -> Parser[Array[ColumnDef]] raise ParserError {
+) -> Parser[(Array[ColumnDef], Array[TableConstraint])] raise ParserError {
   let columns = []
+  let constraints = []
   let tokens = if tokens is [Token::LParen, .. tokens] {
     loop tokens {
       [Identifier(name), .. tokens] => {
         let (data_type, tokens) = parse_data_type(tokens)
         let (options, tokens) = parse_column_def_option(tokens)
         columns.push({ name, data_type, options })
-        // let (option, tokens) = try parse_column_option() {} noraise {}
         match tokens {
           [Comma, .. tokens] => continue tokens
           [RParen, .. tokens] => break tokens
@@ -55,14 +54,24 @@ fn parse_column_defs(
         }
         continue tokens
       }
-      [token, .. _tokens] =>
-        raise UnexpectedTokenMessageError(token, "expected column definition")
-      [] => raise InternalBug("parse_column_defs: unexpected end of tokens")
+      tokens => {
+        let (constraint, tokens) = parse_table_constraint(tokens)
+        constraints.push(constraint)
+        match tokens {
+          [Comma, .. tokens] => continue tokens
+          [RParen, .. tokens] => break tokens
+          [token, .. _tokens] =>
+            raise UnexpectedTokenMessageError(
+              token, "expected ',' or ')', found",
+            )
+          [] => raise InternalBug("parse_column_defs: unexpected end of tokens")
+        }
+      }
     }
   } else {
     tokens
   }
-  (columns, tokens)
+  ((columns, constraints), tokens)
 }
 
 ///|
@@ -107,8 +116,7 @@ fn parse_data_type(
 ///|
 test "Create table with two columns" {
   let tokens = "CREATE TABLE users (id INTEGER, name INTEGER);"
-  let stmt = parse_sql(tokens)[0]
-  let stmt = pretty_print(stmt)
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -134,8 +142,7 @@ test "Many kinds of data types" {
     #|  description TEXT,
     #|  profile_picture BLOB
     #|);
-  let stmt = parse_sql(tokens)[0]
-  let stmt = pretty_print(stmt)
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -185,8 +192,7 @@ fn parse_column_def_option(
 ///|
 test "With options" {
   let tokens = "CREATE TABLE users (id INTEGER NOT NULL UNIQUE, name INTEGER DEFAULT 18);"
-  let stmt = parse_sql(tokens)[0]
-  let stmt = pretty_print(stmt)
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -253,8 +259,7 @@ fn parse_view_column_def(
 ///|
 test "Create view with columns" {
   let tokens = "CREATE VIEW user_view (id, name) AS SELECT id, name FROM users;"
-  let stmt = parse_sql(tokens)[0]
-  let stmt = pretty_print(stmt)
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -286,12 +291,120 @@ fn parse_drop_view_statement(
 ///|
 test "Drop view statement" {
   let tokens = "DROP VIEW user_view;"
-  let stmt = parse_sql(tokens)[0]
-  let stmt = pretty_print(stmt)
+  let stmt = parse_sql(tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
       #|DROP VIEW user_view;
+    ),
+  )
+}
+
+///|
+fn parse_table_constraint(
+  tokens : ArrayView[Token]
+) -> Parser[TableConstraint] raise ParserError {
+  match tokens {
+    [Keyword(Primary), Keyword(Key), LParen, .. tokens] => {
+      let (columns, tokens) = parse_order_by(tokens)
+      let tokens = expect_token(tokens, RParen)
+      (TableConstraint::PrimaryKey(columns), tokens)
+    }
+    [Keyword(Unique), LParen, .. tokens] => {
+      let (columns, tokens) = parse_order_by(tokens)
+      let tokens = expect_token(tokens, RParen)
+      (TableConstraint::Unique(columns), tokens)
+    }
+    [Keyword(Foreign), Keyword(Key), LParen, ..] as tokens =>
+      parse_foreign_key_constraint(tokens)
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected table constraint")
+    [] => raise InternalBug("parse_table_constraint: unexpected end of tokens")
+  }
+}
+
+///|
+test "Table constraints" {
+  let tokens =
+    #|CREATE TABLE users (
+    #|  id INTEGER PRIMARY KEY,
+    #|  name VARCHAR(100) UNIQUE,
+    #|  age INTEGER,
+    #|  PRIMARY KEY (id, name),
+    #|  UNIQUE (name)
+    #|);
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  id INTEGER PRIMARY KEY, 
+      #|  name VARCHAR(100) UNIQUE, 
+      #|  age INTEGER, 
+      #|  PRIMARY KEY(id, name), 
+      #|  UNIQUE(name)
+      #|);
+    ),
+  )
+}
+
+///|
+fn parse_foreign_key_constraint(
+  tokens : ArrayView[Token]
+) -> Parser[TableConstraint] raise ParserError {
+  let tokens = expect_token(tokens, Keyword(Foreign))
+  let tokens = expect_token(tokens, Keyword(Key))
+  guard tokens is [LParen, .. tokens] else {
+    raise UnexpectedTokenError(tokens[0], Token::LParen)
+  }
+  let (columns, tokens) = parse_order_by(tokens)
+  let tokens = expect_token(tokens, RParen)
+  let tokens = expect_token(tokens, Keyword(References))
+  guard tokens is [Identifier(foreign_table), LParen, .. tokens] else {
+    raise UnexpectedTokenError(
+      tokens[0],
+      Token::Identifier("foreign_table".to_string()),
+    )
+  }
+  let foreign_columns = []
+  let tokens = loop tokens {
+    [Identifier(col), Comma, .. tokens] => {
+      foreign_columns.push(col)
+      continue tokens
+    }
+    [Identifier(col), RParen, .. tokens] => {
+      foreign_columns.push(col)
+      break tokens
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected foreign key column definition",
+      )
+    [] =>
+      raise InternalBug(
+        "parse_foreign_key_constraint: unexpected end of tokens",
+      )
+  }
+  (ForeignKey(foreign_columns~, foreign_table~, columns~), tokens)
+}
+
+///|
+test "Foreign key" {
+  let tokens =
+    #|CREATE TABLE users (
+    #|  id INTEGER PRIMARY KEY,
+    #|  name VARCHAR(100) UNIQUE,
+    #|  FOREIGN KEY (id) REFERENCES other_table (other_id)
+    #|);
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  id INTEGER PRIMARY KEY, 
+      #|  name VARCHAR(100) UNIQUE, 
+      #|  FOREIGN KEY(id) REFERENCES other_table(other_id)
+      #|);
     ),
   )
 }

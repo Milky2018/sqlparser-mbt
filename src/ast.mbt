@@ -53,6 +53,8 @@ pub impl @pp.Pretty for Statement with pretty(self) {
 pub struct SelectStmt {
   /// SELECT <projections>
   projections : Array[Projection]
+  /// (DISTINCT <projections>)
+  distinct : Bool
   /// FROM <table_refs>
   from : Array[TableRef]
   /// WHERE <where_clause>
@@ -67,8 +69,6 @@ pub struct SelectStmt {
   limit : Expr?
   /// OFFSET <expr>
   offset : Expr?
-  ///
-  distinct : Bool
 } derive(Eq, Show)
 
 ///|
@@ -629,8 +629,8 @@ pub struct CreateTableStmt {
   name : String
   /// (<col_name> <col_type>, ...)
   columns : Array[ColumnDef]
-  /// PRIMARY KEY <key>
-  primary_key : String?
+  /// Table constraints
+  constraints : Array[TableConstraint]
 } derive(Eq, Show)
 
 ///|
@@ -640,7 +640,17 @@ pub impl @pp.Pretty for CreateTableStmt with pretty(self) {
   @pp.text(" (") +
   @pp.nest(
     @pp.hardline +
-    @pp.separate(@pp.text(", ") + @pp.hardline, self.columns.map(@pp.pretty)),
+    @pp.separate(@pp.text(", ") + @pp.hardline, self.columns.map(@pp.pretty)) +
+    (if self.constraints.length() == 0 {
+      @pp.empty
+    } else {
+      @pp.text(", ") +
+      @pp.hardline +
+      @pp.separate(
+        @pp.text(", ") + @pp.hardline,
+        self.constraints.map(@pp.pretty),
+      )
+    }),
   ) +
   @pp.hardline +
   @pp.text(")")
@@ -776,5 +786,36 @@ pub impl @pp.Pretty for DuplicateTreatment with pretty(self) {
   match self {
     DuplicateTreatment::Distinct => @pp.text("DISTINCT")
     DuplicateTreatment::All => @pp.text("ALL")
+  }
+}
+
+///|
+pub enum TableConstraint {
+  Unique(Array[OrderByExpr])
+  PrimaryKey(Array[OrderByExpr])
+  ForeignKey(
+    columns~ : Array[OrderByExpr],
+    foreign_table~ : String,
+    foreign_columns~ : Array[String]
+  )
+  Check(Expr)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for TableConstraint with pretty(self) {
+  match self {
+    Unique(cols) =>
+      @pp.text("UNIQUE ") +
+      @pp.parens(@pp.separate(@pp.text(", "), cols.map(@pp.pretty)))
+    PrimaryKey(cols) =>
+      @pp.text("PRIMARY KEY ") +
+      @pp.parens(@pp.separate(@pp.text(", "), cols.map(@pp.pretty)))
+    ForeignKey(columns~, foreign_table~, foreign_columns~) =>
+      @pp.text("FOREIGN KEY ") +
+      @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.pretty))) +
+      @pp.text(" REFERENCES ") +
+      @pp.text(foreign_table) +
+      @pp.parens(@pp.separate(@pp.text(", "), foreign_columns.map(@pp.text)))
+    Check(expr) => @pp.text("CHECK (") + expr.pretty() + @pp.char(')')
   }
 }
