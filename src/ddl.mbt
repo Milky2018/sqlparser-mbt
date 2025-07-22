@@ -21,7 +21,14 @@ fn parse_create_table_statement(
 test "Create table" {
   let tokens = "CREATE TABLE users;"
   let stmt = parse_sql(tokens)[0]
-  inspect(stmt, content="CREATE TABLE users();")
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE users (
+      #|  
+      #|);
+    ),
+  )
 }
 
 ///|
@@ -169,15 +176,111 @@ fn parse_column_def_option(
 
 ///|
 test "With options" {
-  let tokens = "CREATE TABLE users (id INTEGER NOT NULL, name INTEGER DEFAULT 18);"
+  let tokens = "CREATE TABLE users (id INTEGER NOT NULL UNIQUE, name INTEGER DEFAULT 18);"
   let stmt = parse_sql(tokens)[0]
   inspect(
     stmt,
     content=(
       #|CREATE TABLE users (
-      #|  id INTEGER NOT NULL, 
+      #|  id INTEGER NOT NULL UNIQUE, 
       #|  name INTEGER DEFAULT 18
       #|);
+    ),
+  )
+}
+
+///|
+fn parse_create_view_statement(
+  tokens : ArrayView[Token]
+) -> Parser[CreateViewStmt] raise ParserError {
+  let tokens = expect_token(tokens, Keyword(Create))
+  let tokens = expect_token(tokens, Keyword(View))
+  guard tokens is [Identifier(name), .. tokens] else {
+    raise UnexpectedTokenError(
+      tokens[0],
+      Token::Identifier("view_name".to_string()),
+    )
+  }
+  let columns = []
+  let tokens = if tokens is [LParen, .. tokens] {
+    loop tokens {
+      tokens => {
+        let (column, tokens) = parse_view_column_def(tokens)
+        columns.push(column)
+        match tokens {
+          [Comma, .. tokens] => continue tokens
+          [RParen, .. tokens] => break tokens
+          [token, .. _tokens] =>
+            raise UnexpectedTokenMessageError(
+              token, "expected ',' or ')', found",
+            )
+          [] =>
+            raise InternalBug(
+              "parse_create_view_statement: unexpected end of tokens",
+            )
+        }
+      }
+    }
+  } else {
+    tokens
+  }
+  let tokens = expect_token(tokens, Keyword(As))
+  let (query, tokens) = parse_select_statement(tokens)
+  ({ name, columns, query }, tokens)
+}
+
+///|
+fn parse_view_column_def(
+  tokens : ArrayView[Token]
+) -> Parser[ViewColumnDef] raise ParserError {
+  match tokens {
+    [Identifier(name), .. tokens] => ({ name, }, tokens)
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected column definition")
+    [] => raise InternalBug("parse_view_column_def: unexpected end of tokens")
+  }
+}
+
+///|
+test "Create view with columns" {
+  let tokens = "CREATE VIEW user_view (id, name) AS SELECT id, name FROM users;"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|CREATE VIEW user_view (id, name) AS
+      #|SELECT
+      #|  id,
+      #|  name
+      #|FROM
+      #|  users;
+    ),
+  )
+}
+
+///|
+fn parse_drop_view_statement(
+  tokens : ArrayView[Token]
+) -> Parser[DropViewStmt] raise ParserError {
+  let tokens = expect_token(tokens, Keyword(Drop))
+  let tokens = expect_token(tokens, Keyword(View))
+  guard tokens is [Identifier(name), .. tokens] else {
+    raise UnexpectedTokenError(
+      tokens[0],
+      Token::Identifier("view_name".to_string()),
+    )
+  }
+  (DropViewStmt::{ name, }, tokens)
+}
+
+///|
+test "Drop view statement" {
+  let tokens = "DROP VIEW user_view;"
+  let stmt = parse_sql(tokens)[0]
+  inspect(
+    stmt,
+    content=(
+      #|DROP VIEW user_view;
     ),
   )
 }

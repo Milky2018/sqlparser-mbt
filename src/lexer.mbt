@@ -207,6 +207,8 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "null" => Keyword(Null)
     "default" => Keyword(Default)
     "unique" => Keyword(Unique)
+    "view" => Keyword(View)
+    "drop" => Keyword(Drop)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)
@@ -267,31 +269,34 @@ test "Lexing simple query" {
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
+      #|[Keyword(Select), Mul, Keyword(From), Keyword(Table), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon]
+
     ),
   )
 }
 
 ///|
 test "Lexing single quoted string" {
-  let input = "SELECT 'Hello, World!' FROM table;"
+  let input = "SELECT 'Hello, World!' FROM t;"
   let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), StringLiteral("Hello, World!"), Keyword(From), Identifier("table"), Semicolon]
+      #|[Keyword(Select), StringLiteral("Hello, World!"), Keyword(From), Identifier("t"), Semicolon]
+
     ),
   )
 }
 
 ///|
 test "Lexing single quoted string with escaped quotes" {
-  let input = "SELECT 'Hello, ''World!''!' FROM table;"
+  let input = "SELECT 'Hello, ''World!''!' FROM t;"
   let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), StringLiteral("Hello, 'World!'!"), Keyword(From), Identifier("table"), Semicolon]
+      #|[Keyword(Select), StringLiteral("Hello, 'World!'!"), Keyword(From), Identifier("t"), Semicolon]
+
     ),
   )
 }
@@ -305,24 +310,26 @@ test "Lexing binary operators" {
 
 ///|
 test "Skip line comment" {
-  let input = "SELECT * FROM table -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n"
+  let input = "SELECT * FROM t -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n"
   let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Eof]
+      #|[Keyword(Select), Mul, Keyword(From), Identifier("t"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Eof]
+
     ),
   )
 }
 
 ///|
 test "Skip line comment" {
-  let input = "-- License: Apache-2.0\nSELECT * FROM table -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n 123"
+  let input = "-- License: Apache-2.0\nSELECT * FROM t -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n 123"
   let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), Mul, Keyword(From), Identifier("table"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Number("123")]
+      #|[Keyword(Select), Mul, Keyword(From), Identifier("t"), Keyword(Where), Identifier("id"), Eq, Number("1"), Semicolon, Number("123")]
+
     ),
   )
 }
@@ -341,12 +348,13 @@ test "Decimal point only" {
 
 ///|
 test "Decimal point" {
-  let input = "SELECT 3.14, .11 FROM table;"
+  let input = "SELECT 3.14, .11 FROM t;"
   let tokens = lex(input)
   inspect(
     tokens,
     content=(
-      #|[Keyword(Select), Number("3.14"), Comma, Number(".11"), Keyword(From), Identifier("table"), Semicolon]
+      #|[Keyword(Select), Number("3.14"), Comma, Number(".11"), Keyword(From), Identifier("t"), Semicolon]
+
     ),
   )
 }

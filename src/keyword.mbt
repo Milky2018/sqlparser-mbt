@@ -65,8 +65,10 @@ pub(all) enum Keyword {
   Boolean
   Float
   Timestamp
-  Blob 
+  Blob
   Null
   Default
   Unique
+  View
+  Drop
 } derive(Eq, Show)

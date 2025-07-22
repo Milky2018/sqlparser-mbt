@@ -26,6 +26,8 @@ pub enum Statement {
   // Update(UpdateStmt)
   // Delete(DeleteStmt)
   CreateTable(CreateTableStmt)
+  CreateView(CreateViewStmt)
+  DropView(DropViewStmt)
 } derive(Eq)
 
 ///|
@@ -36,6 +38,8 @@ impl @pp.Pretty for Statement with pretty(self) {
     // Statement::Update(stmt) => @pp.text("Update: \{stmt}")
     // Statement::Delete(stmt) => @pp.text("Delete: \{stmt}")
     CreateTable(stmt) => stmt.pretty()
+    CreateView(stmt) => stmt.pretty()
+    DropView(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -732,8 +736,7 @@ impl @pp.Pretty for ColumnDef with pretty(self) {
   @pp.text(self.name) +
   @pp.space +
   self.data_type.pretty() +
-  @pp.space +
-  @pp.separate(@pp.space, self.options.map(@pp.pretty))
+  @pp.separate(@pp.empty, self.options.map(@pp.pretty))
 }
 
 ///|
@@ -778,8 +781,54 @@ pub enum ColumnDefOption {
 ///|
 impl @pp.Pretty for ColumnDefOption with pretty(self) {
   match self {
-    NotNull => @pp.text("NOT NULL")
-    Unique => @pp.text("UNIQUE")
-    Default(expr) => @pp.text("DEFAULT ") + expr.pretty()
+    NotNull => @pp.text(" NOT NULL")
+    Unique => @pp.text(" UNIQUE")
+    Default(expr) => @pp.text(" DEFAULT ") + expr.pretty()
   }
+}
+
+///|
+struct CreateViewStmt {
+  /// CREATE VIEW <view_name>
+  name : String
+  /// [(<column_name>, ...)]
+  columns : Array[ViewColumnDef]
+  /// AS <select_stmt>
+  query : SelectStmt
+} derive(Eq)
+
+///|
+impl @pp.Pretty for CreateViewStmt with pretty(self) {
+  @pp.text("CREATE VIEW ") +
+  @pp.text(self.name) +
+  (if self.columns.length() > 0 {
+    @pp.text(" (") +
+    @pp.separate(@pp.text(", "), self.columns.map(@pp.pretty)) +
+    @pp.char(')')
+  } else {
+    @pp.empty
+  }) +
+  @pp.space +
+  @pp.text("AS") +
+  @pp.hardline +
+  self.query.pretty()
+}
+
+///|
+pub struct ViewColumnDef {
+  name : String
+} derive(Eq)
+
+///|
+impl @pp.Pretty for ViewColumnDef with pretty(self) {
+  @pp.text(self.name)
+}
+
+pub struct DropViewStmt {
+  /// DROP VIEW <view_name>
+  name : String
+} derive(Eq)
+
+impl @pp.Pretty for DropViewStmt with pretty(self) {
+  @pp.text("DROP VIEW ") + @pp.text(self.name)
 }

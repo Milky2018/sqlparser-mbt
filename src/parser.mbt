@@ -53,6 +53,10 @@ fn parse_statement(
       parse_select_statement(tokens).map(Statement::Select(_))
     [Keyword(Create), Keyword(Table), .. _rest] =>
       parse_create_table_statement(tokens).map(Statement::CreateTable(_))
+    [Keyword(Create), Keyword(View), .. _rest] =>
+      parse_create_view_statement(tokens).map(Statement::CreateView(_))
+    [Keyword(Drop), Keyword(View), .. _rest] =>
+      parse_drop_view_statement(tokens).map(Statement::DropView(_))
     _ => raise UnexpectedTokenError(tokens[0], Keyword(Select))
   }
   let tokens = expect_token(tokens, Semicolon)
