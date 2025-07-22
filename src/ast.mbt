@@ -192,6 +192,8 @@ pub enum Expr {
   /// SUBSTRING(<expr>, <expr>, <expr>)
   /// ```
   Substring(Expr, Expr?, Expr?)
+  /// ?
+  PlaceHolder
 } derive(Eq, Show)
 
 ///|
@@ -285,6 +287,7 @@ pub impl @pp.Pretty for Expr with pretty(self) {
         None => @pp.empty
       }) +
       @pp.char(')')
+    Expr::PlaceHolder => @pp.text("?")
   }
 }
 
@@ -818,7 +821,8 @@ pub impl @pp.Pretty for TableConstraint with pretty(self) {
       (if foreign_columns.length() == 0 {
         @pp.empty
       } else {
-        @pp.space + @pp.parens(@pp.separate(@pp.text(", "), foreign_columns.map(@pp.text)))
+        @pp.space +
+        @pp.parens(@pp.separate(@pp.text(", "), foreign_columns.map(@pp.text)))
       })
     Check(expr) => @pp.text("CHECK (") + expr.pretty() + @pp.char(')')
   }

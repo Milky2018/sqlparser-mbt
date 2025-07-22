@@ -33,6 +33,7 @@ pub(all) enum Token {
   LParen
   RParen
   Period
+  PlaceHolder
   Unknown(Char)
   Eof
 } derive(Eq, Show)
@@ -55,6 +56,7 @@ pub fn lex(input : String) -> Array[Token] raise LexerError {
 fn next_token(input : @string.View) -> (Token, @string.View) raise LexerError {
   match skip_whitespace(input) {
     [',', .. rest] => (Comma, rest)
+    ['?', .. rest] => (PlaceHolder, rest)
     [';', .. rest] => (Semicolon, rest)
     ['*', .. rest] => (Mul, rest)
     [.. "==", .. rest] => (DoubleEq, rest)

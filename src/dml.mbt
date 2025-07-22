@@ -248,6 +248,7 @@ fn parse_primary_expr(
       let op = if op == Minus { UnaryOperator::Minus } else { Plus }
       (UnaryOperation(op, expr), tokens)
     }
+    [PlaceHolder, .. tokens] => (PlaceHolder, tokens)
     [Boolean(b), .. tokens] => (Literal(Literal::Boolean(b)), tokens)
     [Keyword(Null), .. tokens] => (Literal(Literal::Null), tokens)
     [Number(n), .. tokens] =>
