@@ -221,6 +221,9 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "foreign" => Keyword(Foreign)
     "references" => Keyword(References)
     "check" => Keyword(Check)
+    "union" => Keyword(Union)
+    "intersect" => Keyword(Intersect)
+    "except" => Keyword(Except)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

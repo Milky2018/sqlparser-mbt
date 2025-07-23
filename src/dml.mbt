@@ -1,5 +1,50 @@
 ///|
-fn parse_select_statement(
+fn parse_set_expr(
+  tokens : ArrayView[Token],
+  min_bp : Int
+) -> Parser[SetExpr] raise ParserError {
+  let mut left_tokens = match tokens {
+    [LParen, .. tokens] => {
+      let (query, tokens) = parse_query(tokens)
+      let tokens = expect_token(tokens, RParen)
+      (SetExpr::Query(query), tokens)
+    }
+    [Keyword(Select), ..] as tokens => {
+      let (select_stmt, tokens) = parse_select(tokens)
+      (SetExpr::Select(select_stmt), tokens)
+    }
+    [token, ..] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected 'SELECT' or '(' to start a set expression",
+      )
+    [] =>
+      raise ParserError::InternalBug("parse_set_expr: unexpected end of tokens")
+  }
+  for {
+    let left = left_tokens.0
+    let tokens = left_tokens.1
+    // let (op, tokens) = parse_next_set_operator(tokens)
+    let (op, tokens) = match tokens {
+      [Keyword(Union), .. tokens] => (SetOperator::Union, tokens)
+      [Keyword(Intersect), .. tokens] => (SetOperator::Intersect, tokens)
+      [Keyword(Except), .. tokens] => (SetOperator::Except, tokens)
+      tokens => return (left, tokens)
+    }
+    let next_bp = match op {
+      Intersect => 20
+      Union => 10
+      Except => 10
+    }
+    if next_bp <= min_bp {
+      return (left, tokens)
+    }
+    let (right, tokens) = parse_set_expr(tokens, min_bp)
+    left_tokens = (SetExpr::SetOperation(op, left, right), tokens)
+  }
+}
+
+///|
+fn parse_select(
   tokens : ArrayView[Token]
 ) -> Parser[SelectStmt] raise ParserError {
   let tokens = expect_token(tokens, Keyword(Select))
@@ -27,6 +72,14 @@ fn parse_select_statement(
     }
     _ => (None, tokens)
   }
+  ({ projections, from, where_clause, group_by, having, distinct }, tokens)
+}
+
+///|
+fn parse_query(
+  tokens : ArrayView[Token]
+) -> Parser[QueryStmt] raise ParserError {
+  let (body, tokens) = parse_set_expr(tokens, 0)
   let (order_by, tokens) = match tokens {
     [Keyword(Order), Keyword(By), .. tokens] => parse_order_by(tokens)
     _ => ([], tokens)
@@ -45,20 +98,7 @@ fn parse_select_statement(
     }
     _ => (None, tokens)
   }
-  (
-    {
-      projections,
-      from,
-      where_clause,
-      group_by,
-      having,
-      order_by,
-      limit,
-      offset,
-      distinct,
-    },
-    tokens,
-  )
+  ({ body, order_by, limit, offset }, tokens)
 }
 
 ///|
@@ -325,7 +365,7 @@ fn parse_primary_expr(
     }
     [Identifier(name), .. tokens] => (Identifier(name), tokens)
     [Keyword(Exists), LParen, .. tokens] => {
-      let (sub_query, tokens) = parse_select_statement(tokens)
+      let (sub_query, tokens) = parse_query(tokens)
       match tokens {
         [RParen, .. tokens] => (Expr::Exists(positive=true, sub_query), tokens)
         [token, .. _tokens] =>
@@ -337,7 +377,7 @@ fn parse_primary_expr(
       }
     }
     [Keyword(Not), Keyword(Exists), LParen, .. tokens] => {
-      let (sub_query, tokens) = parse_select_statement(tokens)
+      let (sub_query, tokens) = parse_query(tokens)
       match tokens {
         [RParen, .. tokens] => (Expr::Exists(positive=false, sub_query), tokens)
         [token, .. _tokens] =>
@@ -357,7 +397,7 @@ fn parse_primary_expr(
     }
     [Keyword(Case), .. tokens] => parse_case_expr(tokens)
     [Token::LParen, .. tokens] => {
-      let (expr, tokens) = try parse_select_statement(tokens) catch {
+      let (expr, tokens) = try parse_query(tokens) catch {
         _ => parse_expr(tokens)
       } noraise {
         (stmt, tokens) => (Expr::SubQuery(stmt), tokens)
@@ -501,7 +541,7 @@ fn parse_table_factor(
       (TableFactor::Column(object_name, optional_alias), tokens)
     }
     [Token::LParen, .. tokens] => {
-      let (sub_query, tokens) = parse_select_statement(tokens)
+      let (sub_query, tokens) = parse_query(tokens)
       let tokens = expect_token(tokens, RParen)
       let (optional_alias, tokens) = parse_aliasing(tokens)
       (TableFactor::SubQuery(sub_query, optional_alias), tokens)
@@ -742,7 +782,7 @@ fn parse_in_expr(
   positive : Bool
 ) -> Parser[Expr] raise ParserError {
   let tokens = expect_token(tokens, LParen)
-  try parse_select_statement(tokens) catch {
+  try parse_query(tokens) catch {
     _ => {
       let items = []
       let tokens = loop tokens {
@@ -1473,4 +1513,33 @@ fn parse_object_name(
         "parse_object_name: unexpected end of tokens",
       )
   }
+}
+
+///|
+test {
+  let tokens = "SELECT * FROM t1 UNION (SELECT * FROM t2 UNION SELECT * FROM t3) ORDER BY col1;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1
+      #|UNION
+      #|(
+      #|  SELECT
+      #|    *
+      #|  FROM
+      #|    t2
+      #|  UNION
+      #|  SELECT
+      #|    *
+      #|  FROM
+      #|    t3
+      #|)
+      #|ORDER BY
+      #|  col1;
+    ),
+  )
 }

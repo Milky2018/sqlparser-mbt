@@ -80,4 +80,7 @@ pub(all) enum Keyword {
   Foreign
   References
   Check
+  Union
+  Intersect
+  Except
 } derive(Eq, Show)

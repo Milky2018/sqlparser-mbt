@@ -240,7 +240,7 @@ fn parse_create_view_statement(
     tokens
   }
   let tokens = expect_token(tokens, Keyword(As))
-  let (query, tokens) = parse_select_statement(tokens)
+  let (query, tokens) = parse_query(tokens)
   ({ name, columns, query }, tokens)
 }
 

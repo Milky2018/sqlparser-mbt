@@ -26,7 +26,7 @@ pub fn Statements::op_get(self : Self, index : Int) -> Statement {
 
 ///|
 pub enum Statement {
-  Select(SelectStmt)
+  Query(QueryStmt)
   // Insert(InsertStmt)
   // Update(UpdateStmt)
   // Delete(DeleteStmt)
@@ -38,7 +38,7 @@ pub enum Statement {
 ///|
 pub impl @pp.Pretty for Statement with pretty(self) {
   (match self {
-    Statement::Select(stmt) => stmt.pretty()
+    Statement::Query(stmt) => stmt.pretty()
     // Statement::Insert(stmt) => @pp.text("Insert: \{stmt}")
     // Statement::Update(stmt) => @pp.text("Update: \{stmt}")
     // Statement::Delete(stmt) => @pp.text("Delete: \{stmt}")
@@ -50,7 +50,65 @@ pub impl @pp.Pretty for Statement with pretty(self) {
 }
 
 ///|
-pub struct SelectStmt {
+pub struct QueryStmt {
+  /// SELECT ...
+  body : SetExpr
+  /// ORDER BY <order_by>
+  order_by : Array[OrderByExpr]
+  /// LIMIT <expr>
+  limit : Expr?
+  /// OFFSET <expr>
+  offset : Expr?
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for QueryStmt with pretty(self) {
+  self.body.pretty() +
+  (if self.order_by.length() > 0 {
+    @pp.hardline +
+    @pp.text("ORDER BY") +
+    @pp.nest(
+      @pp.hardline +
+      @pp.separate(@pp.char(',') + @pp.hardline, self.order_by.map(@pp.pretty)),
+    )
+  } else {
+    @pp.text("")
+  }) +
+  (match self.limit {
+    Some(expr) =>
+      @pp.hardline + @pp.text("LIMIT") + @pp.nest(@pp.hardline + expr.pretty())
+    None => @pp.empty
+  }) +
+  (match self.offset {
+    Some(expr) =>
+      @pp.hardline + @pp.text("OFFSET") + @pp.nest(@pp.hardline + expr.pretty())
+    None => @pp.empty
+  })
+}
+
+///|
+enum SetExpr {
+  /// Restricted
+  Select(SelectStmt)
+  /// Parenthesized
+  Query(QueryStmt)
+  /// UNION, INTERSECT, EXCEPT
+  SetOperation(SetOperator, SetExpr, SetExpr)
+} derive(Eq, Show)
+
+///|
+impl @pp.Pretty for SetExpr with pretty(self) {
+  match self {
+    Select(stmt) => stmt.pretty()
+    Query(stmt) =>
+      @pp.parens(@pp.nest(@pp.hardline + stmt.pretty()) + @pp.hardline)
+    SetOperation(op, left, right) =>
+      left.pretty() + @pp.hardline + op.pretty() + @pp.hardline + right.pretty()
+  }
+}
+
+///|
+struct SelectStmt {
   /// SELECT <projections>
   projections : Array[Projection]
   /// (DISTINCT <projections>)
@@ -63,12 +121,6 @@ pub struct SelectStmt {
   group_by : Array[Expr]
   /// HAVING <expr>
   having : Expr?
-  /// ORDER BY <order_by>
-  order_by : Array[OrderByExpr]
-  /// LIMIT <expr>
-  limit : Expr?
-  /// OFFSET <expr>
-  offset : Expr?
 } derive(Eq, Show)
 
 ///|
@@ -106,27 +158,23 @@ pub impl @pp.Pretty for SelectStmt with pretty(self) {
     Some(expr) =>
       @pp.hardline + @pp.text("HAVING") + @pp.nest(@pp.hardline + expr.pretty())
     None => @pp.empty
-  }) +
-  (if self.order_by.length() > 0 {
-    @pp.hardline +
-    @pp.text("ORDER BY") +
-    @pp.nest(
-      @pp.hardline +
-      @pp.separate(@pp.char(',') + @pp.hardline, self.order_by.map(@pp.pretty)),
-    )
-  } else {
-    @pp.text("")
-  }) +
-  (match self.limit {
-    Some(expr) =>
-      @pp.hardline + @pp.text("LIMIT") + @pp.nest(@pp.hardline + expr.pretty())
-    None => @pp.empty
-  }) +
-  (match self.offset {
-    Some(expr) =>
-      @pp.hardline + @pp.text("OFFSET") + @pp.nest(@pp.hardline + expr.pretty())
-    None => @pp.empty
   })
+}
+
+///|
+enum SetOperator {
+  Union
+  Intersect
+  Except
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for SetOperator with pretty(self) {
+  match self {
+    SetOperator::Union => @pp.text("UNION")
+    SetOperator::Intersect => @pp.text("INTERSECT")
+    SetOperator::Except => @pp.text("EXCEPT")
+  }
 }
 
 ///|
@@ -171,9 +219,9 @@ pub enum Expr {
   /// <expr> [NOT] ILIKE <expr>
   ILike(positive~ : Bool, Expr, Expr)
   /// (SELECT ...)
-  SubQuery(SelectStmt)
+  SubQuery(QueryStmt)
   /// [NOT] EXISTS
-  Exists(positive~ : Bool, SelectStmt)
+  Exists(positive~ : Bool, QueryStmt)
   /// <expr> [NOT] BETWEEN <expr> AND <expr>
   Between(positive~ : Bool, Expr, Expr, Expr)
   /// EXTRACT(YEAR FROM <expr>)
@@ -183,7 +231,7 @@ pub enum Expr {
   /// <expr> [NOT] IN (<expr>, ...)
   InList(positive~ : Bool, Expr, Array[Expr])
   /// <expr> [NOT] IN (SELECT ...)
-  InSubQuery(positive~ : Bool, Expr, SelectStmt)
+  InSubQuery(positive~ : Bool, Expr, QueryStmt)
   /// ```sql
   /// SUBSTRING(<expr> [FROM <expr>] [FOR <expr>])
   /// ```
@@ -407,7 +455,7 @@ pub enum TableFactor {
   /// <col_name> [AS <alias>]
   Column(ObjectName, TableAlias?)
   /// FROM (SELECT ...) [AS <alias>]
-  SubQuery(SelectStmt, TableAlias?)
+  SubQuery(QueryStmt, TableAlias?)
 } derive(Eq, Show)
 
 ///|
@@ -735,7 +783,7 @@ struct CreateViewStmt {
   /// [(<column_name>, ...)]
   columns : Array[ViewColumnDef]
   /// AS <select_stmt>
-  query : SelectStmt
+  query : QueryStmt
 } derive(Eq, Show)
 
 ///|

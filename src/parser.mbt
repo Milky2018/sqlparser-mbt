@@ -50,7 +50,7 @@ fn parse_statement(
 ) -> Parser[Statement] raise ParserError {
   let (stmt, tokens) = match tokens {
     [Keyword(Select), .. _rest] =>
-      parse_select_statement(tokens).map(Statement::Select(_))
+      parse_query(tokens).map(Statement::Query(_))
     [Keyword(Create), Keyword(Table), .. _rest] =>
       parse_create_table_statement(tokens).map(Statement::CreateTable(_))
     [Keyword(Create), Keyword(View), .. _rest] =>

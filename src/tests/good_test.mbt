@@ -57,15 +57,19 @@ test {
   |> pass
 }
 
+///|
 test {
   "SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY col1;" |> pass
 }
 
+///|
 test {
   "SELECT * FROM (SELECT * FROM t1);" |> pass
 }
 
+///|
 test {
-  "SELECT * FROM t1 UNION (SELECT * FROM t2 UNION SELECT * FROM t3) ORDER BY col1;" |> pass
+  "SELECT * FROM t1 UNION (SELECT * FROM t2 UNION SELECT * FROM t3) ORDER BY col1;"
+  |> pass
 }
 
