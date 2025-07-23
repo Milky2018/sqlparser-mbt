@@ -57,9 +57,14 @@ fn parse_statement(
       parse_create_view_statement(tokens).map(Statement::CreateView(_))
     [Keyword(Drop), Keyword(View), .. _rest] =>
       parse_drop_view_statement(tokens).map(Statement::DropView(_))
+    [LParen, .. rest] => {
+      let (stmt, tokens) = parse_statement(rest)
+      let tokens = expect_token(tokens, RParen)
+      (stmt, tokens)
+    }
     _ => raise UnexpectedTokenError(tokens[0], Keyword(Select))
   }
-  let tokens = expect_token(tokens, Semicolon)
+  let tokens = if tokens is [Semicolon, .. tokens] { tokens } else { tokens }
   (stmt, tokens)
 }
 

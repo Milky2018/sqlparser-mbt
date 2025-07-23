@@ -1,6 +1,13 @@
 # Extensible SQL Lexer and Parser for MoonBit
 
-# Todo 
+## Example
+
+```moonbit
+
+```
+
+## Todo 
 
 - [ ] Dialects
 - [ ] Documentation
+- [ ] CLI
