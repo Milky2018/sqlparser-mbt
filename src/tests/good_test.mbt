@@ -73,3 +73,58 @@ test {
   |> pass
 }
 
+///|
+test {
+  "SELECT TOP 10 * FROM t1 ORDER BY col1, col2;" |> pass
+}
+
+///|
+test {
+  "SELECT a, MAX(b), MAX(c, d), CUSTOM(q, UP(r)) AS f FROM t1;" |> pass
+}
+
+///|
+test {
+  "SELECT * FROM t WHERE a BETWEEN 1 and c;" |> pass
+}
+
+///|
+test {
+  "SELECT * FROM t WHERE a = ? AND b = ?;" |> pass
+}
+
+///|
+test {
+  "SELECT City.name, Product.category, SUM(price) FROM fact INNER JOIN City ON fact.city_id = City.id INNER JOIN Product ON fact.product_id = Product.id GROUP BY City.name, Product.category;"
+  |> pass
+}
+
+///|
+test {
+  "SELECT SUBSTR(a, 3, 5) FROM t;" |> pass
+}
+
+///|
+test {
+  "SELECT * FROM t WHERE a = DATE '1996-12-31';" |> pass
+}
+
+///|
+test {
+  (
+    #| SELECT t1.a, t1.b, t2.c FROM "table" AS t1 JOIN (SELECT * FROM foo JOIN bar ON foo.id = bar.id) t2 ON t1.a = t2.b WHERE (t1.b OR NOT t1.a) AND t2.c = 12.5
+  )
+  |> pass
+}
+
+test {
+  "SELECT * FROM t1 JOIN t2 ON c1 = c2;" |> pass
+}
+
+test {
+  "SELECT a, SUM(b) FROM t2 GROUP BY a HAVING SUM(b) > 100;" |> pass
+}
+
+test {
+  
+}

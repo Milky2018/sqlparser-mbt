@@ -83,4 +83,5 @@ pub(all) enum Keyword {
   Union
   Intersect
   Except
+  Top
 } derive(Eq, Show)

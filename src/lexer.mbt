@@ -224,6 +224,7 @@ fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
     "union" => Keyword(Union)
     "intersect" => Keyword(Intersect)
     "except" => Keyword(Except)
+    "top" => Keyword(Top)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

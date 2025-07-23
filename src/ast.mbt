@@ -111,6 +111,8 @@ impl @pp.Pretty for SetExpr with pretty(self) {
 struct SelectStmt {
   /// SELECT <projections>
   projections : Array[Projection]
+  /// TOP <expr>
+  top : Top?
   /// (DISTINCT <projections>)
   distinct : Bool
   /// FROM <table_refs>
@@ -126,11 +128,19 @@ struct SelectStmt {
 ///|
 pub impl @pp.Pretty for SelectStmt with pretty(self) {
   @pp.text("SELECT") +
+  (if self.top is Some(top) { top.pretty() } else { @pp.empty }) +
   (if self.distinct { @pp.text(" DISTINCT") } else { @pp.empty }) +
-  @pp.nest(
-    @pp.hardline +
-    @pp.separate(@pp.char(',') + @pp.hardline, self.projections.map(@pp.pretty)),
-  ) +
+  (if self.projections.length() == 0 {
+    @pp.nest(@pp.hardline + @pp.text("*"))
+  } else {
+    @pp.nest(
+      @pp.hardline +
+      @pp.separate(
+        @pp.char(',') + @pp.hardline,
+        self.projections.map(@pp.pretty),
+      ),
+    )
+  }) +
   @pp.hardline +
   @pp.text("FROM") +
   @pp.nest(
@@ -886,3 +896,18 @@ pub struct ObjectName {
 pub impl @pp.Pretty for ObjectName with pretty(self) {
   @pp.separate(@pp.text("."), self.parts.map(@pp.text))
 }
+
+///|
+pub enum Top {
+  Constant(Int)
+  Expr(Expr)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for Top with pretty(self) {
+  match self {
+    Top::Constant(value) => @pp.text(" TOP \{value}")
+    Top::Expr(expr) => @pp.text(" TOP (") + expr.pretty() + @pp.text(")")
+  }
+}
+

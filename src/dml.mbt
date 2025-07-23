@@ -48,6 +48,7 @@ fn parse_select(
   tokens : ArrayView[Token]
 ) -> Parser[SelectStmt] raise ParserError {
   let tokens = expect_token(tokens, Keyword(Select))
+  let (top, tokens) = parse_top(tokens)
   let (distinct, tokens) = match tokens {
     [Keyword(Distinct), .. tokens] => (true, tokens)
     tokens => (false, tokens)
@@ -72,7 +73,7 @@ fn parse_select(
     }
     _ => (None, tokens)
   }
-  ({ projections, from, where_clause, group_by, having, distinct }, tokens)
+  ({ projections, from, where_clause, group_by, having, distinct, top }, tokens)
 }
 
 ///|
@@ -145,6 +146,9 @@ fn parse_projections(
   tokens : ArrayView[Token]
 ) -> Parser[Array[Projection]] raise ParserError {
   let projections = []
+  if tokens is [Keyword(From), ..] {
+    return (projections, tokens)
+  }
   loop tokens {
     [Mul, .. tokens] => {
       projections.push(Projection::Wildcard)
@@ -1543,3 +1547,52 @@ test {
     ),
   )
 }
+
+///|
+test "Non projections" {
+  let tokens = "SELECT FROM t1;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  t1;
+    ),
+  )
+}
+
+///|
+fn parse_top(tokens : ArrayView[Token]) -> Parser[Top?] raise ParserError {
+  match tokens {
+    [Keyword(Top), Number(n), .. tokens] => {
+      let n = @strconv.parse_int(n) catch {
+        StrConvError(e) => raise ParserError::InternalBug("parse_top: \{e}")
+      }
+      (Some(Constant(n)), tokens)
+    }
+    [Keyword(Top), LParen, .. tokens] => {
+      let (expr, tokens) = parse_expr(tokens)
+      let tokens = expect_token(tokens, RParen)
+      (Some(Expr(expr)), tokens)
+    }
+    _ => (None, tokens)
+  }
+}
+
+///|
+test "Top 10" {
+  let tokens = "SELECT TOP 10 * FROM t;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT TOP 10
+      #|  *
+      #|FROM
+      #|  t;
+    ),
+  )
+}
+
