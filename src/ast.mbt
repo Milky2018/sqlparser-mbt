@@ -910,4 +910,3 @@ pub impl @pp.Pretty for Top with pretty(self) {
     Top::Expr(expr) => @pp.text(" TOP (") + expr.pretty() + @pp.text(")")
   }
 }
-

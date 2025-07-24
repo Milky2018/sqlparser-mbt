@@ -117,14 +117,12 @@ test {
   |> pass
 }
 
+///|
 test {
   "SELECT * FROM t1 JOIN t2 ON c1 = c2;" |> pass
 }
 
+///|
 test {
   "SELECT a, SUM(b) FROM t2 GROUP BY a HAVING SUM(b) > 100;" |> pass
-}
-
-test {
-  
 }
