@@ -5,8 +5,15 @@ pub suberror SqlParserError {
 } derive(Show)
 
 ///|
-pub fn parse_sql(input : String) -> Statements raise SqlParserError {
-  let tokens = lex(input) catch { e => raise SqlParserError::LexerError(e) }
-  let stmts = parse(tokens) catch { e => raise SqlParserError::ParserError(e) }
+pub fn parse_sql(
+  dialect~ : &Dialect = MySQL::{  },
+  input : String,
+) -> Statements raise SqlParserError {
+  let tokens = lex(dialect~, input) catch {
+    e => raise SqlParserError::LexerError(e)
+  }
+  let stmts = parse(dialect~, tokens) catch {
+    e => raise SqlParserError::ParserError(e)
+  }
   { stmts, }
 }

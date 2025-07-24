@@ -39,12 +39,15 @@ pub(all) enum Token {
 } derive(Eq, Show)
 
 ///|
-pub fn lex(input : String) -> Array[Token] raise LexerError {
+pub fn lex(
+  dialect~ : &Dialect = MySQL::{  },
+  input : String,
+) -> Array[Token] raise LexerError {
   let tokens = []
   loop input[:] {
     [] => break
     input => {
-      let (token, input) = next_token(input)
+      let (token, input) = next_token(dialect, input)
       tokens.push(token)
       continue input
     }
@@ -53,7 +56,10 @@ pub fn lex(input : String) -> Array[Token] raise LexerError {
 }
 
 ///|
-fn next_token(input : @string.View) -> (Token, @string.View) raise LexerError {
+fn next_token(
+  dialect : &Dialect,
+  input : @string.View,
+) -> (Token, @string.View) raise LexerError {
   match skip_whitespace(input) {
     [',', .. rest] => (Comma, rest)
     ['?', .. rest] => (PlaceHolder, rest)
@@ -70,7 +76,7 @@ fn next_token(input : @string.View) -> (Token, @string.View) raise LexerError {
     ['+', .. rest] => (Plus, rest)
     [.. "--", .. rest] => {
       let rest = skip_line_comment(rest)
-      next_token(rest)
+      next_token(dialect, rest)
     }
     ['-', .. rest] => (Minus, rest)
     ['/', .. rest] => (Div, rest)
@@ -81,7 +87,7 @@ fn next_token(input : @string.View) -> (Token, @string.View) raise LexerError {
     [']', .. rest] => (RBracket, rest)
     ['{', .. rest] => (LBrace, rest)
     ['}', .. rest] => (RBrace, rest)
-    ['\'', .. rest] => read_single_quoted_string(rest)
+    ['\'', .. rest] => read_single_quoted_string(dialect, rest)
     ['"', .. rest] => read_double_quoted_string(rest)
     ['.', .. rest] => read_frac(rest)
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
@@ -237,7 +243,8 @@ fn is_ascii_alphabetic_or_digit(ch : Char) -> Bool {
 
 ///|
 fn read_single_quoted_string(
-  input : @string.View
+  dialect : &Dialect,
+  input : @string.View,
 ) -> (Token, @string.View) raise LexerError {
   let result = StringBuilder::new()
   let rest = loop input {
@@ -246,6 +253,10 @@ fn read_single_quoted_string(
       continue rest
     }
     ['\'', .. rest] => break rest
+    [.. "\\'", .. rest] if dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\'')
+      continue rest
+    }
     [c, .. rest] => {
       result.write_char(c)
       continue rest
@@ -257,7 +268,7 @@ fn read_single_quoted_string(
 
 ///|
 fn read_double_quoted_string(
-  input : @string.View
+  input : @string.View,
 ) -> (Token, @string.View) raise LexerError {
   let result = StringBuilder::new()
   let rest = loop input {
@@ -409,6 +420,18 @@ test "Complicated" {
     tokens,
     content=(
       #|[Identifier("l_linestatus"), Semicolon, Eof]
+    ),
+  )
+}
+
+///|
+test "Single quoted string with escaped backslash" {
+  let input = "SELECT 'Hello, \\'World!\\'' FROM t;"
+  let tokens = lex(dialect=MySQL::{  }, input)
+  inspect(
+    tokens,
+    content=(
+      #|[Keyword(Select), StringLiteral("Hello, 'World!'"), Keyword(From), Identifier("t"), Semicolon]
     ),
   )
 }

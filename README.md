@@ -8,6 +8,6 @@
 
 ## Todo 
 
-- [ ] Dialects
+- [x] Dialects
 - [ ] Documentation
 - [ ] CLI

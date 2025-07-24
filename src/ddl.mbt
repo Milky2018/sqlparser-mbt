@@ -1,12 +1,13 @@
 ///|
-fn parse_create_table_statement(
-  tokens : ArrayView[Token]
-) -> Parser[CreateTableStmt] raise ParserError {
-  let tokens = expect_token(tokens, Keyword(Create))
-  let tokens = expect_token(tokens, Keyword(Table))
+fn Parser::parse_create_table_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateTableStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  let tokens = self.expect_token(tokens, Keyword(Table))
   match tokens {
     [Token::Identifier(name), .. tokens] => {
-      let ((columns, constraints), tokens) = parse_column_defs(tokens)
+      let ((columns, constraints), tokens) = self.parse_column_defs(tokens)
       ({ name, columns, constraints }, tokens)
     }
     _ =>
@@ -32,16 +33,17 @@ test "Create table" {
 }
 
 ///|
-fn parse_column_defs(
-  tokens : ArrayView[Token]
-) -> Parser[(Array[ColumnDef], Array[TableConstraint])] raise ParserError {
+fn Parser::parse_column_defs(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[(Array[ColumnDef], Array[TableConstraint])] raise ParserError {
   let columns = []
   let constraints = []
   let tokens = if tokens is [Token::LParen, .. tokens] {
     loop tokens {
       [Identifier(name), .. tokens] => {
-        let (data_type, tokens) = parse_data_type(tokens)
-        let (options, tokens) = parse_column_def_option(tokens)
+        let (data_type, tokens) = self.parse_data_type(tokens)
+        let (options, tokens) = self.parse_column_def_option(tokens)
         columns.push({ name, data_type, options })
         match tokens {
           [Comma, .. tokens] => continue tokens
@@ -55,7 +57,7 @@ fn parse_column_defs(
         continue tokens
       }
       tokens => {
-        let (constraint, tokens) = parse_table_constraint(tokens)
+        let (constraint, tokens) = self.parse_table_constraint(tokens)
         constraints.push(constraint)
         match tokens {
           [Comma, .. tokens] => continue tokens
@@ -75,9 +77,10 @@ fn parse_column_defs(
 }
 
 ///|
-fn parse_data_type(
-  tokens : ArrayView[Token]
-) -> Parser[DataType] raise ParserError {
+fn Parser::parse_data_type(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[DataType] raise ParserError {
   match tokens {
     [Keyword(Integer) | Keyword(Int), .. tokens] => (Integer, tokens)
     [Keyword(Smallint), .. tokens] => (Smallint, tokens)
@@ -162,9 +165,10 @@ test "Many kinds of data types" {
 }
 
 ///|
-fn parse_column_def_option(
-  tokens : ArrayView[Token]
-) -> Parser[Array[ColumnDefOption]] raise ParserError {
+fn Parser::parse_column_def_option(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[ColumnDefOption]] raise ParserError {
   let options = []
   let tokens = loop tokens {
     [Keyword(Primary), Keyword(Key), .. tokens] => {
@@ -180,7 +184,7 @@ fn parse_column_def_option(
       continue tokens
     }
     [Keyword(Default), .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       options.push(Default(expr))
       continue tokens
     }
@@ -205,11 +209,12 @@ test "With options" {
 }
 
 ///|
-fn parse_create_view_statement(
-  tokens : ArrayView[Token]
-) -> Parser[CreateViewStmt] raise ParserError {
-  let tokens = expect_token(tokens, Keyword(Create))
-  let tokens = expect_token(tokens, Keyword(View))
+fn Parser::parse_create_view_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateViewStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  let tokens = self.expect_token(tokens, Keyword(View))
   guard tokens is [Identifier(name), .. tokens] else {
     raise UnexpectedTokenError(
       tokens[0],
@@ -220,7 +225,7 @@ fn parse_create_view_statement(
   let tokens = if tokens is [LParen, .. tokens] {
     loop tokens {
       tokens => {
-        let (column, tokens) = parse_view_column_def(tokens)
+        let (column, tokens) = self.parse_view_column_def(tokens)
         columns.push(column)
         match tokens {
           [Comma, .. tokens] => continue tokens
@@ -239,15 +244,16 @@ fn parse_create_view_statement(
   } else {
     tokens
   }
-  let tokens = expect_token(tokens, Keyword(As))
-  let (query, tokens) = parse_query(tokens)
+  let tokens = self.expect_token(tokens, Keyword(As))
+  let (query, tokens) = self.parse_query(tokens)
   ({ name, columns, query }, tokens)
 }
 
 ///|
-fn parse_view_column_def(
-  tokens : ArrayView[Token]
-) -> Parser[ViewColumnDef] raise ParserError {
+fn Parser::parse_view_column_def(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[ViewColumnDef] raise ParserError {
   match tokens {
     [Identifier(name), .. tokens] => ({ name, }, tokens)
     [token, .. _tokens] =>
@@ -274,11 +280,12 @@ test "Create view with columns" {
 }
 
 ///|
-fn parse_drop_view_statement(
-  tokens : ArrayView[Token]
-) -> Parser[DropViewStmt] raise ParserError {
-  let tokens = expect_token(tokens, Keyword(Drop))
-  let tokens = expect_token(tokens, Keyword(View))
+fn Parser::parse_drop_view_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[DropViewStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Drop))
+  let tokens = self.expect_token(tokens, Keyword(View))
   guard tokens is [Identifier(name), .. tokens] else {
     raise UnexpectedTokenError(
       tokens[0],
@@ -301,25 +308,26 @@ test "Drop view statement" {
 }
 
 ///|
-fn parse_table_constraint(
-  tokens : ArrayView[Token]
-) -> Parser[TableConstraint] raise ParserError {
+fn Parser::parse_table_constraint(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[TableConstraint] raise ParserError {
   match tokens {
     [Keyword(Primary), Keyword(Key), LParen, .. tokens] => {
-      let (columns, tokens) = parse_order_by(tokens)
-      let tokens = expect_token(tokens, RParen)
+      let (columns, tokens) = self.parse_order_by(tokens)
+      let tokens = self.expect_token(tokens, RParen)
       (TableConstraint::PrimaryKey(columns), tokens)
     }
     [Keyword(Unique), LParen, .. tokens] => {
-      let (columns, tokens) = parse_order_by(tokens)
-      let tokens = expect_token(tokens, RParen)
+      let (columns, tokens) = self.parse_order_by(tokens)
+      let tokens = self.expect_token(tokens, RParen)
       (TableConstraint::Unique(columns), tokens)
     }
     [Keyword(Foreign), Keyword(Key), LParen, ..] as tokens =>
-      parse_foreign_key_constraint(tokens)
+      self.parse_foreign_key_constraint(tokens)
     [Keyword(Check), LParen, .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
-      let tokens = expect_token(tokens, RParen)
+      let (expr, tokens) = self.parse_expr(tokens)
+      let tokens = self.expect_token(tokens, RParen)
       (TableConstraint::Check(expr), tokens)
     }
     [token, .. _tokens] =>
@@ -354,18 +362,19 @@ test "Table constraints" {
 }
 
 ///|
-fn parse_foreign_key_constraint(
-  tokens : ArrayView[Token]
-) -> Parser[TableConstraint] raise ParserError {
-  let tokens = expect_token(tokens, Keyword(Foreign))
-  let tokens = expect_token(tokens, Keyword(Key))
+fn Parser::parse_foreign_key_constraint(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[TableConstraint] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Foreign))
+  let tokens = self.expect_token(tokens, Keyword(Key))
   guard tokens is [LParen, .. tokens] else {
     raise UnexpectedTokenError(tokens[0], Token::LParen)
   }
-  let (columns, tokens) = parse_order_by(tokens)
-  let tokens = expect_token(tokens, RParen)
-  let tokens = expect_token(tokens, Keyword(References))
-  let (foreign_table, tokens) = parse_object_name(tokens)
+  let (columns, tokens) = self.parse_order_by(tokens)
+  let tokens = self.expect_token(tokens, RParen)
+  let tokens = self.expect_token(tokens, Keyword(References))
+  let (foreign_table, tokens) = self.parse_object_name(tokens)
   let foreign_columns = []
   let tokens = if tokens is [LParen, .. tokens] {
     loop tokens {

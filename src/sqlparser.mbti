@@ -5,7 +5,7 @@ fn lex(String) -> Array[Token] raise LexerError
 
 fn parse(ArrayView[Token]) -> Array[Statement] raise ParserError
 
-fn parse_sql(String) -> Statements raise SqlParserError
+fn Parser::parse_sql(String) -> Statements raise SqlParserError
 
 // Types and methods
 pub enum BinaryOperator {

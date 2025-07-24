@@ -1,16 +1,17 @@
 ///|
-fn parse_set_expr(
+fn Parser::parse_set_expr(
+  self : Parser,
   tokens : ArrayView[Token],
-  min_bp : Int
-) -> Parser[SetExpr] raise ParserError {
+  min_bp : Int,
+) -> ParserResult[SetExpr] raise ParserError {
   let mut left_tokens = match tokens {
     [LParen, .. tokens] => {
-      let (query, tokens) = parse_query(tokens)
-      let tokens = expect_token(tokens, RParen)
+      let (query, tokens) = self.parse_query(tokens)
+      let tokens = self.expect_token(tokens, RParen)
       (SetExpr::Query(query), tokens)
     }
     [Keyword(Select), ..] as tokens => {
-      let (select_stmt, tokens) = parse_select(tokens)
+      let (select_stmt, tokens) = self.parse_select(tokens)
       (SetExpr::Select(select_stmt), tokens)
     }
     [token, ..] =>
@@ -23,7 +24,7 @@ fn parse_set_expr(
   for {
     let left = left_tokens.0
     let tokens = left_tokens.1
-    // let (op, tokens) = parse_next_set_operator(tokens)
+    // let (op, tokens) = self.parse_next_set_operator(tokens)
     let (op, tokens) = match tokens {
       [Keyword(Union), .. tokens] => (SetOperator::Union, tokens)
       [Keyword(Intersect), .. tokens] => (SetOperator::Intersect, tokens)
@@ -38,37 +39,38 @@ fn parse_set_expr(
     if next_bp <= min_bp {
       return (left, tokens)
     }
-    let (right, tokens) = parse_set_expr(tokens, min_bp)
+    let (right, tokens) = self.parse_set_expr(tokens, min_bp)
     left_tokens = (SetExpr::SetOperation(op, left, right), tokens)
   }
 }
 
 ///|
-fn parse_select(
-  tokens : ArrayView[Token]
-) -> Parser[SelectStmt] raise ParserError {
-  let tokens = expect_token(tokens, Keyword(Select))
-  let (top, tokens) = parse_top(tokens)
+fn Parser::parse_select(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[SelectStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Select))
+  let (top, tokens) = self.parse_top(tokens)
   let (distinct, tokens) = match tokens {
     [Keyword(Distinct), .. tokens] => (true, tokens)
     tokens => (false, tokens)
   }
-  let (projections, tokens) = parse_projections(tokens)
-  let (from, tokens) = parse_table_refs(tokens)
+  let (projections, tokens) = self.parse_projections(tokens)
+  let (from, tokens) = self.parse_table_refs(tokens)
   let (where_clause, tokens) = match tokens {
     [Keyword(Where), .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       (Some(expr), tokens)
     }
     _ => (None, tokens)
   }
   let (group_by, tokens) = match tokens {
-    [Keyword(Group), Keyword(By), .. tokens] => parse_group_by(tokens)
+    [Keyword(Group), Keyword(By), .. tokens] => self.parse_group_by(tokens)
     _ => ([], tokens)
   }
   let (having, tokens) = match tokens {
     [Keyword(Having), .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       (Some(expr), tokens)
     }
     _ => (None, tokens)
@@ -77,24 +79,25 @@ fn parse_select(
 }
 
 ///|
-fn parse_query(
-  tokens : ArrayView[Token]
-) -> Parser[QueryStmt] raise ParserError {
-  let (body, tokens) = parse_set_expr(tokens, 0)
+fn Parser::parse_query(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[QueryStmt] raise ParserError {
+  let (body, tokens) = self.parse_set_expr(tokens, 0)
   let (order_by, tokens) = match tokens {
-    [Keyword(Order), Keyword(By), .. tokens] => parse_order_by(tokens)
+    [Keyword(Order), Keyword(By), .. tokens] => self.parse_order_by(tokens)
     _ => ([], tokens)
   }
   let (limit, tokens) = match tokens {
     [Keyword(Limit), .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       (Some(expr), tokens)
     }
     _ => (None, tokens)
   }
   let (offset, tokens) = match tokens {
     [Keyword(Offset), .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       (Some(expr), tokens)
     }
     _ => (None, tokens)
@@ -103,9 +106,10 @@ fn parse_query(
 }
 
 ///|
-fn parse_aliasing(
-  tokens : ArrayView[Token]
-) -> Parser[TableAlias?] raise ParserError {
+fn Parser::parse_aliasing(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[TableAlias?] raise ParserError {
   let tokens = match tokens {
     [Keyword(As), .. tokens] => tokens
     tokens => tokens
@@ -142,9 +146,10 @@ fn parse_aliasing(
 }
 
 ///|
-fn parse_projections(
-  tokens : ArrayView[Token]
-) -> Parser[Array[Projection]] raise ParserError {
+fn Parser::parse_projections(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[Projection]] raise ParserError {
   let projections = []
   if tokens is [Keyword(From), ..] {
     return (projections, tokens)
@@ -158,7 +163,7 @@ fn parse_projections(
       }
     }
     tokens => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       let (optional_alias, tokens) = match tokens {
         [Keyword(As), Identifier(alias_name), .. tokens] =>
           (Some(alias_name), tokens)
@@ -179,8 +184,11 @@ fn parse_projections(
 }
 
 ///|
-fn parse_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError {
-  parse_binary_expr(tokens, 0)
+fn Parser::parse_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
+  self.parse_binary_expr(tokens, 0)
 }
 
 ///|
@@ -201,11 +209,12 @@ fn get_next_bp(tokens : ArrayView[Token]) -> Int {
 }
 
 ///|
-fn parse_binary_expr(
+fn Parser::parse_binary_expr(
+  self : Parser,
   tokens : ArrayView[Token],
-  min_bp : Int
-) -> Parser[Expr] raise ParserError {
-  let mut expr_tokens = parse_primary_expr(tokens)
+  min_bp : Int,
+) -> ParserResult[Expr] raise ParserError {
+  let mut expr_tokens = self.parse_primary_expr(tokens)
   for {
     let expr = expr_tokens.0
     let tokens = expr_tokens.1
@@ -213,47 +222,61 @@ fn parse_binary_expr(
     if next_bp <= min_bp {
       return (expr, tokens)
     }
-    expr_tokens = parse_infix(tokens, expr, next_bp)
+    expr_tokens = self.parse_infix(tokens, expr, next_bp)
   }
 }
 
 ///|
-fn parse_infix(
+fn Parser::parse_infix(
+  self : Parser,
   tokens : ArrayView[Token],
   left : Expr,
-  min_bp : Int
-) -> Parser[Expr] raise ParserError {
+  min_bp : Int,
+) -> ParserResult[Expr] raise ParserError {
   match tokens {
     [token, .. tokens] if try_binary_operator(token) is Some(op) => {
-      let (right, tokens) = parse_binary_expr(tokens, min_bp)
+      let (right, tokens) = self.parse_binary_expr(tokens, min_bp)
       let expr = Expr::BinaryOperation(left, op, right)
       (expr, tokens)
     }
     [Keyword(Like), .. tokens] => {
-      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let (right, tokens) = self.parse_binary_expr(
+        tokens,
+        Precedence::Like.value(),
+      )
       let expr = Expr::Like(positive=true, left, right)
       (expr, tokens)
     }
     [Keyword(ILike), .. tokens] => {
-      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let (right, tokens) = self.parse_binary_expr(
+        tokens,
+        Precedence::Like.value(),
+      )
       let expr = Expr::ILike(positive=true, left, right)
       (expr, tokens)
     }
     [Keyword(Not), Keyword(Like), .. tokens] => {
-      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let (right, tokens) = self.parse_binary_expr(
+        tokens,
+        Precedence::Like.value(),
+      )
       let expr = Expr::Like(positive=false, left, right)
       (expr, tokens)
     }
     [Keyword(Not), Keyword(ILike), .. tokens] => {
-      let (right, tokens) = parse_binary_expr(tokens, Precedence::Like.value())
+      let (right, tokens) = self.parse_binary_expr(
+        tokens,
+        Precedence::Like.value(),
+      )
       let expr = Expr::ILike(positive=false, left, right)
       (expr, tokens)
     }
-    [Keyword(Between), .. tokens] => parse_between_expr(tokens, left, true)
+    [Keyword(Between), .. tokens] => self.parse_between_expr(tokens, left, true)
     [Keyword(Not), Keyword(Between), .. tokens] =>
-      parse_between_expr(tokens, left, false)
-    [Keyword(In), .. tokens] => parse_in_expr(tokens, left, true)
-    [Keyword(Not), Keyword(In), .. tokens] => parse_in_expr(tokens, left, false)
+      self.parse_between_expr(tokens, left, false)
+    [Keyword(In), .. tokens] => self.parse_in_expr(tokens, left, true)
+    [Keyword(Not), Keyword(In), .. tokens] =>
+      self.parse_in_expr(tokens, left, false)
     _ => (left, tokens)
   }
 }
@@ -280,12 +303,13 @@ fn try_binary_operator(token : Token) -> BinaryOperator? {
 }
 
 ///|
-fn parse_primary_expr(
-  tokens : ArrayView[Token]
-) -> Parser[Expr] raise ParserError {
+fn Parser::parse_primary_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
   match tokens {
     [Minus as op, .. tokens] | [Plus as op, .. tokens] => {
-      let (expr, tokens) = parse_binary_expr(
+      let (expr, tokens) = self.parse_binary_expr(
         tokens,
         Precedence::MulDivMod.value(),
       )
@@ -317,10 +341,10 @@ fn parse_primary_expr(
         (Literal(Literal::Integer(v)), tokens)
       }
     [StringLiteral(s), .. tokens] => (Literal(Literal::String(s)), tokens)
-    [Keyword(Date), .. tokens] => parse_date_expr(tokens)
-    [Keyword(Interval), .. tokens] => parse_interval_expr(tokens)
-    [Keyword(Extract), .. tokens] => parse_extract_expr(tokens)
-    [Keyword(Substring), .. tokens] => parse_substring_expr(tokens)
+    [Keyword(Date), .. tokens] => self.parse_date_expr(tokens)
+    [Keyword(Interval), .. tokens] => self.parse_interval_expr(tokens)
+    [Keyword(Extract), .. tokens] => self.parse_extract_expr(tokens)
+    [Keyword(Substring), .. tokens] => self.parse_substring_expr(tokens)
     [Identifier(name), LParen, .. tokens] => {
       let args = []
       let (dup, tokens) = match tokens {
@@ -332,7 +356,7 @@ fn parse_primary_expr(
       loop tokens {
         [RParen, .. tokens] => break (FunctionCall(name, dup, args), tokens)
         tokens => {
-          let (arg, tokens) = parse_expr(tokens)
+          let (arg, tokens) = self.parse_expr(tokens)
           args.push(arg)
           match tokens {
             [Comma, .. tokens] => continue tokens
@@ -369,7 +393,7 @@ fn parse_primary_expr(
     }
     [Identifier(name), .. tokens] => (Identifier(name), tokens)
     [Keyword(Exists), LParen, .. tokens] => {
-      let (sub_query, tokens) = parse_query(tokens)
+      let (sub_query, tokens) = self.parse_query(tokens)
       match tokens {
         [RParen, .. tokens] => (Expr::Exists(positive=true, sub_query), tokens)
         [token, .. _tokens] =>
@@ -381,7 +405,7 @@ fn parse_primary_expr(
       }
     }
     [Keyword(Not), Keyword(Exists), LParen, .. tokens] => {
-      let (sub_query, tokens) = parse_query(tokens)
+      let (sub_query, tokens) = self.parse_query(tokens)
       match tokens {
         [RParen, .. tokens] => (Expr::Exists(positive=false, sub_query), tokens)
         [token, .. _tokens] =>
@@ -393,20 +417,20 @@ fn parse_primary_expr(
       }
     }
     [Keyword(Not), .. tokens] => {
-      let (expr, tokens) = parse_binary_expr(
+      let (expr, tokens) = self.parse_binary_expr(
         tokens,
         Precedence::UnaryNot.value(),
       )
       (Expr::UnaryOperation(UnaryOperator::Not, expr), tokens)
     }
-    [Keyword(Case), .. tokens] => parse_case_expr(tokens)
+    [Keyword(Case), .. tokens] => self.parse_case_expr(tokens)
     [Token::LParen, .. tokens] => {
-      let (expr, tokens) = try parse_query(tokens) catch {
-        _ => parse_expr(tokens)
+      let (expr, tokens) = try self.parse_query(tokens) catch {
+        _ => self.parse_expr(tokens)
       } noraise {
         (stmt, tokens) => (Expr::SubQuery(stmt), tokens)
       }
-      let tokens = expect_token(tokens, RParen)
+      let tokens = self.expect_token(tokens, RParen)
       (expr, tokens)
     }
     [Token::Mul, .. tokens] => (Expr::Wildcard, tokens)
@@ -420,14 +444,15 @@ fn parse_primary_expr(
 }
 
 ///|
-fn parse_table_refs(
-  tokens : ArrayView[Token]
-) -> Parser[Array[TableRef]] raise ParserError {
-  let tokens = expect_token(tokens, Keyword(From))
+fn Parser::parse_table_refs(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[TableRef]] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(From))
   let table_refs = []
   loop tokens {
     tokens => {
-      let (table_ref, tokens) = parse_table_ref(tokens)
+      let (table_ref, tokens) = self.parse_table_ref(tokens)
       table_refs.push(table_ref)
       match tokens {
         [Comma, .. tokens] => continue tokens
@@ -438,10 +463,11 @@ fn parse_table_refs(
 }
 
 ///|
-fn parse_table_ref(
-  tokens : ArrayView[Token]
-) -> Parser[TableRef] raise ParserError {
-  let (factor, tokens) = parse_table_factor(tokens)
+fn Parser::parse_table_ref(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[TableRef] raise ParserError {
+  let (factor, tokens) = self.parse_table_factor(tokens)
   let joins = []
   let tokens = loop tokens {
     tokens if tokens[0] is Keyword(Join) ||
@@ -471,10 +497,10 @@ fn parse_table_ref(
             "expected 'JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN', 'FULL OUTER JOIN', 'INNER JOIN'",
           )
       }
-      let (table_ref, tokens) = parse_table_ref(tokens)
+      let (table_ref, tokens) = self.parse_table_ref(tokens)
       match tokens {
         [Keyword(On), .. tokens] => {
-          let (constraint, tokens) = parse_expr(tokens)
+          let (constraint, tokens) = self.parse_expr(tokens)
           joins.push({
             join_operator: join_operator_maker(On(constraint)),
             table_ref,
@@ -525,7 +551,7 @@ fn parse_table_ref(
       }
     }
     [Keyword(Cross), Keyword(Join), .. tokens] => {
-      let (table_ref, tokens) = parse_table_ref(tokens)
+      let (table_ref, tokens) = self.parse_table_ref(tokens)
       joins.push({ join_operator: JoinOperator::Cross, table_ref })
       continue tokens
     }
@@ -535,19 +561,20 @@ fn parse_table_ref(
 }
 
 ///|
-fn parse_table_factor(
-  tokens : ArrayView[Token]
-) -> Parser[TableFactor] raise ParserError {
+fn Parser::parse_table_factor(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[TableFactor] raise ParserError {
   match tokens {
     [Identifier(_) | StringLiteral(_), ..] as tokens => {
-      let (object_name, tokens) = parse_object_name(tokens)
-      let (optional_alias, tokens) = parse_aliasing(tokens)
+      let (object_name, tokens) = self.parse_object_name(tokens)
+      let (optional_alias, tokens) = self.parse_aliasing(tokens)
       (TableFactor::Column(object_name, optional_alias), tokens)
     }
     [Token::LParen, .. tokens] => {
-      let (sub_query, tokens) = parse_query(tokens)
-      let tokens = expect_token(tokens, RParen)
-      let (optional_alias, tokens) = parse_aliasing(tokens)
+      let (sub_query, tokens) = self.parse_query(tokens)
+      let tokens = self.expect_token(tokens, RParen)
+      let (optional_alias, tokens) = self.parse_aliasing(tokens)
       (TableFactor::SubQuery(sub_query, optional_alias), tokens)
     }
     [token, .. _tokens] =>
@@ -562,13 +589,14 @@ fn parse_table_factor(
 }
 
 ///|
-fn parse_group_by(
-  tokens : ArrayView[Token]
-) -> Parser[Array[Expr]] raise ParserError {
+fn Parser::parse_group_by(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[Expr]] raise ParserError {
   let group_by = []
   loop tokens {
     tokens => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       group_by.push(expr)
       match tokens {
         [Comma, .. tokens] => continue tokens
@@ -579,13 +607,14 @@ fn parse_group_by(
 }
 
 ///|
-fn parse_order_by(
-  tokens : ArrayView[Token]
-) -> Parser[Array[OrderByExpr]] raise ParserError {
+fn Parser::parse_order_by(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[OrderByExpr]] raise ParserError {
   let order_by = []
   loop tokens {
     tokens => {
-      let (order_by_expr, tokens) = parse_order_by_expr(tokens)
+      let (order_by_expr, tokens) = self.parse_order_by_expr(tokens)
       order_by.push(order_by_expr)
       match tokens {
         [Comma, .. tokens] => continue tokens
@@ -596,10 +625,11 @@ fn parse_order_by(
 }
 
 ///|
-fn parse_order_by_expr(
-  tokens : ArrayView[Token]
-) -> Parser[OrderByExpr] raise ParserError {
-  let (expr, tokens) = parse_expr(tokens)
+fn Parser::parse_order_by_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[OrderByExpr] raise ParserError {
+  let (expr, tokens) = self.parse_expr(tokens)
   let (asc, tokens) = match tokens {
     [Keyword(Asc), .. tokens] => (Some(true), tokens)
     [Keyword(Desc), .. tokens] => (Some(false), tokens)
@@ -614,7 +644,10 @@ fn parse_order_by_expr(
 }
 
 ///|
-fn parse_date_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError {
+fn Parser::parse_date_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
   match tokens {
     [StringLiteral(s), .. tokens] => (Expr::Datetime(s), tokens)
     [token, .. _tokens] =>
@@ -629,12 +662,13 @@ fn parse_date_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError 
 }
 
 ///|
-fn parse_interval_expr(
-  tokens : ArrayView[Token]
-) -> Parser[Expr] raise ParserError {
+fn Parser::parse_interval_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
   match tokens {
     [StringLiteral(s), .. tokens] => {
-      let (qualifier, tokens) = parse_interval_qualifier(tokens)
+      let (qualifier, tokens) = self.parse_interval_qualifier(tokens)
       (Expr::Interval(s, qualifier), tokens)
     }
     [token, .. _tokens] =>
@@ -649,15 +683,16 @@ fn parse_interval_expr(
 }
 
 ///|
-fn parse_extract_expr(
-  tokens : ArrayView[Token]
-) -> Parser[Expr] raise ParserError {
+fn Parser::parse_extract_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
   match tokens {
     [LParen, .. tokens] => {
-      let (field, tokens) = parse_primary_datetime_field(tokens)
-      let tokens = expect_token(tokens, Keyword(From))
-      let (expr, tokens) = parse_expr(tokens)
-      let tokens = expect_token(tokens, RParen)
+      let (field, tokens) = self.parse_primary_datetime_field(tokens)
+      let tokens = self.expect_token(tokens, Keyword(From))
+      let (expr, tokens) = self.parse_expr(tokens)
+      let tokens = self.expect_token(tokens, RParen)
       (Expr::Extract(field, expr), tokens)
     }
     [token, .. _tokens] =>
@@ -670,21 +705,24 @@ fn parse_extract_expr(
 }
 
 ///|
-fn parse_case_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError {
+fn Parser::parse_case_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
   let when_then_clauses = []
   let mut else_expr : Expr? = None
   let (operand, tokens) : (Expr?, _) = match tokens {
     [Keyword(When), ..] => (None, tokens)
     tokens => {
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       (Some(expr), tokens)
     }
   }
   loop tokens {
     [Keyword(When), .. tokens] => {
-      let (condition, tokens) = parse_expr(tokens)
-      let tokens = expect_token(tokens, Keyword(Then))
-      let (result, tokens) = parse_expr(tokens)
+      let (condition, tokens) = self.parse_expr(tokens)
+      let tokens = self.expect_token(tokens, Keyword(Then))
+      let (result, tokens) = self.parse_expr(tokens)
       when_then_clauses.push((condition, result))
       continue tokens
     }
@@ -692,7 +730,7 @@ fn parse_case_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError 
       if else_expr is Some(_e) {
         raise MultipleElseInCaseExprError
       }
-      let (expr, tokens) = parse_expr(tokens)
+      let (expr, tokens) = self.parse_expr(tokens)
       else_expr = Some(expr)
       continue tokens
     }
@@ -712,13 +750,14 @@ fn parse_case_expr(tokens : ArrayView[Token]) -> Parser[Expr] raise ParserError 
 }
 
 ///|
-fn parse_interval_qualifier(
-  tokens : ArrayView[Token]
-) -> Parser[IntervalQualifier] raise ParserError {
-  let (field1, tokens) = parse_primary_datetime_field(tokens)
+fn Parser::parse_interval_qualifier(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[IntervalQualifier] raise ParserError {
+  let (field1, tokens) = self.parse_primary_datetime_field(tokens)
   match tokens {
     [Keyword(To), .. tokens] => {
-      let field2 = parse_primary_datetime_field(tokens)
+      let field2 = self.parse_primary_datetime_field(tokens)
       match field2 {
         (field2, tokens) => (IntervalQualifier::Range(field1, field2), tokens)
       }
@@ -728,9 +767,10 @@ fn parse_interval_qualifier(
 }
 
 ///|
-fn parse_primary_datetime_field(
-  tokens : ArrayView[Token]
-) -> Parser[PrimaryDatetimeField] raise ParserError {
+fn Parser::parse_primary_datetime_field(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[PrimaryDatetimeField] raise ParserError {
   match tokens {
     [keyword, .. tokens] if datetime_unit_from_keyword(keyword) is Some(field) => {
       let (precision, tokens) = match tokens {
@@ -759,15 +799,22 @@ fn parse_primary_datetime_field(
 }
 
 ///|
-fn parse_between_expr(
+fn Parser::parse_between_expr(
+  self : Parser,
   tokens : ArrayView[Token],
   left : Expr,
-  positive : Bool
-) -> Parser[Expr] raise ParserError {
-  let (low, tokens) = parse_binary_expr(tokens, Precedence::Between.value())
+  positive : Bool,
+) -> ParserResult[Expr] raise ParserError {
+  let (low, tokens) = self.parse_binary_expr(
+    tokens,
+    Precedence::Between.value(),
+  )
   match tokens {
     [Keyword(And), .. tokens] => {
-      let (hi, tokens) = parse_binary_expr(tokens, Precedence::Between.value())
+      let (hi, tokens) = self.parse_binary_expr(
+        tokens,
+        Precedence::Between.value(),
+      )
       (Expr::Between(positive~, left, low, hi), tokens)
     }
     [token, .. _tokens] =>
@@ -780,18 +827,19 @@ fn parse_between_expr(
 }
 
 ///|
-fn parse_in_expr(
+fn Parser::parse_in_expr(
+  self : Parser,
   tokens : ArrayView[Token],
   left : Expr,
-  positive : Bool
-) -> Parser[Expr] raise ParserError {
-  let tokens = expect_token(tokens, LParen)
-  try parse_query(tokens) catch {
+  positive : Bool,
+) -> ParserResult[Expr] raise ParserError {
+  let tokens = self.expect_token(tokens, LParen)
+  try self.parse_query(tokens) catch {
     _ => {
       let items = []
       let tokens = loop tokens {
         tokens => {
-          let (item, tokens) = parse_expr(tokens)
+          let (item, tokens) = self.parse_expr(tokens)
           items.push(item)
           match tokens {
             [Comma, .. tokens] => continue tokens
@@ -835,17 +883,18 @@ fn datetime_unit_from_keyword(keyword : Token) -> DatetimeUnit? {
 }
 
 ///|
-fn parse_substring_expr(
-  tokens : ArrayView[Token]
-) -> Parser[Expr] raise ParserError {
-  let tokens = expect_token(tokens, LParen)
-  let (expr, tokens) = parse_expr(tokens)
+fn Parser::parse_substring_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
+  let tokens = self.expect_token(tokens, LParen)
+  let (expr, tokens) = self.parse_expr(tokens)
   let (start, len, tokens) = match tokens {
     [Keyword(From), .. tokens] => {
-      let (start_expr, tokens) = parse_expr(tokens)
+      let (start_expr, tokens) = self.parse_expr(tokens)
       let (len_expr, tokens) = match tokens {
         [Keyword(For), .. tokens] => {
-          let (len_expr, tokens) = parse_expr(tokens)
+          let (len_expr, tokens) = self.parse_expr(tokens)
           (Some(len_expr), tokens)
         }
         _ => (None, tokens)
@@ -853,10 +902,10 @@ fn parse_substring_expr(
       (Some(start_expr), len_expr, tokens)
     }
     [Comma, .. tokens] => {
-      let (start_expr, tokens) = parse_expr(tokens)
+      let (start_expr, tokens) = self.parse_expr(tokens)
       let (len_expr, tokens) = match tokens {
         [Comma, .. tokens] => {
-          let (len_expr, tokens) = parse_expr(tokens)
+          let (len_expr, tokens) = self.parse_expr(tokens)
           (Some(len_expr), tokens)
         }
         _ => (None, tokens)
@@ -865,7 +914,7 @@ fn parse_substring_expr(
     }
     tokens => (None, None, tokens)
   }
-  let tokens = expect_token(tokens, RParen)
+  let tokens = self.expect_token(tokens, RParen)
   (Substring(expr, start, len), tokens)
 }
 
@@ -1495,9 +1544,10 @@ test "Substring another way" {
 }
 
 ///|
-fn parse_object_name(
-  tokens : ArrayView[Token]
-) -> Parser[ObjectName] raise ParserError {
+fn Parser::parse_object_name(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[ObjectName] raise ParserError {
   let parts = []
   loop tokens {
     [Identifier(part) | StringLiteral(part), Period, .. tokens] => {
@@ -1564,7 +1614,10 @@ test "Non projections" {
 }
 
 ///|
-fn parse_top(tokens : ArrayView[Token]) -> Parser[Top?] raise ParserError {
+fn Parser::parse_top(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Top?] raise ParserError {
   match tokens {
     [Keyword(Top), Number(n), .. tokens] => {
       let n = @strconv.parse_int(n) catch {
@@ -1573,8 +1626,8 @@ fn parse_top(tokens : ArrayView[Token]) -> Parser[Top?] raise ParserError {
       (Some(Constant(n)), tokens)
     }
     [Keyword(Top), LParen, .. tokens] => {
-      let (expr, tokens) = parse_expr(tokens)
-      let tokens = expect_token(tokens, RParen)
+      let (expr, tokens) = self.parse_expr(tokens)
+      let tokens = self.expect_token(tokens, RParen)
       (Some(Expr(expr)), tokens)
     }
     _ => (None, tokens)

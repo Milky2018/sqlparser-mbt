@@ -9,18 +9,28 @@ suberror ParserError {
 } derive(Show)
 
 ///|
-typealias (T, ArrayView[Token]) as Parser[T]
+typealias (T, ArrayView[Token]) as ParserResult[T]
 
 ///|
-fn[T, U] Parser::map(self : Parser[T], f : (T) -> U) -> Parser[U] {
+struct Parser {
+  dialect : &Dialect
+  // recursion counter
+}
+
+///|
+fn[T, U] ParserResult::map(
+  self : ParserResult[T],
+  f : (T) -> U,
+) -> ParserResult[U] {
   let (result, tokens) = self
   (f(result), tokens)
 }
 
 ///|
-fn expect_token(
+fn Parser::expect_token(
+  self : Parser,
   tokens : ArrayView[Token],
-  expected : Token
+  expected : Token,
 ) -> ArrayView[Token] raise ParserError {
   match tokens {
     [token, .. tokens] if token == expected => tokens
@@ -30,13 +40,17 @@ fn expect_token(
 }
 
 ///|
-pub fn parse(tokens : ArrayView[Token]) -> Array[Statement] raise ParserError {
+pub fn parse(
+  dialect~ : &Dialect = MySQL::{  },
+  tokens : ArrayView[Token],
+) -> Array[Statement] raise ParserError {
+  let parser = { dialect, }
   let statements = []
   loop tokens {
     [Token::Eof] => break
     [] => break
     tokens => {
-      let (stmt, tokens) = parse_statement(tokens)
+      let (stmt, tokens) = parser.parse_statement(tokens)
       statements.push(stmt)
       continue tokens
     }
@@ -45,20 +59,22 @@ pub fn parse(tokens : ArrayView[Token]) -> Array[Statement] raise ParserError {
 }
 
 ///|
-fn parse_statement(
-  tokens : ArrayView[Token]
-) -> Parser[Statement] raise ParserError {
+fn Parser::parse_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Statement] raise ParserError {
   let (stmt, tokens) = match tokens {
-    [Keyword(Select), .. _rest] => parse_query(tokens).map(Statement::Query(_))
+    [Keyword(Select), .. _rest] =>
+      self.parse_query(tokens).map(Statement::Query(_))
     [Keyword(Create), Keyword(Table), .. _rest] =>
-      parse_create_table_statement(tokens).map(Statement::CreateTable(_))
+      self.parse_create_table_statement(tokens).map(Statement::CreateTable(_))
     [Keyword(Create), Keyword(View), .. _rest] =>
-      parse_create_view_statement(tokens).map(Statement::CreateView(_))
+      self.parse_create_view_statement(tokens).map(Statement::CreateView(_))
     [Keyword(Drop), Keyword(View), .. _rest] =>
-      parse_drop_view_statement(tokens).map(Statement::DropView(_))
+      self.parse_drop_view_statement(tokens).map(Statement::DropView(_))
     [LParen, .. rest] => {
-      let (stmt, tokens) = parse_statement(rest)
-      let tokens = expect_token(tokens, RParen)
+      let (stmt, tokens) = self.parse_statement(rest)
+      let tokens = self.expect_token(tokens, RParen)
       (stmt, tokens)
     }
     _ => raise UnexpectedTokenError(tokens[0], Keyword(Select))
