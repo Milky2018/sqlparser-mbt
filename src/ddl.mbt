@@ -78,7 +78,7 @@ fn Parser::parse_column_defs(
 
 ///|
 fn Parser::parse_data_type(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[DataType] raise ParserError {
   match tokens {
@@ -251,7 +251,7 @@ fn Parser::parse_create_view_statement(
 
 ///|
 fn Parser::parse_view_column_def(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[ViewColumnDef] raise ParserError {
   match tokens {

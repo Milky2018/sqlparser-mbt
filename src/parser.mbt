@@ -12,7 +12,7 @@ suberror ParserError {
 typealias (T, ArrayView[Token]) as ParserResult[T]
 
 ///|
-struct Parser {
+priv struct Parser {
   dialect : &Dialect
   // recursion counter
 }
@@ -28,7 +28,7 @@ fn[T, U] ParserResult::map(
 
 ///|
 fn Parser::expect_token(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
   expected : Token,
 ) -> ArrayView[Token] raise ParserError {
@@ -44,7 +44,7 @@ pub fn parse(
   dialect~ : &Dialect = MySQL::{  },
   tokens : ArrayView[Token],
 ) -> Array[Statement] raise ParserError {
-  let parser = { dialect, }
+  let parser = Parser::{ dialect, }
   let statements = []
   loop tokens {
     [Token::Eof] => break

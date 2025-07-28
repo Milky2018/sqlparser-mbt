@@ -39,15 +39,21 @@ pub(all) enum Token {
 } derive(Eq, Show)
 
 ///|
+priv struct Lexer {
+  dialect : &Dialect
+}
+
+///|
 pub fn lex(
   dialect~ : &Dialect = MySQL::{  },
   input : String,
 ) -> Array[Token] raise LexerError {
+  let lexer = Lexer::{ dialect, }
   let tokens = []
   loop input[:] {
     [] => break
     input => {
-      let (token, input) = next_token(dialect, input)
+      let (token, input) = lexer.next_token(input)
       tokens.push(token)
       continue input
     }
@@ -56,8 +62,8 @@ pub fn lex(
 }
 
 ///|
-fn next_token(
-  dialect : &Dialect,
+fn Lexer::next_token(
+  self : Lexer,
   input : @string.View,
 ) -> (Token, @string.View) raise LexerError {
   match skip_whitespace(input) {
@@ -76,7 +82,7 @@ fn next_token(
     ['+', .. rest] => (Plus, rest)
     [.. "--", .. rest] => {
       let rest = skip_line_comment(rest)
-      next_token(dialect, rest)
+      self.next_token(rest)
     }
     ['-', .. rest] => (Minus, rest)
     ['/', .. rest] => (Div, rest)
@@ -87,13 +93,13 @@ fn next_token(
     [']', .. rest] => (RBracket, rest)
     ['{', .. rest] => (LBrace, rest)
     ['}', .. rest] => (RBrace, rest)
-    ['\'', .. rest] => read_single_quoted_string(dialect, rest)
+    ['\'', .. rest] => self.read_single_quoted_string(rest)
     ['"', .. rest] => read_double_quoted_string(rest)
     ['.', .. rest] => read_frac(rest)
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
-    ['_', .. _rest] as code => read_identifier_or_keyword(code)
+    ['_', .. _rest] as code => self.read_identifier_or_keyword(code)
     [c, .. _rest] as code if c.is_ascii_alphabetic() =>
-      read_identifier_or_keyword(code)
+      self.read_identifier_or_keyword(code)
     [c, .. _rest] => raise UnknownCharacter(c)
     [] => (Eof, [])
   }
@@ -138,15 +144,15 @@ fn read_number(input : @string.View) -> (Token, @string.View) {
 }
 
 ///|
-fn read_identifier_or_keyword(input : @string.View) -> (Token, @string.View) {
+fn Lexer::read_identifier_or_keyword(self : Lexer, input : @string.View) -> (Token, @string.View) {
   let (idx, rest) = loop (input, 0) {
     ([c, .. rest], n) if is_ascii_alphabetic_or_digit(c) =>
       continue (rest, n + 1)
     (rest, n) => break (n, rest)
   }
   let token = match input.charcodes(start=0, end=idx).to_lower() {
-    "true" => Token::Boolean(true)
-    "false" => Boolean(false)
+    "true" if self.dialect.supports_boolean_literals() => Token::Boolean(true)
+    "false" if self.dialect.supports_boolean_literals() => Token::Boolean(false)
     "select" => Keyword(Select)
     "from" => Keyword(From)
     "where" => Keyword(Where)
@@ -242,8 +248,8 @@ fn is_ascii_alphabetic_or_digit(ch : Char) -> Bool {
 }
 
 ///|
-fn read_single_quoted_string(
-  dialect : &Dialect,
+fn Lexer::read_single_quoted_string(
+  self : Lexer,
   input : @string.View,
 ) -> (Token, @string.View) raise LexerError {
   let result = StringBuilder::new()
@@ -253,7 +259,7 @@ fn read_single_quoted_string(
       continue rest
     }
     ['\'', .. rest] => break rest
-    [.. "\\'", .. rest] if dialect.supports_string_literal_backslash_escape() => {
+    [.. "\\'", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
       result.write_char('\'')
       continue rest
     }

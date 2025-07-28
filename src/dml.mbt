@@ -107,7 +107,7 @@ fn Parser::parse_query(
 
 ///|
 fn Parser::parse_aliasing(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[TableAlias?] raise ParserError {
   let tokens = match tokens {
@@ -188,7 +188,11 @@ fn Parser::parse_expr(
   self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[Expr] raise ParserError {
-  self.parse_binary_expr(tokens, 0)
+  if self.dialect.parse_expr(tokens) is Some(res) {
+    return res
+  } else {
+    self.parse_binary_expr(tokens, 0)
+  }
 }
 
 ///|
@@ -645,7 +649,7 @@ fn Parser::parse_order_by_expr(
 
 ///|
 fn Parser::parse_date_expr(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[Expr] raise ParserError {
   match tokens {
@@ -768,7 +772,7 @@ fn Parser::parse_interval_qualifier(
 
 ///|
 fn Parser::parse_primary_datetime_field(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[PrimaryDatetimeField] raise ParserError {
   match tokens {
@@ -1060,7 +1064,7 @@ test "From multiple table refs" {
 ///|
 test "SubQuery" {
   let tokens = "SELECT sub FROM (SELECT name FROM users WHERE active = true) AS sub;"
-  let stmt = parse_sql(tokens)[0] |> pretty_print
+  let stmt = parse_sql(tokens, dialect=Postgres::{  })[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1334,7 +1338,7 @@ test "Full outer join" {
 ///|
 test "Null, true and false" {
   let tokens = "SELECT NULL, true, false FROM t1;"
-  let stmt = parse_sql(tokens)[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{  }, tokens)[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -1545,7 +1549,7 @@ test "Substring another way" {
 
 ///|
 fn Parser::parse_object_name(
-  self : Parser,
+  _self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[ObjectName] raise ParserError {
   let parts = []

@@ -27,9 +27,6 @@ pub fn Statements::op_get(self : Self, index : Int) -> Statement {
 ///|
 pub enum Statement {
   Query(QueryStmt)
-  // Insert(InsertStmt)
-  // Update(UpdateStmt)
-  // Delete(DeleteStmt)
   CreateTable(CreateTableStmt)
   CreateView(CreateViewStmt)
   DropView(DropViewStmt)
@@ -39,9 +36,6 @@ pub enum Statement {
 pub impl @pp.Pretty for Statement with pretty(self) {
   (match self {
     Statement::Query(stmt) => stmt.pretty()
-    // Statement::Insert(stmt) => @pp.text("Insert: \{stmt}")
-    // Statement::Update(stmt) => @pp.text("Update: \{stmt}")
-    // Statement::Delete(stmt) => @pp.text("Delete: \{stmt}")
     CreateTable(stmt) => stmt.pretty()
     CreateView(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
