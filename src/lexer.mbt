@@ -122,7 +122,7 @@ fn read_frac(input : @string.View) -> (Token, @string.View) {
   if idx == 0 {
     (Period, rest)
   } else {
-    (Number("." + input.charcodes(start=0, end=idx).to_string()), rest)
+    (Number("." + input.view(start_offset=0, end_offset=idx).to_string()), rest)
   }
 }
 
@@ -140,7 +140,7 @@ fn read_number(input : @string.View) -> (Token, @string.View) {
       }
     rest => (idx, rest)
   }
-  (Number(input.charcodes(start=0, end=idx).to_string()), rest)
+  (Number(input.view(start_offset=0, end_offset=idx).to_string()), rest)
 }
 
 ///|
@@ -153,7 +153,7 @@ fn Lexer::read_identifier_or_keyword(
       continue (rest, n + 1)
     (rest, n) => break (n, rest)
   }
-  let token = match input.charcodes(start=0, end=idx).to_lower() {
+  let token = match input.view(start_offset=0, end_offset=idx).to_lower() {
     "true" if self.dialect.supports_boolean_literals() => Token::Boolean(true)
     "false" if self.dialect.supports_boolean_literals() => Token::Boolean(false)
     "select" => Keyword(Select)
