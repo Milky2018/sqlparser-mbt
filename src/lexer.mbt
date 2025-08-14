@@ -144,7 +144,10 @@ fn read_number(input : @string.View) -> (Token, @string.View) {
 }
 
 ///|
-fn Lexer::read_identifier_or_keyword(self : Lexer, input : @string.View) -> (Token, @string.View) {
+fn Lexer::read_identifier_or_keyword(
+  self : Lexer,
+  input : @string.View,
+) -> (Token, @string.View) {
   let (idx, rest) = loop (input, 0) {
     ([c, .. rest], n) if is_ascii_alphabetic_or_digit(c) =>
       continue (rest, n + 1)
