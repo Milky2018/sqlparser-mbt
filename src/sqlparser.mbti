@@ -1,11 +1,33 @@
+// Generated using `moon info`, DON'T EDIT IT
 package "Milky2018/sqlparser"
 
+import(
+  "Yoorkin/prettyprinter"
+)
+
 // Values
-fn lex(String) -> Array[Token] raise LexerError
+fn lex(dialect? : &Dialect, String) -> Array[Token] raise LexerError
 
-fn parse(ArrayView[Token]) -> Array[Statement] raise ParserError
+fn parse(dialect? : &Dialect, ArrayView[Token]) -> Array[Statement] raise ParserError
 
-fn Parser::parse_sql(String) -> Statements raise SqlParserError
+fn parse_sql(dialect? : &Dialect, String) -> Statements raise SqlParserError
+
+fn[T : @prettyprinter.Pretty] pretty_print(T) -> String
+
+fn[T : Show] structural_print(T) -> String
+
+// Errors
+type LexerError
+impl Show for LexerError
+
+type ParserError
+impl Show for ParserError
+
+pub suberror SqlParserError {
+  LexerError(LexerError)
+  ParserError(ParserError)
+}
+impl Show for SqlParserError
 
 // Types and methods
 pub enum BinaryOperator {
@@ -25,6 +47,7 @@ pub enum BinaryOperator {
   Or
 }
 fn BinaryOperator::get_precedence(Self) -> Precedence
+impl @prettyprinter.Pretty for BinaryOperator
 impl Eq for BinaryOperator
 impl Show for BinaryOperator
 
@@ -33,6 +56,7 @@ pub struct CaseExpr {
   when_then_clauses : Array[(Expr, Expr)]
   else_expr : Expr?
 }
+impl @prettyprinter.Pretty for CaseExpr
 impl Eq for CaseExpr
 impl Show for CaseExpr
 
@@ -41,27 +65,38 @@ pub struct ColumnDef {
   data_type : DataType
   options : Array[ColumnDefOption]
 }
+impl @prettyprinter.Pretty for ColumnDef
 impl Eq for ColumnDef
+impl Show for ColumnDef
 
 pub enum ColumnDefOption {
   NotNull
   Unique
   Default(Expr)
+  PrimaryKey
 }
+impl @prettyprinter.Pretty for ColumnDefOption
 impl Eq for ColumnDefOption
+impl Show for ColumnDefOption
 
 pub struct CreateTableStmt {
   name : String
   columns : Array[ColumnDef]
-  primary_key : String?
+  constraints : Array[TableConstraint]
 }
+impl @prettyprinter.Pretty for CreateTableStmt
 impl Eq for CreateTableStmt
+impl Show for CreateTableStmt
 
 type CreateViewStmt
+impl @prettyprinter.Pretty for CreateViewStmt
 impl Eq for CreateViewStmt
+impl Show for CreateViewStmt
 
 pub enum DataType {
   Integer
+  Smallint
+  Bigint
   Float(Int?)
   Real
   Double
@@ -72,7 +107,9 @@ pub enum DataType {
   Timestamp
   Blob
 }
+impl @prettyprinter.Pretty for DataType
 impl Eq for DataType
+impl Show for DataType
 
 pub enum DatetimeUnit {
   Year
@@ -82,19 +119,24 @@ pub enum DatetimeUnit {
   Minute
   Second
 }
+impl @prettyprinter.Pretty for DatetimeUnit
 impl Eq for DatetimeUnit
 impl Show for DatetimeUnit
 
 pub struct DropViewStmt {
   name : String
 }
+impl @prettyprinter.Pretty for DropViewStmt
 impl Eq for DropViewStmt
+impl Show for DropViewStmt
 
 pub enum DuplicateTreatment {
   Distinct
   All
 }
+impl @prettyprinter.Pretty for DuplicateTreatment
 impl Eq for DuplicateTreatment
+impl Show for DuplicateTreatment
 
 pub enum Expr {
   Identifier(String)
@@ -108,15 +150,17 @@ pub enum Expr {
   Interval(String, IntervalQualifier)
   Like(positive~ : Bool, Expr, Expr)
   ILike(positive~ : Bool, Expr, Expr)
-  SubQuery(SelectStmt)
-  Exists(positive~ : Bool, SelectStmt)
+  SubQuery(QueryStmt)
+  Exists(positive~ : Bool, QueryStmt)
   Between(positive~ : Bool, Expr, Expr, Expr)
   Extract(PrimaryDatetimeField, Expr)
   Case(CaseExpr)
   InList(positive~ : Bool, Expr, Array[Expr])
-  InSubQuery(positive~ : Bool, Expr, SelectStmt)
+  InSubQuery(positive~ : Bool, Expr, QueryStmt)
   Substring(Expr, Expr?, Expr?)
+  PlaceHolder
 }
+impl @prettyprinter.Pretty for Expr
 impl Eq for Expr
 impl Show for Expr
 
@@ -124,6 +168,7 @@ pub enum IntervalQualifier {
   Single(PrimaryDatetimeField)
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
 }
+impl @prettyprinter.Pretty for IntervalQualifier
 impl Eq for IntervalQualifier
 impl Show for IntervalQualifier
 
@@ -131,6 +176,7 @@ pub struct Join {
   table_ref : TableRef
   join_operator : JoinOperator
 }
+impl @prettyprinter.Pretty for Join
 impl Eq for Join
 impl Show for Join
 
@@ -139,6 +185,7 @@ pub enum JoinConstraint {
   Using(Array[String])
   None
 }
+impl @prettyprinter.Pretty for JoinConstraint
 impl Eq for JoinConstraint
 impl Show for JoinConstraint
 
@@ -153,6 +200,7 @@ pub enum JoinOperator {
   Inner(JoinConstraint)
   Cross
 }
+impl @prettyprinter.Pretty for JoinOperator
 impl Eq for JoinOperator
 impl Show for JoinOperator
 
@@ -232,12 +280,18 @@ pub(all) enum Keyword {
   All
   Substring
   For
+  Primary
+  Key
+  Foreign
+  References
+  Check
+  Union
+  Intersect
+  Except
+  Top
 }
 impl Eq for Keyword
 impl Show for Keyword
-
-type LexerError
-impl Show for LexerError
 
 pub enum Literal {
   Integer(Int)
@@ -246,19 +300,31 @@ pub enum Literal {
   Boolean(Bool)
   Null
 }
+impl @prettyprinter.Pretty for Literal
 impl Eq for Literal
 impl Show for Literal
+
+pub struct MySQL {
+}
+
+pub struct ObjectName {
+  parts : Array[String]
+}
+impl @prettyprinter.Pretty for ObjectName
+impl Eq for ObjectName
+impl Show for ObjectName
 
 pub struct OrderByExpr {
   expr : Expr
   asc : Bool?
   nulls_first : Bool?
 }
+impl @prettyprinter.Pretty for OrderByExpr
 impl Eq for OrderByExpr
 impl Show for OrderByExpr
 
-type ParserError
-impl Show for ParserError
+pub struct Postgres {
+}
 
 pub(all) enum Precedence {
   PlusMinus
@@ -273,6 +339,7 @@ pub(all) enum Precedence {
 fn Precedence::value(Self) -> Int
 
 type PrimaryDatetimeField
+impl @prettyprinter.Pretty for PrimaryDatetimeField
 impl Eq for PrimaryDatetimeField
 impl Show for PrimaryDatetimeField
 
@@ -281,34 +348,41 @@ pub enum Projection {
   UnamedExpr(Expr)
   AliasedExpr(Expr, String)
 }
+impl @prettyprinter.Pretty for Projection
 impl Eq for Projection
 impl Show for Projection
 
-pub struct SelectStmt {
-  projections : Array[Projection]
-  from : Array[TableRef]
-  where_clause : Expr?
-  group_by : Array[Expr]
-  having : Expr?
+pub struct QueryStmt {
+  body : SetExpr
   order_by : Array[OrderByExpr]
   limit : Expr?
   offset : Expr?
 }
+impl @prettyprinter.Pretty for QueryStmt
+impl Eq for QueryStmt
+impl Show for QueryStmt
+
+type SelectStmt
+impl @prettyprinter.Pretty for SelectStmt
 impl Eq for SelectStmt
 impl Show for SelectStmt
 
-pub suberror SqlParserError {
-  LexerError(LexerError)
-  ParserError(ParserError)
-}
-impl Show for SqlParserError
+type SetExpr
+impl Eq for SetExpr
+impl Show for SetExpr
+
+type SetOperator
+impl @prettyprinter.Pretty for SetOperator
+impl Eq for SetOperator
+impl Show for SetOperator
 
 pub enum Statement {
-  Select(SelectStmt)
+  Query(QueryStmt)
   CreateTable(CreateTableStmt)
   CreateView(CreateViewStmt)
   DropView(DropViewStmt)
 }
+impl @prettyprinter.Pretty for Statement
 impl Eq for Statement
 impl Show for Statement
 
@@ -316,19 +390,33 @@ pub struct Statements {
   stmts : Array[Statement]
 }
 fn Statements::op_get(Self, Int) -> Statement
+impl @prettyprinter.Pretty for Statements
+impl Eq for Statements
 impl Show for Statements
 
 pub struct TableAlias {
   name : String
   columns : Array[String]
 }
+impl @prettyprinter.Pretty for TableAlias
 impl Eq for TableAlias
 impl Show for TableAlias
 
-pub enum TableFactor {
-  Column(String, TableAlias?)
-  SubQuery(SelectStmt, TableAlias?)
+pub enum TableConstraint {
+  Unique(Array[OrderByExpr])
+  PrimaryKey(Array[OrderByExpr])
+  ForeignKey(columns~ : Array[OrderByExpr], foreign_table~ : ObjectName, foreign_columns~ : Array[String])
+  Check(Expr)
 }
+impl @prettyprinter.Pretty for TableConstraint
+impl Eq for TableConstraint
+impl Show for TableConstraint
+
+pub enum TableFactor {
+  Column(ObjectName, TableAlias?)
+  SubQuery(QueryStmt, TableAlias?)
+}
+impl @prettyprinter.Pretty for TableFactor
 impl Eq for TableFactor
 impl Show for TableFactor
 
@@ -336,6 +424,7 @@ pub struct TableRef {
   factor : TableFactor
   joins : Array[Join]
 }
+impl @prettyprinter.Pretty for TableRef
 impl Eq for TableRef
 impl Show for TableRef
 
@@ -367,26 +456,43 @@ pub(all) enum Token {
   LParen
   RParen
   Period
+  PlaceHolder
   Unknown(Char)
   Eof
 }
 impl Eq for Token
 impl Show for Token
 
+pub enum Top {
+  Constant(Int)
+  Expr(Expr)
+}
+impl @prettyprinter.Pretty for Top
+impl Eq for Top
+impl Show for Top
+
 pub enum UnaryOperator {
   Plus
   Minus
   Not
 }
+impl @prettyprinter.Pretty for UnaryOperator
 impl Eq for UnaryOperator
 impl Show for UnaryOperator
 
 pub struct ViewColumnDef {
   name : String
 }
+impl @prettyprinter.Pretty for ViewColumnDef
 impl Eq for ViewColumnDef
+impl Show for ViewColumnDef
 
 // Type aliases
 
 // Traits
+pub trait Dialect {
+  supports_string_literal_backslash_escape(Self) -> Bool
+  supports_boolean_literals(Self) -> Bool
+  parse_expr(Self, ArrayView[Token]) -> (Expr, ArrayView[Token])? raise ParserError
+}
 
