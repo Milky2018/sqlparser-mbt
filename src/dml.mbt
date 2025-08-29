@@ -1652,3 +1652,133 @@ test "Top 10" {
     ),
   )
 }
+
+///|
+fn Parser::parse_insert_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[InsertStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Insert))
+  let tokens = self.expect_token(tokens, Keyword(Into))
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  
+  // Parse optional column list: (col1, col2, ...)
+  let (columns, tokens) = match tokens {
+    [LParen, .. tokens] => {
+      let columns = []
+      loop tokens {
+        [Identifier(col), Comma, .. tokens] => {
+          columns.push(col)
+          continue tokens
+        }
+        [Identifier(col), RParen, .. tokens] => {
+          columns.push(col)
+          break (columns, tokens)
+        }
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(
+            token, "expected column name in INSERT column list"
+          )
+        [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+      }
+    }
+    _ => ([], tokens)
+  }
+  
+  // Parse INSERT source (VALUES or SELECT)
+  let (source, tokens) = match tokens {
+    [Keyword(Values), .. tokens] => {
+      let rows = []
+      loop tokens {
+        [LParen, .. tokens] => {
+          let row = []
+          let tokens = loop tokens {
+            [RParen, .. tokens] => break tokens
+            tokens => {
+              let (expr, tokens) = self.parse_expr(tokens)
+              row.push(expr)
+              match tokens {
+                [Comma, .. tokens] => continue tokens
+                [RParen, .. tokens] => break tokens
+                [token, .. _tokens] =>
+                  raise UnexpectedTokenMessageError(token, "expected ',' or ')'")
+                [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+              }
+            }
+          }
+          rows.push(row)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            _ => break (InsertSource::Values(rows), tokens)
+          }
+        }
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected '(' after VALUES")
+        [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+      }
+    }
+    [Keyword(Select), .. _tokens] => {
+      let (query, tokens) = self.parse_query(tokens)
+      (InsertSource::Query(query), tokens)
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected VALUES or SELECT")
+    [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+  }
+  
+  ({ table_name, columns, source }, tokens)
+}
+
+///|
+test "Insert with values - simple" {
+  let tokens = "INSERT INTO test_table VALUES (1, 2, 'test');"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO test_table VALUES (1, 2, 'test');
+    ),
+  )
+}
+
+///|
+test "Insert with columns and values" {
+  let tokens = "INSERT INTO test_table (id, value, name) VALUES (1, 2, 'test');"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO test_table (id, value, name) VALUES (1, 2, 'test');
+    ),
+  )
+}
+
+///|
+test "Insert with SELECT" {
+  let tokens = "INSERT INTO test_table SELECT * FROM students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO test_table SELECT
+      #|  *
+      #|FROM
+      #|  students;
+    ),
+  )
+}
+
+///|
+test "Insert with schema" {
+  let tokens = "INSERT INTO some_schema.test_table SELECT * FROM another_schema.students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO some_schema.test_table SELECT
+      #|  *
+      #|FROM
+      #|  another_schema.students;
+    ),
+  )
+}

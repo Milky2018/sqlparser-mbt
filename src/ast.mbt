@@ -30,6 +30,7 @@ pub enum Statement {
   CreateTable(CreateTableStmt)
   CreateView(CreateViewStmt)
   DropView(DropViewStmt)
+  Insert(InsertStmt)
 } derive(Eq, Show)
 
 ///|
@@ -39,6 +40,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     CreateTable(stmt) => stmt.pretty()
     CreateView(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
+    Insert(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -902,5 +904,52 @@ pub impl @pp.Pretty for Top with pretty(self) {
   match self {
     Top::Constant(value) => @pp.text(" TOP \{value}")
     Top::Expr(expr) => @pp.text(" TOP (") + expr.pretty() + @pp.text(")")
+  }
+}
+
+///|
+pub struct InsertStmt {
+  /// INSERT INTO <table_name>
+  table_name : ObjectName
+  /// Optional column list: (<col1>, <col2>, ...)
+  columns : Array[String]
+  /// The inserted data source
+  source : InsertSource
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for InsertStmt with pretty(self) {
+  @pp.text("INSERT INTO ") +
+  self.table_name.pretty() +
+  (if self.columns.length() > 0 {
+    @pp.space +
+    @pp.parens(@pp.separate(@pp.text(", "), self.columns.map(@pp.text)))
+  } else {
+    @pp.empty
+  }) +
+  @pp.space +
+  self.source.pretty()
+}
+
+///|
+pub enum InsertSource {
+  /// VALUES (<expr>, ...), (<expr>, ...), ...
+  Values(Array[Array[Expr]])
+  /// SELECT ...
+  Query(QueryStmt)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for InsertSource with pretty(self) {
+  match self {
+    InsertSource::Values(rows) =>
+      @pp.text("VALUES ") +
+      @pp.separate(
+        @pp.text(", "),
+        rows.map(fn(row) {
+          @pp.parens(@pp.separate(@pp.text(", "), row.map(@pp.pretty)))
+        })
+      )
+    InsertSource::Query(query) => query.pretty()
   }
 }

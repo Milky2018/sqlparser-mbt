@@ -84,4 +84,7 @@ pub(all) enum Keyword {
   Intersect
   Except
   Top
+  Insert
+  Into
+  Values
 } derive(Eq, Show)

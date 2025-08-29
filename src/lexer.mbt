@@ -240,6 +240,9 @@ fn Lexer::read_identifier_or_keyword(
     "intersect" => Keyword(Intersect)
     "except" => Keyword(Except)
     "top" => Keyword(Top)
+    "insert" => Keyword(Insert)
+    "into" => Keyword(Into)
+    "values" => Keyword(Values)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

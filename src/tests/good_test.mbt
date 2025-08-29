@@ -126,3 +126,23 @@ test {
 test {
   "SELECT a, SUM(b) FROM t2 GROUP BY a HAVING SUM(b) > 100;" |> pass
 }
+
+///|
+test {
+  "INSERT INTO test_table VALUES (1, 2, 'test');" |> pass
+}
+
+///|
+test {
+  "INSERT INTO test_table (id, value, name) VALUES (1, 2, 'test');" |> pass
+}
+
+///|
+test {
+  "INSERT INTO test_table SELECT * FROM students;" |> pass
+}
+
+///|
+test {
+  "INSERT INTO some_schema.test_table SELECT * FROM another_schema.students;" |> pass
+}
