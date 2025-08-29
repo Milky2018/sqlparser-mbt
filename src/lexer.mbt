@@ -44,7 +44,7 @@ priv struct Lexer {
 }
 
 ///|
-pub fn lex(
+pub fn tokenize(
   dialect~ : &Dialect = MySQL::{  },
   input : String,
 ) -> Array[Token] raise LexerError {
@@ -298,7 +298,7 @@ fn read_double_quoted_string(
 ///|
 test "Double quoted string" {
   let input = "\"Hello,\\\" World!\""
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -319,21 +319,21 @@ fn skip_line_comment(input : @string.View) -> @string.View {
 ///|
 test "Lexing one keyword" {
   let input = "SELECT"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(tokens, content="[Keyword(Select)]")
 }
 
 ///|
 test "Lexing two keywords" {
   let input = "SELECT FROM"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(tokens, content="[Keyword(Select), Keyword(From)]")
 }
 
 ///|
 test "Lexing simple query" {
   let input = "SELECT * FROM table WHERE id = 1;"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -345,7 +345,7 @@ test "Lexing simple query" {
 ///|
 test "Lexing single quoted string" {
   let input = "SELECT 'Hello, World!' FROM t;"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -357,7 +357,7 @@ test "Lexing single quoted string" {
 ///|
 test "Lexing single quoted string with escaped quotes" {
   let input = "SELECT 'Hello, ''World!''!' FROM t;"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -369,14 +369,14 @@ test "Lexing single quoted string with escaped quotes" {
 ///|
 test "Lexing binary operators" {
   let input = "< = > == <> <= >= <=>"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(tokens, content="[Lt, Eq, Gt, DoubleEq, Neq, LtEq, GtEq, Spaceship]")
 }
 
 ///|
 test "Skip line comment" {
   let input = "SELECT * FROM t -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -388,7 +388,7 @@ test "Skip line comment" {
 ///|
 test "Skip line comment" {
   let input = "-- License: Apache-2.0\nSELECT * FROM t -- This is a comment\n WHERE id = 1;\n --x \r -- Another comment \n 123"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -400,7 +400,7 @@ test "Skip line comment" {
 ///|
 test "Decimal point only" {
   let input = "123 . 123 .123 123.123 .1 1.1 22.22;"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -412,7 +412,7 @@ test "Decimal point only" {
 ///|
 test "Decimal point" {
   let input = "SELECT 3.14, .11 FROM t;"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -424,7 +424,7 @@ test "Decimal point" {
 ///|
 test "Complicated" {
   let input = "l_linestatus;\n"
-  let tokens = lex(input)
+  let tokens = tokenize(input)
   inspect(
     tokens,
     content=(
@@ -436,7 +436,7 @@ test "Complicated" {
 ///|
 test "Single quoted string with escaped backslash" {
   let input = "SELECT 'Hello, \\'World!\\'' FROM t;"
-  let tokens = lex(dialect=MySQL::{  }, input)
+  let tokens = tokenize(dialect=MySQL::{  }, input)
   inspect(
     tokens,
     content=(

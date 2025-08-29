@@ -9,7 +9,7 @@ pub fn parse_sql(
   dialect~ : &Dialect = MySQL::{  },
   input : String,
 ) -> Statements raise SqlParserError {
-  let tokens = lex(dialect~, input) catch {
+  let tokens = tokenize(dialect~, input) catch {
     e => raise SqlParserError::LexerError(e)
   }
   let stmts = parse(dialect~, tokens) catch {
