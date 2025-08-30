@@ -12,21 +12,29 @@ fn Parser::parse_create_table_statement(
     _ => (false, tokens)
   }
   
-  match tokens {
-    [Token::Identifier(name), .. tokens] => {
-      let ((columns, constraints), tokens) = self.parse_column_defs(tokens)
-      ({ name, if_not_exists, columns, constraints }, tokens)
-    }
-    [Token::StringLiteral(name), .. tokens] => {
-      let ((columns, constraints), tokens) = self.parse_column_defs(tokens)
-      ({ name, if_not_exists, columns, constraints }, tokens)
-    }
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
     _ =>
       raise UnexpectedTokenError(
         tokens[0],
         Token::Identifier("table_name".to_string()),
       )
   }
+  
+  // Parse table definition - either columns or AS SELECT
+  let (definition, tokens) = match tokens {
+    [Keyword(As), .. tokens] => {
+      let (query, tokens) = self.parse_query(tokens)
+      (CreateTableDefinition::AsQuery(query), tokens)
+    }
+    _ => {
+      let ((columns, constraints), tokens) = self.parse_column_defs(tokens)
+      (CreateTableDefinition::Columns(columns, constraints), tokens)
+    }
+  }
+  
+  ({ name, if_not_exists, definition }, tokens)
 }
 
 ///|
@@ -53,6 +61,39 @@ test "Create table IF NOT EXISTS" {
       #|CREATE TABLE IF NOT EXISTS users (
       #|  id INTEGER
       #|);
+    ),
+  )
+}
+
+///|
+test "Create table AS SELECT" {
+  let tokens = "CREATE TABLE students_2 AS SELECT * FROM students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE students_2 AS SELECT
+      #|  *
+      #|FROM
+      #|  students;
+    ),
+  )
+}
+
+///|
+test "Create table AS SELECT with WHERE" {
+  let tokens = "CREATE TABLE students_3 AS SELECT city, grade FROM students WHERE grade > 3.0;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE students_3 AS SELECT
+      #|  city,
+      #|  grade
+      #|FROM
+      #|  students
+      #|WHERE
+      #|  grade > 3;
     ),
   )
 }

@@ -686,10 +686,16 @@ pub struct CreateTableStmt {
   name : String
   /// IF NOT EXISTS flag
   if_not_exists : Bool
-  /// (<col_name> <col_type>, ...)
-  columns : Array[ColumnDef]
-  /// Table constraints
-  constraints : Array[TableConstraint]
+  /// Table definition - either column definitions or AS SELECT query
+  definition : CreateTableDefinition
+} derive(Eq, Show)
+
+///|
+pub enum CreateTableDefinition {
+  /// (col_name col_type, ...)
+  Columns(Array[ColumnDef], Array[TableConstraint])
+  /// AS SELECT ...
+  AsQuery(QueryStmt)
 } derive(Eq, Show)
 
 ///|
@@ -701,23 +707,34 @@ pub impl @pp.Pretty for CreateTableStmt with pretty(self) {
     @pp.empty
   }) +
   @pp.text(self.name) +
-  @pp.text(" (") +
-  @pp.nest(
-    @pp.hardline +
-    @pp.separate(@pp.text(", ") + @pp.hardline, self.columns.map(@pp.pretty)) +
-    (if self.constraints.length() == 0 {
-      @pp.empty
-    } else {
-      @pp.text(", ") +
+  @pp.space +
+  self.definition.pretty()
+}
+
+///|
+pub impl @pp.Pretty for CreateTableDefinition with pretty(self) {
+  match self {
+    CreateTableDefinition::Columns(columns, constraints) =>
+      @pp.text("(") +
+      @pp.nest(
+        @pp.hardline +
+        @pp.separate(@pp.text(", ") + @pp.hardline, columns.map(@pp.pretty)) +
+        (if constraints.length() == 0 {
+          @pp.empty
+        } else {
+          @pp.text(", ") +
+          @pp.hardline +
+          @pp.separate(
+            @pp.text(", ") + @pp.hardline,
+            constraints.map(@pp.pretty),
+          )
+        }),
+      ) +
       @pp.hardline +
-      @pp.separate(
-        @pp.text(", ") + @pp.hardline,
-        self.constraints.map(@pp.pretty),
-      )
-    }),
-  ) +
-  @pp.hardline +
-  @pp.text(")")
+      @pp.text(")")
+    CreateTableDefinition::AsQuery(query) =>
+      @pp.text("AS ") + query.pretty()
+  }
 }
 
 ///|

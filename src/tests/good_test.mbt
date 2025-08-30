@@ -151,3 +151,13 @@ test {
 test {
   "CREATE TABLE IF NOT EXISTS \"table\" (id INTEGER);" |> pass
 }
+
+///|
+test {
+  "CREATE TABLE students_2 AS SELECT * FROM students;" |> pass
+}
+
+///|
+test {
+  "CREATE TABLE students_3 AS SELECT city, grade FROM students WHERE grade > 3.0;" |> pass
+}
