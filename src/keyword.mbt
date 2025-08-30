@@ -92,4 +92,6 @@ pub(all) enum Keyword {
   Update
   Set
   Truncate
+  Alter
+  Column
 } derive(Eq, Show)

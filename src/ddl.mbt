@@ -571,3 +571,80 @@ test "Drop table IF EXISTS" {
     ),
   )
 }
+
+///|
+fn Parser::parse_alter_table_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[AlterTableStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Alter))
+  let tokens = self.expect_token(tokens, Keyword(Table))
+  
+  // Parse optional IF EXISTS  
+  let (if_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  
+  // Parse table operation
+  let (operation, tokens) = match tokens {
+    [Keyword(Drop), Keyword(Column), .. tokens] => {
+      // Parse optional IF EXISTS for column
+      let (column_if_exists, tokens) = match tokens {
+        [Keyword(If), Keyword(Exists), .. tokens] => (true, tokens)
+        _ => (false, tokens)
+      }
+      
+      match tokens {
+        [Identifier(column_name), .. tokens] => 
+          (AlterTableOperation::DropColumn(column_name, column_if_exists), tokens)
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected column name")
+        [] => raise InternalBug("parse_alter_table_statement: unexpected end of tokens")
+      }
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected table operation")
+    [] => raise InternalBug("parse_alter_table_statement: unexpected end of tokens")
+  }
+  
+  ({ table_name, if_exists, operation, }, tokens)
+}
+
+///|
+test "Alter table drop column" {
+  let tokens = "ALTER TABLE mytable DROP COLUMN mycolumn;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|ALTER TABLE mytable DROP COLUMN mycolumn;
+    ),
+  )
+}
+
+///|
+test "Alter table drop column IF EXISTS" {
+  let tokens = "ALTER TABLE mytable DROP COLUMN IF EXISTS mycolumn;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|ALTER TABLE mytable DROP COLUMN IF EXISTS mycolumn;
+    ),
+  )
+}
+
+///|
+test "Alter table IF EXISTS drop column IF EXISTS" {
+  let tokens = "ALTER TABLE IF EXISTS mytable DROP COLUMN IF EXISTS mycolumn;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|ALTER TABLE IF EXISTS mytable DROP COLUMN IF EXISTS mycolumn;
+    ),
+  )
+}

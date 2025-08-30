@@ -248,6 +248,8 @@ fn Lexer::read_identifier_or_keyword(
     "update" => Keyword(Update)
     "set" => Keyword(Set)
     "truncate" => Keyword(Truncate)
+    "alter" => Keyword(Alter)
+    "column" => Keyword(Column)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

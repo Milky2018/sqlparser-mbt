@@ -35,6 +35,7 @@ pub enum Statement {
   Delete(DeleteStmt)
   Update(UpdateStmt)
   Truncate(TruncateStmt)
+  AlterTable(AlterTableStmt)
 } derive(Eq, Show)
 
 ///|
@@ -49,6 +50,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Delete(stmt) => stmt.pretty()
     Update(stmt) => stmt.pretty()
     Truncate(stmt) => stmt.pretty()
+    AlterTable(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -1068,4 +1070,47 @@ pub impl @pp.Pretty for DropTableStmt with pretty(self) {
     @pp.empty
   }) +
   self.table_name.pretty()
+}
+
+///|
+pub struct AlterTableStmt {
+  /// ALTER TABLE <table_name>
+  table_name : ObjectName
+  /// IF EXISTS flag
+  if_exists : Bool
+  /// Table alteration operation
+  operation : AlterTableOperation
+} derive(Eq, Show)
+
+///|
+pub enum AlterTableOperation {
+  /// DROP COLUMN [IF EXISTS] <column_name>
+  DropColumn(String, Bool) // column_name, if_exists
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for AlterTableStmt with pretty(self) {
+  @pp.text("ALTER TABLE ") +
+  (if self.if_exists {
+    @pp.text("IF EXISTS ")
+  } else {
+    @pp.empty
+  }) +
+  self.table_name.pretty() +
+  @pp.space +
+  self.operation.pretty()
+}
+
+///|
+pub impl @pp.Pretty for AlterTableOperation with pretty(self) {
+  match self {
+    AlterTableOperation::DropColumn(column_name, if_exists) =>
+      @pp.text("DROP COLUMN ") +
+      (if if_exists {
+        @pp.text("IF EXISTS ")
+      } else {
+        @pp.empty
+      }) +
+      @pp.text(column_name)
+  }
 }

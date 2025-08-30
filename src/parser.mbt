@@ -82,6 +82,8 @@ fn Parser::parse_statement(
       self.parse_update_statement(tokens).map(Statement::Update(_))
     [Keyword(Truncate), .. _rest] =>
       self.parse_truncate_statement(tokens).map(Statement::Truncate(_))
+    [Keyword(Alter), Keyword(Table), .. _rest] =>
+      self.parse_alter_table_statement(tokens).map(Statement::AlterTable(_))
     [LParen, .. rest] => {
       let (stmt, tokens) = self.parse_statement(rest)
       let tokens = self.expect_token(tokens, RParen)

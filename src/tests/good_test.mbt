@@ -206,3 +206,13 @@ test {
 test {
   "DROP TABLE IF EXISTS students;" |> pass
 }
+
+///|
+test {
+  "ALTER TABLE mytable DROP COLUMN IF EXISTS mycolumn;" |> pass
+}
+
+///|
+test {
+  "ALTER TABLE IF EXISTS mytable DROP COLUMN IF EXISTS mycolumn;" |> pass
+}
