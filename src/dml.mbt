@@ -1906,3 +1906,25 @@ test "Update without WHERE" {
     ),
   )
 }
+
+///|
+fn Parser::parse_truncate_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[TruncateStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Truncate))
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  ({ table_name, }, tokens)
+}
+
+///|
+test "Truncate table" {
+  let tokens = "TRUNCATE students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|TRUNCATE students;
+    ),
+  )
+}

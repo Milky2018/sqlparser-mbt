@@ -191,3 +191,8 @@ test {
 test {
   "UPDATE some_schema.students SET grade = 1.0;" |> pass
 }
+
+///|
+test {
+  "TRUNCATE students" |> pass
+}

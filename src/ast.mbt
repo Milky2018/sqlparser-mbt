@@ -33,6 +33,7 @@ pub enum Statement {
   Insert(InsertStmt)
   Delete(DeleteStmt)
   Update(UpdateStmt)
+  Truncate(TruncateStmt)
 } derive(Eq, Show)
 
 ///|
@@ -45,6 +46,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Insert(stmt) => stmt.pretty()
     Delete(stmt) => stmt.pretty()
     Update(stmt) => stmt.pretty()
+    Truncate(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -1034,4 +1036,15 @@ pub impl @pp.Pretty for UpdateStmt with pretty(self) {
 ///|
 pub impl @pp.Pretty for Assignment with pretty(self) {
   @pp.text(self.column) + @pp.text(" = ") + self.value.pretty()
+}
+
+///|
+pub struct TruncateStmt {
+  /// TRUNCATE <table_name>
+  table_name : ObjectName
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for TruncateStmt with pretty(self) {
+  @pp.text("TRUNCATE ") + self.table_name.pretty()
 }

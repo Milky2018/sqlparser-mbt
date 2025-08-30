@@ -247,6 +247,7 @@ fn Lexer::read_identifier_or_keyword(
     "delete" => Keyword(Delete)
     "update" => Keyword(Update)
     "set" => Keyword(Set)
+    "truncate" => Keyword(Truncate)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

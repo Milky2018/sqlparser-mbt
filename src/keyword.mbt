@@ -91,4 +91,5 @@ pub(all) enum Keyword {
   Delete
   Update
   Set
+  Truncate
 } derive(Eq, Show)
