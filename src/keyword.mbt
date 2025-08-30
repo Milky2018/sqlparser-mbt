@@ -94,4 +94,9 @@ pub(all) enum Keyword {
   Truncate
   Alter
   Column
+  Show
+  Tables
+  Columns
+  Status
+  Databases
 } derive(Eq, Show)

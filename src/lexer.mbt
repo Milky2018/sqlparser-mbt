@@ -95,6 +95,7 @@ fn Lexer::next_token(
     ['}', .. rest] => (RBrace, rest)
     ['\'', .. rest] => self.read_single_quoted_string(rest)
     ['"', .. rest] => read_double_quoted_string(rest)
+    ['`', .. rest] => self.read_backtick_quoted_identifier(rest)
     ['.', .. rest] => read_frac(rest)
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
     ['_', .. _rest] as code => self.read_identifier_or_keyword(code)
@@ -250,6 +251,11 @@ fn Lexer::read_identifier_or_keyword(
     "truncate" => Keyword(Truncate)
     "alter" => Keyword(Alter)
     "column" => Keyword(Column)
+    "show" => Keyword(Show)
+    "tables" => Keyword(Tables)
+    "columns" => Keyword(Columns)
+    "status" => Keyword(Status)
+    "databases" => Keyword(Databases)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)
@@ -303,6 +309,27 @@ fn read_double_quoted_string(
     [] => raise LexerError::UnterminatedString
   }
   (StringLiteral(result.to_string()), rest)
+}
+
+///|
+fn Lexer::read_backtick_quoted_identifier(
+  _self : Lexer,
+  input : @string.View,
+) -> (Token, @string.View) raise LexerError {
+  let result = StringBuilder::new()
+  let rest = loop input {
+    [.. "``", .. rest] => {
+      result.write_char('`')
+      continue rest
+    }
+    ['`', .. rest] => break rest
+    [c, .. rest] => {
+      result.write_char(c)
+      continue rest
+    }
+    [] => raise LexerError::UnterminatedString
+  }
+  (Identifier(result.to_string()), rest)
 }
 
 ///|
@@ -451,6 +478,30 @@ test "Single quoted string with escaped backslash" {
     tokens,
     content=(
       #|[Keyword(Select), StringLiteral("Hello, 'World!'"), Keyword(From), Identifier("t"), Semicolon]
+    ),
+  )
+}
+
+///|
+test "MySQL backtick quoted identifiers" {
+  let input = "SELECT `column name` FROM `table name`;"
+  let tokens = tokenize(dialect=MySQL::{  }, input)
+  inspect(
+    tokens,
+    content=(
+      #|[Keyword(Select), Identifier("column name"), Keyword(From), Identifier("table name"), Semicolon]
+    ),
+  )
+}
+
+///|
+test "MySQL backtick with escaped backticks" {
+  let input = "SELECT `column``with``backticks` FROM t;"
+  let tokens = tokenize(dialect=MySQL::{  }, input)
+  inspect(
+    tokens,
+    content=(
+      #|[Keyword(Select), Identifier("column`with`backticks"), Keyword(From), Identifier("t"), Semicolon]
     ),
   )
 }

@@ -23,6 +23,9 @@ pub trait Dialect {
   
   /// Custom expression parsing for dialect-specific syntax
   parse_expr(Self, tokens : ArrayView[Token]) -> ParserResult[Expr]? raise ParserError = _
+  
+  /// Custom statement parsing for dialect-specific syntax
+  parse_statement(Self, parser : Parser, tokens : ArrayView[Token]) -> ParserResult[Statement]? raise ParserError = _
 }
 
 ///|
@@ -64,5 +67,14 @@ impl Dialect with supports_double_quoted_identifiers(_self) {
 impl Dialect with parse_expr(_self : Self, _tokens : ArrayView[Token]) -> ParserResult[
   Expr,
 ]? raise ParserError {
+  None
+}
+
+///|
+impl Dialect with parse_statement(
+  _self : Self, 
+  _parser : Parser, 
+  _tokens : ArrayView[Token]
+) -> ParserResult[Statement]? raise ParserError {
   None
 }

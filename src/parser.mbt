@@ -12,7 +12,7 @@ suberror ParserError {
 typealias (T, ArrayView[Token]) as ParserResult[T]
 
 ///|
-priv struct Parser {
+pub struct Parser {
   dialect : &Dialect
   // recursion counter
 }
@@ -63,6 +63,12 @@ fn Parser::parse_statement(
   self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[Statement] raise ParserError {
+  // Try dialect-specific parsing first
+  match self.dialect.parse_statement(self, tokens) {
+    Some(result) => return result
+    None => ()
+  }
+  
   let (stmt, tokens) = match tokens {
     [Keyword(Select), .. _rest] =>
       self.parse_query(tokens).map(Statement::Query(_))

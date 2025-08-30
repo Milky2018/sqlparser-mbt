@@ -36,6 +36,7 @@ pub enum Statement {
   Update(UpdateStmt)
   Truncate(TruncateStmt)
   AlterTable(AlterTableStmt)
+  Show(ShowStmt)
 } derive(Eq, Show)
 
 ///|
@@ -51,6 +52,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Update(stmt) => stmt.pretty()
     Truncate(stmt) => stmt.pretty()
     AlterTable(stmt) => stmt.pretty()
+    Show(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -1112,5 +1114,62 @@ pub impl @pp.Pretty for AlterTableOperation with pretty(self) {
         @pp.empty
       }) +
       @pp.text(column_name)
+  }
+}
+
+///|
+/// MySQL SHOW statement
+pub struct ShowStmt {
+  /// The type of SHOW statement
+  show_type : ShowType
+  /// Optional object name (table, database, etc.)
+  object : Option[ObjectName]
+  /// Optional filter condition
+  filter : Option[ShowFilter]
+} derive(Eq, Show)
+
+///|
+pub enum ShowType {
+  Tables
+  Columns
+  Status
+  Databases
+} derive(Eq, Show)
+
+///|
+pub enum ShowFilter {
+  Like(String)
+  Where(Expr)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for ShowStmt with pretty(self) {
+  @pp.text("SHOW ") +
+  self.show_type.pretty() +
+  (match self.object {
+    Some(obj) => @pp.space + @pp.text("FROM ") + obj.pretty()
+    None => @pp.empty
+  }) +
+  (match self.filter {
+    Some(filter) => @pp.space + filter.pretty()
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for ShowType with pretty(self) {
+  match self {
+    ShowType::Tables => @pp.text("TABLES")
+    ShowType::Columns => @pp.text("COLUMNS")
+    ShowType::Status => @pp.text("STATUS")
+    ShowType::Databases => @pp.text("DATABASES")
+  }
+}
+
+///|
+pub impl @pp.Pretty for ShowFilter with pretty(self) {
+  match self {
+    ShowFilter::Like(pattern) => @pp.text("LIKE '") + @pp.text(pattern) + @pp.text("'")
+    ShowFilter::Where(expr) => @pp.text("WHERE ") + expr.pretty()
   }
 }

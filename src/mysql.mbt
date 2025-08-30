@@ -25,3 +25,18 @@ impl Dialect for MySQL with supports_double_quoted_identifiers(_self) {
 impl Dialect for MySQL with supports_if_not_exists(_self) {
   true
 }
+
+///|
+impl Dialect for MySQL with parse_statement(
+  _self : MySQL,
+  parser : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Statement]? raise ParserError {
+  match tokens {
+    [Keyword(Show), .. _rest] => {
+      let (stmt, tokens) = parser.parse_mysql_show_statement(tokens)
+      Some((Statement::Show(stmt), tokens))
+    }
+    _ => None
+  }
+}
