@@ -1782,3 +1782,49 @@ test "Insert with schema" {
     ),
   )
 }
+
+///|
+fn Parser::parse_delete_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[DeleteStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Delete))
+  let tokens = self.expect_token(tokens, Keyword(From))
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  
+  // Parse optional WHERE clause
+  let (where_clause, tokens) = match tokens {
+    [Keyword(Where), .. tokens] => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({ table_name, where_clause }, tokens)
+}
+
+///|
+test "Delete with WHERE" {
+  let tokens = "DELETE FROM students WHERE grade > 3.0;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DELETE FROM students
+      #|WHERE grade > 3;
+    ),
+  )
+}
+
+///|
+test "Delete without WHERE" {
+  let tokens = "DELETE FROM students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DELETE FROM students;
+    ),
+  )
+}

@@ -74,6 +74,8 @@ fn Parser::parse_statement(
       self.parse_drop_view_statement(tokens).map(Statement::DropView(_))
     [Keyword(Insert), .. _rest] =>
       self.parse_insert_statement(tokens).map(Statement::Insert(_))
+    [Keyword(Delete), .. _rest] =>
+      self.parse_delete_statement(tokens).map(Statement::Delete(_))
     [LParen, .. rest] => {
       let (stmt, tokens) = self.parse_statement(rest)
       let tokens = self.expect_token(tokens, RParen)

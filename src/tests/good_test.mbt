@@ -161,3 +161,13 @@ test {
 test {
   "CREATE TABLE students_3 AS SELECT city, grade FROM students WHERE grade > 3.0;" |> pass
 }
+
+///|
+test {
+  "DELETE FROM students WHERE grade > 3.0" |> pass
+}
+
+///|
+test {
+  "DELETE FROM students" |> pass
+}

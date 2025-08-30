@@ -31,6 +31,7 @@ pub enum Statement {
   CreateView(CreateViewStmt)
   DropView(DropViewStmt)
   Insert(InsertStmt)
+  Delete(DeleteStmt)
 } derive(Eq, Show)
 
 ///|
@@ -41,6 +42,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     CreateView(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
     Insert(stmt) => stmt.pretty()
+    Delete(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -976,4 +978,22 @@ pub impl @pp.Pretty for InsertSource with pretty(self) {
       )
     InsertSource::Query(query) => query.pretty()
   }
+}
+
+///|
+pub struct DeleteStmt {
+  /// DELETE FROM <table_name>
+  table_name : ObjectName
+  /// Optional WHERE clause
+  where_clause : Option[Expr]
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for DeleteStmt with pretty(self) {
+  @pp.text("DELETE FROM ") +
+  self.table_name.pretty() +
+  (match self.where_clause {
+    Some(expr) => @pp.hardline + @pp.text("WHERE") + @pp.space + expr.pretty()
+    None => @pp.empty
+  })
 }
