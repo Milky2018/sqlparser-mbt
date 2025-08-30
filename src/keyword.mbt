@@ -89,4 +89,6 @@ pub(all) enum Keyword {
   Values
   If
   Delete
+  Update
+  Set
 } derive(Eq, Show)

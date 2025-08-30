@@ -1828,3 +1828,81 @@ test "Delete without WHERE" {
     ),
   )
 }
+
+///|
+fn Parser::parse_update_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[UpdateStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Update))
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  let tokens = self.expect_token(tokens, Keyword(Set))
+  
+  // Parse assignments: col1 = expr1, col2 = expr2, ...
+  let assignments = []
+  let tokens = loop tokens {
+    [Identifier(column), Eq, .. tokens] => {
+      let (value, tokens) = self.parse_expr(tokens)
+      assignments.push({ column, value })
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => break tokens
+      }
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected column assignment")
+    [] => raise InternalBug("parse_update_statement: unexpected end of tokens")
+  }
+  
+  // Parse optional WHERE clause
+  let (where_clause, tokens) = match tokens {
+    [Keyword(Where), .. tokens] => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({ table_name, assignments, where_clause }, tokens)
+}
+
+///|
+test "Update with single assignment and WHERE" {
+  let tokens = "UPDATE students SET grade = 1.3 WHERE name = 'Max Mustermann';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|UPDATE students
+      #|SET grade = 1.3
+      #|WHERE name = 'Max Mustermann';
+    ),
+  )
+}
+
+///|
+test "Update with multiple assignments and WHERE" {
+  let tokens = "UPDATE students SET grade = 1.3, name='Felix Fürstenberg' WHERE name = 'Max Mustermann';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|UPDATE students
+      #|SET grade = 1.3, name = 'Felix Fürstenberg'
+      #|WHERE name = 'Max Mustermann';
+    ),
+  )
+}
+
+///|
+test "Update without WHERE" {
+  let tokens = "UPDATE students SET grade = 1.0;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|UPDATE students
+      #|SET grade = 1;
+    ),
+  )
+}

@@ -32,6 +32,7 @@ pub enum Statement {
   DropView(DropViewStmt)
   Insert(InsertStmt)
   Delete(DeleteStmt)
+  Update(UpdateStmt)
 } derive(Eq, Show)
 
 ///|
@@ -43,6 +44,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     DropView(stmt) => stmt.pretty()
     Insert(stmt) => stmt.pretty()
     Delete(stmt) => stmt.pretty()
+    Update(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -996,4 +998,40 @@ pub impl @pp.Pretty for DeleteStmt with pretty(self) {
     Some(expr) => @pp.hardline + @pp.text("WHERE") + @pp.space + expr.pretty()
     None => @pp.empty
   })
+}
+
+///|
+pub struct UpdateStmt {
+  /// UPDATE <table_name>
+  table_name : ObjectName
+  /// SET assignments
+  assignments : Array[Assignment]
+  /// Optional WHERE clause
+  where_clause : Option[Expr]
+} derive(Eq, Show)
+
+///|
+pub struct Assignment {
+  /// Column name
+  column : String
+  /// Value expression
+  value : Expr
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for UpdateStmt with pretty(self) {
+  @pp.text("UPDATE ") +
+  self.table_name.pretty() +
+  @pp.hardline +
+  @pp.text("SET ") +
+  @pp.separate(@pp.text(", "), self.assignments.map(@pp.pretty)) +
+  (match self.where_clause {
+    Some(expr) => @pp.hardline + @pp.text("WHERE") + @pp.space + expr.pretty()
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for Assignment with pretty(self) {
+  @pp.text(self.column) + @pp.text(" = ") + self.value.pretty()
 }

@@ -171,3 +171,23 @@ test {
 test {
   "DELETE FROM students" |> pass
 }
+
+///|
+test {
+  "UPDATE students SET grade = 1.3 WHERE name = 'Max Mustermann';" |> pass
+}
+
+///|
+test {
+  "UPDATE students SET grade = 1.3, name='Felix Fürstenberg' WHERE name = 'Max Mustermann';" |> pass
+}
+
+///|
+test {
+  "UPDATE students SET grade = 1.0;" |> pass
+}
+
+///|
+test {
+  "UPDATE some_schema.students SET grade = 1.0;" |> pass
+}
