@@ -243,6 +243,7 @@ fn Lexer::read_identifier_or_keyword(
     "insert" => Keyword(Insert)
     "into" => Keyword(Into)
     "values" => Keyword(Values)
+    "if" => Keyword(If)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

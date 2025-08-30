@@ -5,10 +5,21 @@ fn Parser::parse_create_table_statement(
 ) -> ParserResult[CreateTableStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Create))
   let tokens = self.expect_token(tokens, Keyword(Table))
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
   match tokens {
     [Token::Identifier(name), .. tokens] => {
       let ((columns, constraints), tokens) = self.parse_column_defs(tokens)
-      ({ name, columns, constraints }, tokens)
+      ({ name, if_not_exists, columns, constraints }, tokens)
+    }
+    [Token::StringLiteral(name), .. tokens] => {
+      let ((columns, constraints), tokens) = self.parse_column_defs(tokens)
+      ({ name, if_not_exists, columns, constraints }, tokens)
     }
     _ =>
       raise UnexpectedTokenError(
@@ -27,6 +38,20 @@ test "Create table" {
     content=(
       #|CREATE TABLE users (
       #|  
+      #|);
+    ),
+  )
+}
+
+///|
+test "Create table IF NOT EXISTS" {
+  let tokens = "CREATE TABLE IF NOT EXISTS users (id INTEGER);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TABLE IF NOT EXISTS users (
+      #|  id INTEGER
       #|);
     ),
   )

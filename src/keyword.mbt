@@ -87,4 +87,5 @@ pub(all) enum Keyword {
   Insert
   Into
   Values
+  If
 } derive(Eq, Show)

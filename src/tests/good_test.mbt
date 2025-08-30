@@ -146,3 +146,8 @@ test {
 test {
   "INSERT INTO some_schema.test_table SELECT * FROM another_schema.students;" |> pass
 }
+
+///|
+test {
+  "CREATE TABLE IF NOT EXISTS \"table\" (id INTEGER);" |> pass
+}

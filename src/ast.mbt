@@ -684,6 +684,8 @@ pub impl @pp.Pretty for CaseExpr with pretty(self) {
 pub struct CreateTableStmt {
   /// CREATE TABLE <table_name>
   name : String
+  /// IF NOT EXISTS flag
+  if_not_exists : Bool
   /// (<col_name> <col_type>, ...)
   columns : Array[ColumnDef]
   /// Table constraints
@@ -693,6 +695,11 @@ pub struct CreateTableStmt {
 ///|
 pub impl @pp.Pretty for CreateTableStmt with pretty(self) {
   @pp.text("CREATE TABLE ") +
+  (if self.if_not_exists {
+    @pp.text("IF NOT EXISTS ")
+  } else {
+    @pp.empty
+  }) +
   @pp.text(self.name) +
   @pp.text(" (") +
   @pp.nest(
