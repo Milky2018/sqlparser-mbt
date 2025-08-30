@@ -72,6 +72,8 @@ fn Parser::parse_statement(
       self.parse_create_view_statement(tokens).map(Statement::CreateView(_))
     [Keyword(Drop), Keyword(View), .. _rest] =>
       self.parse_drop_view_statement(tokens).map(Statement::DropView(_))
+    [Keyword(Drop), Keyword(Table), .. _rest] =>
+      self.parse_drop_table_statement(tokens).map(Statement::DropTable(_))
     [Keyword(Insert), .. _rest] =>
       self.parse_insert_statement(tokens).map(Statement::Insert(_))
     [Keyword(Delete), .. _rest] =>

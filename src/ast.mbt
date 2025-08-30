@@ -30,6 +30,7 @@ pub enum Statement {
   CreateTable(CreateTableStmt)
   CreateView(CreateViewStmt)
   DropView(DropViewStmt)
+  DropTable(DropTableStmt)
   Insert(InsertStmt)
   Delete(DeleteStmt)
   Update(UpdateStmt)
@@ -43,6 +44,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     CreateTable(stmt) => stmt.pretty()
     CreateView(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
+    DropTable(stmt) => stmt.pretty()
     Insert(stmt) => stmt.pretty()
     Delete(stmt) => stmt.pretty()
     Update(stmt) => stmt.pretty()
@@ -1047,4 +1049,23 @@ pub struct TruncateStmt {
 ///|
 pub impl @pp.Pretty for TruncateStmt with pretty(self) {
   @pp.text("TRUNCATE ") + self.table_name.pretty()
+}
+
+///|
+pub struct DropTableStmt {
+  /// DROP TABLE <table_name>
+  table_name : ObjectName
+  /// IF EXISTS flag
+  if_exists : Bool
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for DropTableStmt with pretty(self) {
+  @pp.text("DROP TABLE ") +
+  (if self.if_exists {
+    @pp.text("IF EXISTS ")
+  } else {
+    @pp.empty
+  }) +
+  self.table_name.pretty()
 }

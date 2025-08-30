@@ -529,3 +529,45 @@ test "Check" {
     ),
   )
 }
+
+///|
+fn Parser::parse_drop_table_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[DropTableStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Drop))
+  let tokens = self.expect_token(tokens, Keyword(Table))
+  
+  // Parse optional IF EXISTS
+  let (if_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  ({ table_name, if_exists, }, tokens)
+}
+
+///|
+test "Drop table" {
+  let tokens = "DROP TABLE students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP TABLE students;
+    ),
+  )
+}
+
+///|
+test "Drop table IF EXISTS" {
+  let tokens = "DROP TABLE IF EXISTS students;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP TABLE IF EXISTS students;
+    ),
+  )
+}

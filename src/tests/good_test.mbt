@@ -196,3 +196,13 @@ test {
 test {
   "TRUNCATE students" |> pass
 }
+
+///|
+test {
+  "DROP TABLE students;" |> pass
+}
+
+///|
+test {
+  "DROP TABLE IF EXISTS students;" |> pass
+}
