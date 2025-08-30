@@ -64,7 +64,8 @@ fn Parser::parse_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[Statement] raise ParserError {
   // Try dialect-specific parsing first
-  match self.dialect.parse_statement(self, tokens) {
+  let dialect_result = self.dialect.parse_statement(self, tokens)
+  match dialect_result {
     Some(result) => return result
     None => ()
   }

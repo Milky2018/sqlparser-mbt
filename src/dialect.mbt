@@ -76,5 +76,7 @@ impl Dialect with parse_statement(
   _parser : Parser, 
   _tokens : ArrayView[Token]
 ) -> ParserResult[Statement]? raise ParserError {
+  // Debug: If this is being called instead of dialect-specific implementation,
+  // we'll know there's a dispatch issue
   None
 }
