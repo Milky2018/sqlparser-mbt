@@ -73,6 +73,8 @@ fn Parser::parse_statement(
   let (stmt, tokens) = match tokens {
     [Keyword(Select), .. _rest] =>
       self.parse_query(tokens).map(Statement::Query(_))
+    [Keyword(Show), .. _rest] =>
+      self.parse_show_statement(tokens).map(Statement::Show(_))
     [Keyword(Create), Keyword(Table), .. _rest] =>
       self.parse_create_table_statement(tokens).map(Statement::CreateTable(_))
     [Keyword(Create), Keyword(View), .. _rest] =>
@@ -103,6 +105,46 @@ fn Parser::parse_statement(
 }
 
 ///|
+///|
+fn Parser::parse_show_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[ShowStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Show))
+  
+  let (show_type, tokens) = match tokens {
+    [Keyword(Tables), .. tokens] => (ShowType::Tables, tokens)
+    [Keyword(Columns), .. tokens] => (ShowType::Columns, tokens)
+    [Keyword(Status), .. tokens] => (ShowType::Status, tokens)
+    [Keyword(Databases), .. tokens] => (ShowType::Databases, tokens)
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected TABLES, COLUMNS, STATUS, or DATABASES")
+    [] => raise InternalBug("parse_show_statement: unexpected end of tokens")
+  }
+  
+  // Parse optional FROM clause
+  let (object, tokens) = match tokens {
+    [Keyword(From), .. tokens] => {
+      let (obj_name, tokens) = self.parse_object_name(tokens)
+      (Some(obj_name), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  // Parse optional filter (LIKE or WHERE)
+  let (filter, tokens) = match tokens {
+    [Keyword(Like), StringLiteral(pattern), .. tokens] =>
+      (Some(ShowFilter::Like(pattern)), tokens)
+    [Keyword(Where), .. tokens] => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      (Some(ShowFilter::Where(expr)), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({ show_type, object, filter, }, tokens)
+}
+
 test "Parse simple select statement" {
   let tokens = [
     Keyword(Select),

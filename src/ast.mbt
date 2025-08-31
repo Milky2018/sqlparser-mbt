@@ -926,7 +926,14 @@ pub struct ObjectName {
 
 ///|
 pub impl @pp.Pretty for ObjectName with pretty(self) {
-  @pp.separate(@pp.text("."), self.parts.map(@pp.text))
+  @pp.separate(@pp.text("."), self.parts.map(fn(part) {
+    // Add backticks if the identifier contains spaces or special characters
+    if part.contains(" ") || part.contains("-") || part.contains(".") {
+      @pp.text("`" + part + "`")
+    } else {
+      @pp.text(part)
+    }
+  }))
 }
 
 ///|
