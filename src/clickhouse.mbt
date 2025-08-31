@@ -1,44 +1,44 @@
 ///|
 /// ClickHouse dialect - supports ClickHouse specific syntax
-pub struct ClickHouse {}
+pub(all) struct ClickHouse {}
 
 ///|
-impl Dialect for ClickHouse with supports_string_literal_backslash_escape(_self) {
+pub impl Dialect for ClickHouse with supports_string_literal_backslash_escape(_self) {
   true
 }
 
 ///|
-impl Dialect for ClickHouse with supports_boolean_literals(_self) {
+pub impl Dialect for ClickHouse with supports_boolean_literals(_self) {
   true
 }
 
 ///|
-impl Dialect for ClickHouse with supports_filter_during_aggregation(_self) {
+pub impl Dialect for ClickHouse with supports_filter_during_aggregation(_self) {
   false
 }
 
 ///|
-impl Dialect for ClickHouse with supports_within_after_array_aggregation(_self) {
+pub impl Dialect for ClickHouse with supports_within_after_array_aggregation(_self) {
   false
 }
 
 ///|
-impl Dialect for ClickHouse with requires_column_types_in_create_table(_self) {
+pub impl Dialect for ClickHouse with requires_column_types_in_create_table(_self) {
   true
 }
 
 ///|
-impl Dialect for ClickHouse with supports_if_not_exists(_self) {
+pub impl Dialect for ClickHouse with supports_if_not_exists(_self) {
   true
 }
 
 ///|
-impl Dialect for ClickHouse with supports_double_quoted_identifiers(_self) {
+pub impl Dialect for ClickHouse with supports_double_quoted_identifiers(_self) {
   true
 }
 
 ///|
-impl Dialect for ClickHouse with parse_statement(
+pub impl Dialect for ClickHouse with parse_statement(
   _self : ClickHouse,
   _parser : Parser,
   _tokens : ArrayView[Token],
@@ -47,7 +47,7 @@ impl Dialect for ClickHouse with parse_statement(
 }
 
 ///|
-impl Dialect for ClickHouse with parse_expr(
+pub impl Dialect for ClickHouse with parse_expr(
   _self : ClickHouse,
   _tokens : ArrayView[Token],
 ) -> ParserResult[Expr]? raise ParserError {

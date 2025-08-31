@@ -94,7 +94,7 @@ fn Lexer::next_token(
     ['{', .. rest] => (LBrace, rest)
     ['}', .. rest] => (RBrace, rest)
     ['\'', .. rest] => self.read_single_quoted_string(rest)
-    ['"', .. rest] => read_double_quoted_string(rest)
+    ['"', .. rest] => self.read_double_quoted_string(rest)
     ['`', .. rest] => self.read_backtick_quoted_identifier(rest)
     ['.', .. rest] => read_frac(rest)
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
@@ -282,6 +282,26 @@ fn Lexer::read_single_quoted_string(
       result.write_char('\'')
       continue rest
     }
+    [.. "\\\"", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\"')
+      continue rest
+    }
+    [.. "\\\\", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\\')
+      continue rest
+    }
+    [.. "\\n", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\n')
+      continue rest
+    }
+    [.. "\\t", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\t')
+      continue rest
+    }
+    [.. "\\r", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\r')
+      continue rest
+    }
     [c, .. rest] => {
       result.write_char(c)
       continue rest
@@ -292,13 +312,34 @@ fn Lexer::read_single_quoted_string(
 }
 
 ///|
-fn read_double_quoted_string(
+fn Lexer::read_double_quoted_string(
+  self : Lexer,
   input : @string.View,
 ) -> (Token, @string.View) raise LexerError {
   let result = StringBuilder::new()
   let rest = loop input {
-    [.. "\\\"", .. rest] => {
+    [.. "\\\"", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
       result.write_char('\"')
+      continue rest
+    }
+    [.. "\\'", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\'')
+      continue rest
+    }
+    [.. "\\\\", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\\')
+      continue rest
+    }
+    [.. "\\n", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\n')
+      continue rest
+    }
+    [.. "\\t", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\t')
+      continue rest
+    }
+    [.. "\\r", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\r')
       continue rest
     }
     ['"', .. rest] => break rest
@@ -313,13 +354,21 @@ fn read_double_quoted_string(
 
 ///|
 fn Lexer::read_backtick_quoted_identifier(
-  _self : Lexer,
+  self : Lexer,
   input : @string.View,
 ) -> (Token, @string.View) raise LexerError {
   let result = StringBuilder::new()
   let rest = loop input {
     [.. "``", .. rest] => {
       result.write_char('`')
+      continue rest
+    }
+    [.. "\\`", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('`')
+      continue rest
+    }
+    [.. "\\\\", .. rest] if self.dialect.supports_string_literal_backslash_escape() => {
+      result.write_char('\\')
       continue rest
     }
     ['`', .. rest] => break rest
