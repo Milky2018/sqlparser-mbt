@@ -37,6 +37,14 @@ impl Dialect for MySQL with parse_statement(
   None
 }
 
+///|
+impl Dialect for MySQL with parse_expr(
+  _self : MySQL,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Expr]? raise ParserError {
+  None
+}
+
 
 ///|
 

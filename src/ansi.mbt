@@ -36,3 +36,20 @@ impl Dialect for ANSI with supports_if_not_exists(_self) {
 impl Dialect for ANSI with supports_double_quoted_identifiers(_self) {
   true
 }
+
+///|
+impl Dialect for ANSI with parse_statement(
+  _self : ANSI,
+  _parser : Parser,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Statement]? raise ParserError {
+  None
+}
+
+///|
+impl Dialect for ANSI with parse_expr(
+  _self : ANSI,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Expr]? raise ParserError {
+  None
+}

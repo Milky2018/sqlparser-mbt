@@ -36,3 +36,20 @@ impl Dialect for BigQuery with supports_if_not_exists(_self) {
 impl Dialect for BigQuery with supports_double_quoted_identifiers(_self) {
   false
 }
+
+///|
+impl Dialect for BigQuery with parse_statement(
+  _self : BigQuery,
+  _parser : Parser,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Statement]? raise ParserError {
+  None
+}
+
+///|
+impl Dialect for BigQuery with parse_expr(
+  _self : BigQuery,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Expr]? raise ParserError {
+  None
+}

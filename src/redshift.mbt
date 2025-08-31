@@ -36,3 +36,20 @@ impl Dialect for Redshift with supports_if_not_exists(_self) {
 impl Dialect for Redshift with supports_double_quoted_identifiers(_self) {
   true
 }
+
+///|
+impl Dialect for Redshift with parse_statement(
+  _self : Redshift,
+  _parser : Parser,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Statement]? raise ParserError {
+  None
+}
+
+///|
+impl Dialect for Redshift with parse_expr(
+  _self : Redshift,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Expr]? raise ParserError {
+  None
+}

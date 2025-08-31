@@ -38,3 +38,20 @@ impl Dialect for Generic with supports_if_not_exists(_self) {
 impl Dialect for Generic with supports_double_quoted_identifiers(_self) {
   true
 }
+
+///|
+impl Dialect for Generic with parse_statement(
+  _self : Generic,
+  _parser : Parser,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Statement]? raise ParserError {
+  None
+}
+
+///|
+impl Dialect for Generic with parse_expr(
+  _self : Generic,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Expr]? raise ParserError {
+  None
+}

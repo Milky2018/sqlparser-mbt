@@ -36,3 +36,20 @@ impl Dialect for ClickHouse with supports_if_not_exists(_self) {
 impl Dialect for ClickHouse with supports_double_quoted_identifiers(_self) {
   true
 }
+
+///|
+impl Dialect for ClickHouse with parse_statement(
+  _self : ClickHouse,
+  _parser : Parser,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Statement]? raise ParserError {
+  None
+}
+
+///|
+impl Dialect for ClickHouse with parse_expr(
+  _self : ClickHouse,
+  _tokens : ArrayView[Token],
+) -> ParserResult[Expr]? raise ParserError {
+  None
+}
