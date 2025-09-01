@@ -99,4 +99,9 @@ pub(all) enum Keyword {
   Columns
   Status
   Databases
+  Div
+  Lock
+  Unlock
+  Listen
+  Notify
 } derive(Eq, Show)

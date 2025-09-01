@@ -2,7 +2,7 @@
 pub fn BinaryOperator::get_precedence(self : Self) -> Precedence {
   match self {
     BinaryOperator::Plus | BinaryOperator::Minus => Precedence::PlusMinus
-    BinaryOperator::Mul | BinaryOperator::Div | BinaryOperator::Mod =>
+    BinaryOperator::Mul | BinaryOperator::Div | BinaryOperator::IntegerDiv | BinaryOperator::Mod =>
       Precedence::MulDivMod
     BinaryOperator::Eq
     | BinaryOperator::Neq

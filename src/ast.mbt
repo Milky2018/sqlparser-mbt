@@ -37,6 +37,11 @@ pub enum Statement {
   Truncate(TruncateStmt)
   AlterTable(AlterTableStmt)
   Show(ShowStmt)
+  LockTables(Array[ObjectName])
+  UnlockTables
+  // PostgreSQL-specific statements
+  Listen(String)
+  Notify(String, String?)
 } derive(Eq, Show)
 
 ///|
@@ -53,19 +58,27 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Truncate(stmt) => stmt.pretty()
     AlterTable(stmt) => stmt.pretty()
     Show(stmt) => stmt.pretty()
+    LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
+    UnlockTables => @pp.text("UNLOCK TABLES")
+    Listen(channel) => @pp.text("LISTEN ") + @pp.text(channel)
+    Notify(channel, payload) => @pp.text("NOTIFY ") + @pp.text(channel) + 
+      (match payload {
+        Some(msg) => @pp.text(", '") + @pp.text(msg) + @pp.text("'")
+        None => @pp.empty
+      })
   }) +
   @pp.text(";")
 }
 
 ///|
 pub struct QueryStmt {
-  /// SELECT ...
+  // SELECT ...
   body : SetExpr
-  /// ORDER BY <order_by>
+  // ORDER BY <order_by>
   order_by : Array[OrderByExpr]
-  /// LIMIT <expr>
+  // LIMIT <expr>
   limit : Expr?
-  /// OFFSET <expr>
+  // OFFSET <expr>
   offset : Expr?
 } derive(Eq, Show)
 
@@ -96,11 +109,11 @@ pub impl @pp.Pretty for QueryStmt with pretty(self) {
 
 ///|
 enum SetExpr {
-  /// Restricted
+  // Restricted
   Select(SelectStmt)
-  /// Parenthesized
+  // Parenthesized
   Query(QueryStmt)
-  /// UNION, INTERSECT, EXCEPT
+  // UNION, INTERSECT, EXCEPT
   SetOperation(SetOperator, SetExpr, SetExpr)
 } derive(Eq, Show)
 
@@ -117,19 +130,19 @@ impl @pp.Pretty for SetExpr with pretty(self) {
 
 ///|
 struct SelectStmt {
-  /// SELECT <projections>
+  // SELECT <projections>
   projections : Array[Projection]
-  /// TOP <expr>
+  // TOP <expr>
   top : Top?
-  /// (DISTINCT <projections>)
+  // (DISTINCT <projections>)
   distinct : Bool
-  /// FROM <table_refs>
+  // FROM <table_refs>
   from : Array[TableRef]
-  /// WHERE <where_clause>
+  // WHERE <where_clause>
   where_clause : Expr?
-  /// GROUP BY <group_by>
+  // GROUP BY <group_by>
   group_by : Array[Expr]
-  /// HAVING <expr>
+  // HAVING <expr>
   having : Expr?
 } derive(Eq, Show)
 
@@ -214,51 +227,51 @@ pub impl @pp.Pretty for Projection with pretty(self) {
 
 ///|
 pub enum Expr {
-  /// <identifier>
+  // <identifier>
   Identifier(String)
-  /// <identifier>.<identifier>
+  // <identifier>.<identifier>
   CompoundIdentifier(Array[String])
-  /// string, integer, double, boolean, null
+  // string, integer, double, boolean, null
   Literal(Literal)
-  /// <expr> + <expr>
+  // <expr> + <expr>
   BinaryOperation(Expr, BinaryOperator, Expr)
-  /// - <expr>
+  // - <expr>
   UnaryOperation(UnaryOperator, Expr)
-  /// sum(*)
+  // sum(*)
   FunctionCall(String, DuplicateTreatment?, Array[Expr])
-  /// *
+  // *
   Wildcard
-  /// DATE '1998-05-19'
+  // DATE '1998-05-19'
   Datetime(String)
-  /// INTERVAL '1 day' YEAR TO MONTH
+  // INTERVAL '1 day' YEAR TO MONTH
   Interval(String, IntervalQualifier)
-  /// <expr> [NOT] LIKE <expr>
+  // <expr> [NOT] LIKE <expr>
   Like(positive~ : Bool, Expr, Expr)
-  /// <expr> [NOT] ILIKE <expr>
+  // <expr> [NOT] ILIKE <expr>
   ILike(positive~ : Bool, Expr, Expr)
-  /// (SELECT ...)
+  // (SELECT ...)
   SubQuery(QueryStmt)
-  /// [NOT] EXISTS
+  // [NOT] EXISTS
   Exists(positive~ : Bool, QueryStmt)
-  /// <expr> [NOT] BETWEEN <expr> AND <expr>
+  // <expr> [NOT] BETWEEN <expr> AND <expr>
   Between(positive~ : Bool, Expr, Expr, Expr)
-  /// EXTRACT(YEAR FROM <expr>)
+  // EXTRACT(YEAR FROM <expr>)
   Extract(PrimaryDatetimeField, Expr)
-  /// CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
+  // CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
   Case(CaseExpr)
-  /// <expr> [NOT] IN (<expr>, ...)
+  // <expr> [NOT] IN (<expr>, ...)
   InList(positive~ : Bool, Expr, Array[Expr])
-  /// <expr> [NOT] IN (SELECT ...)
+  // <expr> [NOT] IN (SELECT ...)
   InSubQuery(positive~ : Bool, Expr, QueryStmt)
-  /// ```sql
-  /// SUBSTRING(<expr> [FROM <expr>] [FOR <expr>])
-  /// ```
-  /// or
-  /// ```sql
-  /// SUBSTRING(<expr>, <expr>, <expr>)
-  /// ```
+  // ```sql
+  // SUBSTRING(<expr> [FROM <expr>] [FOR <expr>])
+  // ```
+  // or
+  // ```sql
+  // SUBSTRING(<expr>, <expr>, <expr>)
+  // ```
   Substring(Expr, Expr?, Expr?)
-  /// ?
+  // ?
   PlaceHolder
 } derive(Eq, Show)
 
@@ -390,6 +403,7 @@ pub enum BinaryOperator {
   Minus
   Mul
   Div
+  IntegerDiv  // MySQL DIV keyword for integer division
   Mod
   And
   Or
@@ -409,6 +423,7 @@ pub impl @pp.Pretty for BinaryOperator with pretty(self) {
     BinaryOperator::Minus => @pp.text("-")
     BinaryOperator::Mul => @pp.text("*")
     BinaryOperator::Div => @pp.text("/")
+    BinaryOperator::IntegerDiv => @pp.text(" DIV ")
     BinaryOperator::Mod => @pp.text("%")
     BinaryOperator::And => @pp.hardline + @pp.text("AND")
     BinaryOperator::Or => @pp.hardline + @pp.text("OR")
@@ -433,11 +448,11 @@ pub impl @pp.Pretty for UnaryOperator with pretty(self) {
 
 ///|
 pub struct OrderByExpr {
-  /// ORDER BY <expr>
+  // ORDER BY <expr>
   expr : Expr
-  /// ASC | DESC
+  // ASC | DESC
   asc : Bool?
-  /// NULLS FIRST | NULLS LAST
+  // NULLS FIRST | NULLS LAST
   nulls_first : Bool?
 } derive(Eq, Show)
 
@@ -470,9 +485,9 @@ pub impl @pp.Pretty for TableRef with pretty(self) {
 
 ///|
 pub enum TableFactor {
-  /// <col_name> [AS <alias>]
+  // <col_name> [AS <alias>]
   Column(ObjectName, TableAlias?)
-  /// FROM (SELECT ...) [AS <alias>]
+  // FROM (SELECT ...) [AS <alias>]
   SubQuery(QueryStmt, TableAlias?)
 } derive(Eq, Show)
 
@@ -516,9 +531,9 @@ pub impl @pp.Pretty for TableAlias with pretty(self) {
 
 ///|
 pub struct Join {
-  /// JOIN <table_ref> ON <expr>
+  // JOIN <table_ref> ON <expr>
   table_ref : TableRef
-  /// LEFT JOIN | RIGHT JOIN | FULL | INNER | CROSS
+  // LEFT JOIN | RIGHT JOIN | FULL | INNER | CROSS
   join_operator : JoinOperator
 } derive(Eq, Show)
 
@@ -571,9 +586,9 @@ pub impl @pp.Pretty for JoinOperator with pretty(self) {
 
 ///|
 pub enum JoinConstraint {
-  /// ON <expr>
+  // ON <expr>
   On(Expr)
-  /// USING (<col_name>, ...)
+  // USING (<col_name>, ...)
   Using(Array[String])
   None
 } derive(Eq, Show)
@@ -596,9 +611,9 @@ pub impl @pp.Pretty for JoinConstraint with pretty(self) {
 
 ///|
 pub enum IntervalQualifier {
-  /// YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   Single(PrimaryDatetimeField)
-  /// <from> TO <to>
+  // <from> TO <to>
   Range(PrimaryDatetimeField, PrimaryDatetimeField)
 } derive(Eq, Show)
 
@@ -613,9 +628,9 @@ pub impl @pp.Pretty for IntervalQualifier with pretty(self) {
 
 ///|
 struct PrimaryDatetimeField {
-  /// YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   field : DatetimeUnit
-  /// (3)
+  // (3)
   precision : Int?
 } derive(Eq, Show)
 
@@ -655,11 +670,11 @@ pub impl @pp.Pretty for DatetimeUnit with pretty(self) {
 
 ///| CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
 pub struct CaseExpr {
-  /// CASE [operand]
+  // CASE [operand]
   operand : Expr?
-  /// WHEN <expr> THEN <expr> [...]
+  // WHEN <expr> THEN <expr> [...]
   when_then_clauses : Array[(Expr, Expr)]
-  /// ELSE <expr>
+  // ELSE <expr>
   else_expr : Expr?
 } derive(Eq, Show)
 
@@ -694,11 +709,11 @@ pub impl @pp.Pretty for CaseExpr with pretty(self) {
 
 ///|
 pub struct CreateTableStmt {
-  /// CREATE TABLE <table_name>
+  // CREATE TABLE <table_name>
   name : String
-  /// IF NOT EXISTS flag
+  // IF NOT EXISTS flag
   if_not_exists : Bool
-  /// Table definition - either column definitions or AS SELECT query
+  // Table definition - either column definitions or AS SELECT query
   definition : CreateTableDefinition
 } derive(Eq, Show)
 
@@ -820,11 +835,11 @@ pub impl @pp.Pretty for ColumnDefOption with pretty(self) {
 
 ///|
 struct CreateViewStmt {
-  /// CREATE VIEW <view_name>
+  // CREATE VIEW <view_name>
   name : String
-  /// [(<column_name>, ...)]
+  // [(<column_name>, ...)]
   columns : Array[ViewColumnDef]
-  /// AS <select_stmt>
+  // AS <select_stmt>
   query : QueryStmt
 } derive(Eq, Show)
 
@@ -857,7 +872,7 @@ pub impl @pp.Pretty for ViewColumnDef with pretty(self) {
 
 ///|
 pub struct DropViewStmt {
-  /// DROP VIEW <view_name>
+  // DROP VIEW <view_name>
   name : String
 } derive(Eq, Show)
 
@@ -868,9 +883,9 @@ pub impl @pp.Pretty for DropViewStmt with pretty(self) {
 
 ///|
 pub enum DuplicateTreatment {
-  /// DISTINCT
+  // DISTINCT
   Distinct
-  /// ALL
+  // ALL
   All
 } derive(Eq, Show)
 
@@ -920,7 +935,7 @@ pub impl @pp.Pretty for TableConstraint with pretty(self) {
 
 ///|
 pub struct ObjectName {
-  /// <identifier>.<identifier>.<identifier>
+  // <identifier>.<identifier>.<identifier>
   parts : Array[String]
 } derive(Eq, Show)
 
@@ -952,11 +967,11 @@ pub impl @pp.Pretty for Top with pretty(self) {
 
 ///|
 pub struct InsertStmt {
-  /// INSERT INTO <table_name>
+  // INSERT INTO <table_name>
   table_name : ObjectName
-  /// Optional column list: (<col1>, <col2>, ...)
+  // Optional column list: (<col1>, <col2>, ...)
   columns : Array[String]
-  /// The inserted data source
+  // The inserted data source
   source : InsertSource
 } derive(Eq, Show)
 
@@ -976,9 +991,9 @@ pub impl @pp.Pretty for InsertStmt with pretty(self) {
 
 ///|
 pub enum InsertSource {
-  /// VALUES (<expr>, ...), (<expr>, ...), ...
+  // VALUES (<expr>, ...), (<expr>, ...), ...
   Values(Array[Array[Expr]])
-  /// SELECT ...
+  // SELECT ...
   Query(QueryStmt)
 } derive(Eq, Show)
 
@@ -1017,19 +1032,19 @@ pub impl @pp.Pretty for DeleteStmt with pretty(self) {
 
 ///|
 pub struct UpdateStmt {
-  /// UPDATE <table_name>
+  // UPDATE <table_name>
   table_name : ObjectName
-  /// SET assignments
+  // SET assignments
   assignments : Array[Assignment]
-  /// Optional WHERE clause
+  // Optional WHERE clause
   where_clause : Option[Expr]
 } derive(Eq, Show)
 
 ///|
 pub struct Assignment {
-  /// Column name
+  // Column name
   column : String
-  /// Value expression
+  // Value expression
   value : Expr
 } derive(Eq, Show)
 
@@ -1053,7 +1068,7 @@ pub impl @pp.Pretty for Assignment with pretty(self) {
 
 ///|
 pub struct TruncateStmt {
-  /// TRUNCATE <table_name>
+  // TRUNCATE <table_name>
   table_name : ObjectName
 } derive(Eq, Show)
 
@@ -1083,17 +1098,17 @@ pub impl @pp.Pretty for DropTableStmt with pretty(self) {
 
 ///|
 pub struct AlterTableStmt {
-  /// ALTER TABLE <table_name>
+  // ALTER TABLE <table_name>
   table_name : ObjectName
-  /// IF EXISTS flag
+  // IF EXISTS flag
   if_exists : Bool
-  /// Table alteration operation
+  // Table alteration operation
   operation : AlterTableOperation
 } derive(Eq, Show)
 
 ///|
 pub enum AlterTableOperation {
-  /// DROP COLUMN [IF EXISTS] <column_name>
+  // DROP COLUMN [IF EXISTS] <column_name>
   DropColumn(String, Bool) // column_name, if_exists
 } derive(Eq, Show)
 
@@ -1127,11 +1142,11 @@ pub impl @pp.Pretty for AlterTableOperation with pretty(self) {
 ///|
 /// MySQL SHOW statement
 pub struct ShowStmt {
-  /// The type of SHOW statement
+  // The type of SHOW statement
   show_type : ShowType
-  /// Optional object name (table, database, etc.)
+  // Optional object name (table, database, etc.)
   object : Option[ObjectName]
-  /// Optional filter condition
+  // Optional filter condition
   filter : Option[ShowFilter]
 } derive(Eq, Show)
 

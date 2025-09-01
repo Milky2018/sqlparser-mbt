@@ -302,6 +302,7 @@ fn try_binary_operator(token : Token) -> BinaryOperator? {
     Token::Spaceship => Some(BinaryOperator::Spaceship)
     Keyword(And) => Some(BinaryOperator::And)
     Keyword(Or) => Some(BinaryOperator::Or)
+    Keyword(Div) => Some(BinaryOperator::IntegerDiv) // MySQL DIV operator
     _ => None
   }
 }

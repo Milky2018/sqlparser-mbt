@@ -40,9 +40,23 @@ pub impl Dialect for Postgres with requires_column_types_in_create_table(_self) 
 pub impl Dialect for Postgres with parse_statement(
   _self : Postgres,
   _parser : Parser,
-  _tokens : ArrayView[Token],
+  tokens : ArrayView[Token],
 ) -> ParserResult[Statement]? raise ParserError {
-  None
+  match tokens {
+    [Keyword(Listen), Identifier(channel), Semicolon, .. rest] => {
+      // PostgreSQL LISTEN statement
+      Some((Statement::Listen(channel), rest))
+    }
+    [Keyword(Notify), Identifier(channel), Semicolon, .. rest] => {
+      // PostgreSQL NOTIFY statement without payload
+      Some((Statement::Notify(channel, None), rest))
+    }
+    [Keyword(Notify), Identifier(channel), Comma, StringLiteral(payload), Semicolon, .. rest] => {
+      // PostgreSQL NOTIFY statement with payload
+      Some((Statement::Notify(channel, Some(payload)), rest))
+    }
+    _ => None  // Fall back to generic parsing
+  }
 }
 
 ///|
@@ -50,5 +64,42 @@ pub impl Dialect for Postgres with parse_expr(
   _self : Postgres,
   _tokens : ArrayView[Token],
 ) -> ParserResult[Expr]? raise ParserError {
+  // TODO: Implement PostgreSQL-specific expression parsing (e.g., filter aggregations)
   None
+}
+
+///|
+test "PostgreSQL LISTEN" {
+  let tokens = "LISTEN my_channel;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LISTEN my_channel;
+    ),
+  )
+}
+
+///|
+test "PostgreSQL NOTIFY without payload" {
+  let tokens = "NOTIFY my_channel;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|NOTIFY my_channel;
+    ),
+  )
+}
+
+///|
+test "PostgreSQL NOTIFY with payload" {
+  let tokens = "NOTIFY my_channel, 'hello world';"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|NOTIFY my_channel, 'hello world';
+    ),
+  )
 }

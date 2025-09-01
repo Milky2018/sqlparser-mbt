@@ -40,11 +40,20 @@ pub impl Dialect for MySQL with supports_if_not_exists(_self) {
 pub impl Dialect for MySQL with parse_statement(
   _self : MySQL,
   _parser : Parser,
-  _tokens : ArrayView[Token],
+  tokens : ArrayView[Token],
 ) -> ParserResult[Statement]? raise ParserError {
-  // Following datafusion-sqlparser-rs pattern - return None for now
-  // SHOW statements should be handled in the main parser
-  None
+  match tokens {
+    [Keyword(Lock), Keyword(Tables), Identifier(table_name), Semicolon, .. rest] => {
+      // MySQL LOCK TABLES statement
+      let table = ObjectName::{ parts: [table_name] }
+      Some((Statement::LockTables([table]), rest))
+    }
+    [Keyword(Unlock), Keyword(Tables), Semicolon, .. rest] => {
+      // MySQL UNLOCK TABLES statement
+      Some((Statement::UnlockTables, rest))
+    }
+    _ => None  // Fall back to generic parsing
+  }
 }
 
 ///|
@@ -52,6 +61,8 @@ pub impl Dialect for MySQL with parse_expr(
   _self : MySQL,
   _tokens : ArrayView[Token],
 ) -> ParserResult[Expr]? raise ParserError {
+  // MySQL DIV operator needs to be parsed in the main parser as it's infix
+  // For now, returning None to use the generic parsing
   None
 }
 
@@ -101,6 +112,45 @@ test "MySQL with backticks in SHOW" {
     stmt,
     content=(
       #|SHOW COLUMNS FROM `table name`;
+    ),
+  )
+}
+
+///|
+test "MySQL LOCK TABLES" {
+  let tokens = "LOCK TABLES users;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LOCK TABLES users;
+    ),
+  )
+}
+
+///|
+test "MySQL UNLOCK TABLES" {
+  let tokens = "UNLOCK TABLES;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|UNLOCK TABLES;
+    ),
+  )
+}
+
+///|
+test "MySQL DIV operator" {
+  let tokens = "SELECT 10 DIV 3 FROM test;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print  
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  10  DIV  3
+      #|FROM
+      #|  test;
     ),
   )
 }

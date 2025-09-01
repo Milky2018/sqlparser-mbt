@@ -256,6 +256,11 @@ fn Lexer::read_identifier_or_keyword(
     "columns" => Keyword(Columns)
     "status" => Keyword(Status)
     "databases" => Keyword(Databases)
+    "div" => Keyword(Div)
+    "lock" => Keyword(Lock)
+    "unlock" => Keyword(Unlock)
+    "listen" => Keyword(Listen)
+    "notify" => Keyword(Notify)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)
