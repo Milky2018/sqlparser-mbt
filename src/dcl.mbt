@@ -88,7 +88,7 @@ fn Parser::parse_privilege_list(
       privileges.push(privilege)
       continue tokens
     }
-    _ => break tokens
+    tokens => break tokens
   }
   
   (privileges, tokens)
@@ -185,7 +185,7 @@ fn Parser::parse_object_name_list(
       objects.push(obj_name)
       continue tokens
     }
-    _ => break tokens
+    tokens => break tokens
   }
   
   (objects, tokens)
@@ -219,7 +219,7 @@ fn Parser::parse_grantee_list(
       grantees.push(grantee)
       continue tokens
     }
-    _ => break tokens
+    tokens => break tokens
   }
   
   (grantees, tokens)
