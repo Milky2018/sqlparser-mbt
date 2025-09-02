@@ -21,6 +21,9 @@ pub trait Dialect {
   /// Whether this dialect supports double quotes for identifiers  
   supports_double_quoted_identifiers(Self) -> Bool = _
   
+  /// Whether this dialect supports array syntax (ARRAY[...] and [...])
+  supports_array_syntax(Self) -> Bool = _
+  
   /// Custom expression parsing for dialect-specific syntax
   parse_expr(Self, tokens : ArrayView[Token]) -> ParserResult[Expr]? raise ParserError = _
   
@@ -60,6 +63,11 @@ impl Dialect with supports_if_not_exists(_self) {
 
 ///|
 impl Dialect with supports_double_quoted_identifiers(_self) {
+  false
+}
+
+///|
+impl Dialect with supports_array_syntax(_self) {
   false
 }
 

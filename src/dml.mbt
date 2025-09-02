@@ -359,8 +359,10 @@ fn Parser::parse_primary_expr(
     [Keyword(Interval), .. tokens] => self.parse_interval_expr(tokens)
     [Keyword(Extract), .. tokens] => self.parse_extract_expr(tokens)
     [Keyword(Substring), .. tokens] => self.parse_substring_expr(tokens)
-    [Keyword(Array), LBracket, .. tokens] => self.parse_array_expr([LBracket, .. tokens], true)
-    [LBracket, .. tokens] => self.parse_array_expr([LBracket, .. tokens], false)
+    [Keyword(Array), LBracket, .. tokens] if self.dialect.supports_array_syntax() => 
+      self.parse_array_expr([LBracket, .. tokens], true)
+    [LBracket, .. tokens] if self.dialect.supports_array_syntax() => 
+      self.parse_array_expr([LBracket, .. tokens], false)
     [Identifier(name), LParen, .. tokens] => {
       let args = []
       let (dup, tokens) = match tokens {

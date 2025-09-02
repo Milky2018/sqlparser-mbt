@@ -27,6 +27,11 @@ pub impl Dialect for Postgres with supports_double_quoted_identifiers(_self) {
 }
 
 ///|
+pub impl Dialect for Postgres with supports_array_syntax(_self) {
+  true
+}
+
+///|
 pub impl Dialect for Postgres with supports_if_not_exists(_self) {
   true
 }
@@ -62,10 +67,19 @@ pub impl Dialect for Postgres with parse_statement(
 ///|
 pub impl Dialect for Postgres with parse_expr(
   _self : Postgres,
-  _tokens : ArrayView[Token],
+  tokens : ArrayView[Token],
 ) -> ParserResult[Expr]? raise ParserError {
-  // TODO: Implement PostgreSQL-specific expression parsing (e.g., filter aggregations)
-  None
+  match tokens {
+    [Keyword(Array), LBracket, .. _tokens] => {
+      // PostgreSQL ARRAY[...] syntax - delegate to parser
+      None  // Let the main parser handle this
+    }
+    [LBracket, .. _tokens] => {
+      // PostgreSQL bracket array syntax [1, 2, 3] - delegate to parser  
+      None  // Let the main parser handle this
+    }
+    _ => None
+  }
 }
 
 ///|
@@ -194,4 +208,77 @@ test "PostgreSQL mixed bracket and ARRAY syntax" {
       #|  test;
     ),
   )
+}
+
+///|
+// Negative tests: PostgreSQL-specific syntax should fail with other dialects
+
+test "ARRAY syntax fails with MySQL dialect" {
+  let tokens = "SELECT ARRAY[1, 2, 3] FROM test;"
+  try {
+    let _ = parse_sql(dialect=MySQL::{}, tokens)
+    abort("Expected parsing to fail with MySQL dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
+}
+
+test "Bracket array syntax fails with MySQL dialect" {
+  let tokens = "SELECT [1, 2, 3] FROM test;"
+  try {
+    let _ = parse_sql(dialect=MySQL::{}, tokens)
+    abort("Expected parsing to fail with MySQL dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
+}
+
+test "ARRAY syntax fails with SQLite dialect" {
+  let tokens = "SELECT ARRAY[1, 2, 3] FROM test;"
+  try {
+    let _ = parse_sql(dialect=SQLite::{}, tokens)
+    abort("Expected parsing to fail with SQLite dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
+}
+
+test "Bracket array syntax fails with SQLite dialect" {
+  let tokens = "SELECT [1, 2, 3] FROM test;"
+  try {
+    let _ = parse_sql(dialect=SQLite::{}, tokens)
+    abort("Expected parsing to fail with SQLite dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
+}
+
+test "LISTEN statement fails with MySQL dialect" {
+  let tokens = "LISTEN my_channel;"
+  try {
+    let _ = parse_sql(dialect=MySQL::{}, tokens)
+    abort("Expected parsing to fail with MySQL dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
+}
+
+test "NOTIFY statement fails with MySQL dialect" {
+  let tokens = "NOTIFY my_channel;"
+  try {
+    let _ = parse_sql(dialect=MySQL::{}, tokens)
+    abort("Expected parsing to fail with MySQL dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
+}
+
+test "Complex PostgreSQL arrays fail with generic dialect" {
+  let tokens = "SELECT ARRAY[ARRAY[1, 2], [3, 4]] FROM test;"
+  try {
+    let _ = parse_sql(dialect=Generic::{}, tokens)
+    abort("Expected parsing to fail with Generic dialect")
+  } catch {
+    _e => () // Expected behavior - parsing should fail
+  }
 }
