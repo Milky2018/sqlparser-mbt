@@ -283,6 +283,13 @@ fn Lexer::read_identifier_or_keyword(
     "duplicate" => Keyword(Duplicate)
     "array" => Keyword(Array)
     "with" => Keyword(With)
+    "begin" => Keyword(Begin)
+    "start" => Keyword(Start)
+    "transaction" => Keyword(Transaction)
+    "commit" => Keyword(Commit)
+    "savepoint" => Keyword(Savepoint)
+    "release" => Keyword(Release)
+    "work" => Keyword(Work)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

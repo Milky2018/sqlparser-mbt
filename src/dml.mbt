@@ -2173,62 +2173,144 @@ test "Truncate table" {
 
 test "Simple CTE with WITH clause" {
   let tokens = "WITH sales AS (SELECT * FROM orders) SELECT * FROM sales;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
-  // Just verify it contains the key components for now
-  if stmt.contains("WITH sales AS") && stmt.contains("SELECT") {
-    () // Test passes if basic structure is present
-  } else {
-    abort("CTE parsing failed - missing key components")
-  }
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|WITH sales AS (
+      #|SELECT
+      #|    *
+      #|  FROM
+      #|    orders
+      #|)
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  sales;
+    ),
+  )
 }
 
 test "CTE with column specification" {
   let tokens = "WITH sales(id, total) AS (SELECT order_id, amount FROM orders) SELECT * FROM sales;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
-  // Verify it contains the column specification
-  if stmt.contains("WITH sales(id, total) AS") && stmt.contains("SELECT") {
-    () // Test passes if basic structure is present
-  } else {
-    abort("CTE with column specification parsing failed")
-  }
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|WITH sales(id, total) AS (
+      #|SELECT
+      #|    order_id,
+      #|    amount
+      #|  FROM
+      #|    orders
+      #|)
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  sales;
+    ),
+  )
 }
 
 test "Multiple CTEs" {
   let tokens = "WITH sales AS (SELECT * FROM orders), customers AS (SELECT * FROM users) SELECT * FROM sales JOIN customers ON sales.user_id = customers.id;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
-  if stmt.contains("WITH sales AS") && stmt.contains("customers AS") && stmt.contains("JOIN") {
-    () // Test passes if basic structure is present
-  } else {
-    abort("Multiple CTEs parsing failed")
-  }
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|WITH sales AS (
+      #|SELECT
+      #|    *
+      #|  FROM
+      #|    orders
+      #|), 
+      #|customers AS (
+      #|SELECT
+      #|    *
+      #|  FROM
+      #|    users
+      #|)
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  sales JOIN customers
+      #|    ON sales.user_id = customers.id;
+
+    ),
+  )
 }
 
 test "CTE with ORDER BY and LIMIT" {
   let tokens = "WITH top_sales AS (SELECT * FROM orders ORDER BY amount DESC LIMIT 10) SELECT * FROM top_sales;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
-  if stmt.contains("WITH top_sales AS") && stmt.contains("ORDER BY") && stmt.contains("LIMIT") {
-    () // Test passes if basic structure is present
-  } else {
-    abort("CTE with ORDER BY and LIMIT parsing failed")
-  }
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|WITH top_sales AS (
+      #|SELECT
+      #|    *
+      #|  FROM
+      #|    orders
+      #|  ORDER BY
+      #|    amount DESC
+      #|  LIMIT
+      #|    10
+      #|)
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  top_sales;
+    ),
+  )
 }
 
 test "Nested CTE (CTE referencing another CTE)" {
   let tokens = "WITH sales AS (SELECT * FROM orders), big_sales AS (SELECT * FROM sales WHERE amount > 1000) SELECT * FROM big_sales;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
-  if stmt.contains("WITH sales AS") && stmt.contains("big_sales AS") && stmt.contains("FROM") && stmt.contains("sales") && stmt.contains("WHERE") {
-    () // Test passes if basic structure is present
-  } else {
-    abort("Nested CTE parsing failed")
-  }
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|WITH sales AS (
+      #|SELECT
+      #|    *
+      #|  FROM
+      #|    orders
+      #|), 
+      #|big_sales AS (
+      #|SELECT
+      #|    *
+      #|  FROM
+      #|    sales
+      #|  WHERE
+      #|    amount > 1000
+      #|)
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  big_sales;
+    ),
+  )
 }
 
 test "CTE with aggregation" {
   let tokens = "WITH monthly_sales AS (SELECT date_month, SUM(amount) as total FROM orders GROUP BY date_month) SELECT * FROM monthly_sales;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
-  if stmt.contains("WITH monthly_sales AS") && stmt.contains("sum(amount)") && stmt.contains("GROUP BY") {
-    () // Test passes if basic structure is present
-  } else {
-    abort("CTE with aggregation parsing failed")
-  }
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|WITH monthly_sales AS (
+      #|SELECT
+      #|    date_month,
+      #|    sum(amount) AS total
+      #|  FROM
+      #|    orders
+      #|  GROUP BY
+      #|    date_month
+      #|)
+      #|SELECT
+      #|  *
+      #|FROM
+      #|  monthly_sales;
+    ),
+  )
 }

@@ -100,6 +100,20 @@ fn Parser::parse_statement(
       self.parse_truncate_statement(tokens).map(Statement::Truncate(_))
     [Keyword(Alter), Keyword(Table), .. _rest] =>
       self.parse_alter_table_statement(tokens).map(Statement::AlterTable(_))
+    [Keyword(Begin), .. _rest] =>
+      self.parse_begin_statement(tokens).map(Statement::Begin(_))
+    [Keyword(Start), Keyword(Transaction), .. _rest] =>
+      self.parse_start_transaction_statement(tokens).map(Statement::Begin(_))
+    [Keyword(Commit), .. _rest] =>
+      self.parse_commit_statement(tokens).map(Statement::Commit(_))
+    [Keyword(Rollback), .. _rest] =>
+      self.parse_rollback_statement(tokens).map(Statement::Rollback(_))
+    [Keyword(Savepoint), .. _rest] =>
+      self.parse_savepoint_statement(tokens).map(Statement::Savepoint(_))
+    [Keyword(Release), Keyword(Savepoint), .. _rest] =>
+      self.parse_release_savepoint_statement(tokens).map(Statement::ReleaseSavepoint(_))
+    [Keyword(Release), .. _rest] =>
+      self.parse_release_savepoint_statement(tokens).map(Statement::ReleaseSavepoint(_))
     [LParen, .. rest] => {
       let (stmt, tokens) = self.parse_statement(rest)
       let tokens = self.expect_token(tokens, RParen)

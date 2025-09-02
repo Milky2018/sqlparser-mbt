@@ -123,4 +123,11 @@ pub(all) enum Keyword {
   Duplicate
   Array
   With
+  Begin
+  Start
+  Transaction
+  Commit
+  Savepoint
+  Release
+  Work
 } derive(Eq, Show)

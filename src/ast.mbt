@@ -43,6 +43,12 @@ pub enum Statement {
   // PostgreSQL-specific statements
   Listen(String)
   Notify(String, String?)
+  // TCL (Transaction Control Language) statements
+  Begin(BeginStmt)
+  Commit(CommitStmt)
+  Rollback(RollbackStmt)
+  Savepoint(SavepointStmt)
+  ReleaseSavepoint(ReleaseSavepointStmt)
 } derive(Eq, Show)
 
 ///|
@@ -68,6 +74,11 @@ pub impl @pp.Pretty for Statement with pretty(self) {
         Some(msg) => @pp.text(", '") + @pp.text(msg) + @pp.text("'")
         None => @pp.empty
       })
+    Begin(stmt) => stmt.pretty()
+    Commit(stmt) => stmt.pretty()
+    Rollback(stmt) => stmt.pretty()
+    Savepoint(stmt) => stmt.pretty()
+    ReleaseSavepoint(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -1424,4 +1435,78 @@ pub impl @pp.Pretty for SqliteOnConflict with pretty(self) {
     SqliteOnConflict::Ignore => @pp.text("OR IGNORE")
     SqliteOnConflict::Replace => @pp.text("OR REPLACE")
   }
+}
+
+///|
+// TCL (Transaction Control Language) statement structures
+
+pub struct BeginStmt {
+  // BEGIN [WORK] [TRANSACTION] or START TRANSACTION
+  work : Bool      // whether WORK keyword was used
+  transaction : Bool  // whether TRANSACTION keyword was used
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for BeginStmt with pretty(self) {
+  @pp.text("BEGIN") +
+  (if self.work { @pp.text(" WORK") } else { @pp.empty }) +
+  (if self.transaction { @pp.text(" TRANSACTION") } else { @pp.empty })
+}
+
+///|
+pub struct CommitStmt {
+  // COMMIT [WORK] [TRANSACTION]
+  work : Bool      // whether WORK keyword was used  
+  transaction : Bool  // whether TRANSACTION keyword was used
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CommitStmt with pretty(self) {
+  @pp.text("COMMIT") +
+  (if self.work { @pp.text(" WORK") } else { @pp.empty }) +
+  (if self.transaction { @pp.text(" TRANSACTION") } else { @pp.empty })
+}
+
+///|
+pub struct RollbackStmt {
+  // ROLLBACK [WORK] [TRANSACTION] [TO [SAVEPOINT] savepoint_name]
+  work : Bool      // whether WORK keyword was used
+  transaction : Bool  // whether TRANSACTION keyword was used  
+  savepoint : String? // optional savepoint name to rollback to
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for RollbackStmt with pretty(self) {
+  @pp.text("ROLLBACK") +
+  (if self.work { @pp.text(" WORK") } else { @pp.empty }) +
+  (if self.transaction { @pp.text(" TRANSACTION") } else { @pp.empty }) +
+  (match self.savepoint {
+    Some(name) => @pp.text(" TO SAVEPOINT ") + @pp.text(name)
+    None => @pp.empty
+  })
+}
+
+///|
+pub struct SavepointStmt {
+  // SAVEPOINT savepoint_name
+  name : String
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for SavepointStmt with pretty(self) {
+  @pp.text("SAVEPOINT ") + @pp.text(self.name)
+}
+
+///|
+pub struct ReleaseSavepointStmt {
+  // RELEASE [SAVEPOINT] savepoint_name
+  savepoint_keyword : Bool  // whether SAVEPOINT keyword was used
+  name : String
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for ReleaseSavepointStmt with pretty(self) {
+  @pp.text("RELEASE ") +
+  (if self.savepoint_keyword { @pp.text("SAVEPOINT ") } else { @pp.empty }) +
+  @pp.text(self.name)
 }
