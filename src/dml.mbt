@@ -219,6 +219,8 @@ fn Parser::parse_binary_expr(
   min_bp : Int,
 ) -> ParserResult[Expr] raise ParserError {
   let mut expr_tokens = self.parse_primary_expr(tokens)
+  // Handle postfix operations like array subscripts and field access
+  expr_tokens = self.parse_postfix_expr(expr_tokens.0, expr_tokens.1)
   for {
     let expr = expr_tokens.0
     let tokens = expr_tokens.1
@@ -350,6 +352,8 @@ fn Parser::parse_primary_expr(
     [Keyword(Interval), .. tokens] => self.parse_interval_expr(tokens)
     [Keyword(Extract), .. tokens] => self.parse_extract_expr(tokens)
     [Keyword(Substring), .. tokens] => self.parse_substring_expr(tokens)
+    [Keyword(Array), LBracket, .. tokens] => self.parse_array_expr([LBracket, .. tokens], true)
+    [LBracket, .. tokens] => self.parse_array_expr([LBracket, .. tokens], false)
     [Identifier(name), LParen, .. tokens] => {
       let args = []
       let (dup, tokens) = match tokens {
@@ -445,6 +449,110 @@ fn Parser::parse_primary_expr(
       raise ParserError::InternalBug(
         "parse_primary_expr: unexpected end of tokens",
       )
+  }
+}
+
+///|
+fn Parser::parse_postfix_expr(
+  self : Parser,
+  expr : Expr,
+  tokens : ArrayView[Token],
+) -> ParserResult[Expr] raise ParserError {
+  let mut current_expr = expr
+  let remaining_tokens = tokens
+  
+  // Parse multiple postfix operations in sequence  
+  loop remaining_tokens {
+    // Array/object indexing: expr[index] or expr[start:end]
+    [LBracket, .. rest_tokens] => {
+      let (subscript, next_tokens) = self.parse_subscript(rest_tokens)
+      let access_chain = [AccessExpr::Subscript(subscript)]
+      current_expr = CompoundFieldAccess(current_expr, access_chain)
+      continue next_tokens
+    }
+    // Field access: expr.field
+    [Period, Identifier(field_name), .. rest_tokens] => {
+      let access_chain = [AccessExpr::Dot(Identifier(field_name))]
+      current_expr = CompoundFieldAccess(current_expr, access_chain)
+      continue rest_tokens
+    }
+    // No more postfix operations
+    final_tokens => break (current_expr, final_tokens)
+  }
+}
+
+///|
+fn Parser::parse_subscript(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Subscript] raise ParserError {
+  // tokens start right after the '['
+  match tokens {
+    // Handle slice notation: [start:end] or [start:end:stride] or [:end] or [start:]
+    tokens => {
+      match tokens {
+        // Handle [:...] format (colon at the beginning)
+        [Colon, .. tokens] => {
+          let (second_expr, tokens) = match tokens {
+            [Colon, .. tokens] => (Option::None, tokens) // [::stride] format  
+            [RBracket, .. tokens] => (Option::None, [RBracket, .. tokens]) // [:] format
+            tokens => {
+              let (expr, tokens) = self.parse_expr(tokens)
+              (Option::Some(expr), tokens)
+            }
+          }
+          
+          let (third_expr, tokens) = match tokens {
+            [Colon, .. tokens] => {
+              // [start:end:stride] format
+              let (expr, tokens) = self.parse_expr(tokens)
+              (Option::Some(expr), tokens)
+            }
+            tokens => (Option::None, tokens)
+          }
+          
+          let tokens = self.expect_token(tokens, RBracket)
+          (Subscript::Slice(Option::None, second_expr, third_expr), tokens)
+        }
+        // Handle [expr...] format (expression at the beginning)
+        tokens => {
+          let (first_expr, tokens) = self.parse_expr(tokens)
+          match tokens {
+            // Simple index: [expr]
+            [RBracket, .. tokens] => (Subscript::Index(first_expr), tokens)
+            // Slice notation: [expr:...]
+            [Colon, .. tokens] => {
+              let (second_expr, tokens) = match tokens {
+                [Colon, .. tokens] => (Option::None, tokens) // [start::stride] format
+                [RBracket, .. tokens] => (Option::None, [RBracket, .. tokens]) // [start:] format
+                tokens => {
+                  let (expr, tokens) = self.parse_expr(tokens)
+                  (Option::Some(expr), tokens)
+                }
+              }
+              
+              let (third_expr, tokens) = match tokens {
+                [Colon, .. tokens] => {
+                  // [start:end:stride] format
+                  let (expr, tokens) = self.parse_expr(tokens)
+                  (Option::Some(expr), tokens)
+                }
+                tokens => (Option::None, tokens)
+              }
+              
+              let tokens = self.expect_token(tokens, RBracket)
+              (Subscript::Slice(Option::Some(first_expr), second_expr, third_expr), tokens)
+            }
+            [token, .. _tokens] =>
+              raise UnexpectedTokenMessageError(token, "expected ':' or ']'")
+            [] =>
+              raise ParserError::InternalBug(
+                "parse_subscript: unexpected end of tokens",
+              )
+          }
+        }
+      }
+    }
   }
 }
 
@@ -921,6 +1029,34 @@ fn Parser::parse_substring_expr(
   }
   let tokens = self.expect_token(tokens, RParen)
   (Substring(expr, start, len), tokens)
+}
+
+///|
+fn Parser::parse_array_expr(
+  self : Parser,
+  tokens : ArrayView[Token],
+  named : Bool,
+) -> ParserResult[Expr] raise ParserError {
+  let tokens = self.expect_token(tokens, LBracket)
+  let elements = []
+  let tokens = loop tokens {
+    [RBracket, .. tokens] => break tokens
+    tokens => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      elements.push(expr)
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        [RBracket, .. tokens] => break tokens
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected ',' or ']'")
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_array_expr: unexpected end of tokens",
+          )
+      }
+    }
+  }
+  (Array(ArrayExpr::{ elem: elements, named }), tokens)
 }
 
 ///|

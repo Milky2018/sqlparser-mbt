@@ -121,4 +121,5 @@ pub(all) enum Keyword {
   Event
   Trigger
   Duplicate
+  Array
 } derive(Eq, Show)

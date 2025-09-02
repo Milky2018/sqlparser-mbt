@@ -13,6 +13,7 @@ pub(all) enum Token {
   Boolean(Bool)
   Comma
   Semicolon
+  Colon
   Eq
   DoubleEq
   Neq
@@ -68,6 +69,7 @@ fn Lexer::next_token(
 ) -> (Token, @string.View) raise LexerError {
   match skip_whitespace(input) {
     [',', .. rest] => (Comma, rest)
+    [':', .. rest] => (Colon, rest)
     ['?', .. rest] => (PlaceHolder, rest)
     [';', .. rest] => (Semicolon, rest)
     ['*', .. rest] => (Mul, rest)
@@ -279,6 +281,7 @@ fn Lexer::read_identifier_or_keyword(
     "event" => Keyword(Event)
     "trigger" => Keyword(Trigger)
     "duplicate" => Keyword(Duplicate)
+    "array" => Keyword(Array)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

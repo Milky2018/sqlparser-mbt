@@ -275,6 +275,10 @@ pub enum Expr {
   Substring(Expr, Expr?, Expr?)
   // ?
   PlaceHolder
+  // Array expression: ARRAY[1, 2, 3] or [1, 2, 3]
+  Array(ArrayExpr)
+  // Array/Map indexing and slicing: arr[1], arr[1:3], obj.field
+  CompoundFieldAccess(Expr, Array[AccessExpr])
 } derive(Eq, Show)
 
 ///|
@@ -369,6 +373,9 @@ pub impl @pp.Pretty for Expr with pretty(self) {
       }) +
       @pp.char(')')
     Expr::PlaceHolder => @pp.text("?")
+    Expr::Array(arr) => arr.pretty()
+    Expr::CompoundFieldAccess(root, access_chain) =>
+      root.pretty() + @pp.separate(@pp.empty, access_chain.map(@pp.pretty))
   }
 }
 
@@ -389,6 +396,58 @@ pub impl @pp.Pretty for Literal with pretty(self) {
     Literal::String(value) => @pp.text("'\{value}'")
     Literal::Boolean(value) => @pp.text(if value { "TRUE" } else { "FALSE" })
     Literal::Null => @pp.text("NULL")
+  }
+}
+
+///|
+/// PostgreSQL array expression
+pub struct ArrayExpr {
+  elem : Array[Expr]  // The list of expressions between brackets
+  named : Bool        // true for ARRAY[..], false for [..]
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for ArrayExpr with pretty(self) {
+  (if self.named { @pp.text("ARRAY") } else { @pp.empty }) +
+  @pp.text("[") +
+  @pp.separate(@pp.text(", "), self.elem.map(@pp.pretty)) +
+  @pp.text("]")
+}
+
+///|
+/// Access expression for array indexing, slicing, and field access
+pub enum AccessExpr {
+  Dot(Expr)           // Field access: obj.field
+  Subscript(Subscript) // Array/map subscript: arr[index] or arr[start:end]
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for AccessExpr with pretty(self) {
+  match self {
+    AccessExpr::Dot(expr) => @pp.text(".") + expr.pretty()
+    AccessExpr::Subscript(subscript) => subscript.pretty()
+  }
+}
+
+///|
+/// Subscript expression for array indexing and slicing
+pub enum Subscript {
+  Index(Expr)         // Simple index: arr[1]
+  Slice(Expr?, Expr?, Expr?) // Array slice: arr[1:3] (lower, upper, stride)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for Subscript with pretty(self) {
+  match self {
+    Subscript::Index(index) => @pp.text("[") + index.pretty() + @pp.text("]")
+    Subscript::Slice(lower, upper, stride) => {
+      @pp.text("[") +
+      (match lower { Some(l) => l.pretty(); None => @pp.empty }) +
+      @pp.text(":") +
+      (match upper { Some(u) => u.pretty(); None => @pp.empty }) +
+      (match stride { Some(s) => @pp.text(":") + s.pretty(); None => @pp.empty }) +
+      @pp.text("]")
+    }
   }
 }
 
