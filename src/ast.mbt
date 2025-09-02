@@ -37,6 +37,7 @@ pub enum Statement {
   Truncate(TruncateStmt)
   AlterTable(AlterTableStmt)
   Show(ShowStmt)
+  Set(SetStmt)
   LockTables(Array[ObjectName])
   UnlockTables
   // PostgreSQL-specific statements
@@ -58,6 +59,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Truncate(stmt) => stmt.pretty()
     AlterTable(stmt) => stmt.pretty()
     Show(stmt) => stmt.pretty()
+    Set(stmt) => stmt.pretty()
     LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
     UnlockTables => @pp.text("UNLOCK TABLES")
     Listen(channel) => @pp.text("LISTEN ") + @pp.text(channel)
@@ -973,11 +975,20 @@ pub struct InsertStmt {
   columns : Array[String]
   // The inserted data source
   source : InsertSource
+  // SQLite-style conflict resolution (OR REPLACE, etc.)
+  or : SqliteOnConflict?
+  // MySQL ON DUPLICATE KEY UPDATE or PostgreSQL ON CONFLICT
+  on : OnInsert?
 } derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for InsertStmt with pretty(self) {
-  @pp.text("INSERT INTO ") +
+  // Handle REPLACE vs INSERT OR REPLACE
+  (match self.or {
+    Some(SqliteOnConflict::Replace) => @pp.text("REPLACE INTO ")
+    Some(conflict) => @pp.text("INSERT ") + conflict.pretty() + @pp.text(" INTO ")
+    None => @pp.text("INSERT INTO ")
+  }) +
   self.table_name.pretty() +
   (if self.columns.length() > 0 {
     @pp.space +
@@ -986,7 +997,11 @@ pub impl @pp.Pretty for InsertStmt with pretty(self) {
     @pp.empty
   }) +
   @pp.space +
-  self.source.pretty()
+  self.source.pretty() +
+  (match self.on {
+    Some(on_insert) => @pp.space + on_insert.pretty()
+    None => @pp.empty
+  })
 }
 
 ///|
@@ -1148,6 +1163,10 @@ pub struct ShowStmt {
   object : Option[ObjectName]
   // Optional filter condition
   filter : Option[ShowFilter]
+  // Additional options
+  extended : Bool  // SHOW EXTENDED ...
+  full : Bool      // SHOW FULL ...
+  global_scope : Bool  // GLOBAL/SESSION for STATUS/VARIABLES
 } derive(Eq, Show)
 
 ///|
@@ -1156,6 +1175,17 @@ pub enum ShowType {
   Columns
   Status
   Databases
+  Schemas  // synonym for Databases
+  Variables
+  Processlist
+  Grants
+  Functions
+  CreateTable
+  CreateView
+  CreateFunction
+  CreateProcedure
+  CreateEvent
+  CreateTrigger
 } derive(Eq, Show)
 
 ///|
@@ -1167,9 +1197,19 @@ pub enum ShowFilter {
 ///|
 pub impl @pp.Pretty for ShowStmt with pretty(self) {
   @pp.text("SHOW ") +
+  (if self.extended { @pp.text("EXTENDED ") } else { @pp.empty }) +
+  (if self.full { @pp.text("FULL ") } else { @pp.empty }) +
+  (if self.global_scope { @pp.text("GLOBAL ") } else { @pp.empty }) +
   self.show_type.pretty() +
   (match self.object {
-    Some(obj) => @pp.space + @pp.text("FROM ") + obj.pretty()
+    Some(obj) => {
+      // For CREATE statements, object comes directly after type (no FROM)
+      match self.show_type {
+        ShowType::CreateTable | ShowType::CreateView | ShowType::CreateFunction | ShowType::CreateProcedure | ShowType::CreateEvent | ShowType::CreateTrigger => 
+          @pp.space + obj.pretty()
+        _ => @pp.space + @pp.text("FROM ") + obj.pretty()
+      }
+    }
     None => @pp.empty
   }) +
   (match self.filter {
@@ -1185,6 +1225,17 @@ pub impl @pp.Pretty for ShowType with pretty(self) {
     ShowType::Columns => @pp.text("COLUMNS")
     ShowType::Status => @pp.text("STATUS")
     ShowType::Databases => @pp.text("DATABASES")
+    ShowType::Schemas => @pp.text("SCHEMAS")
+    ShowType::Variables => @pp.text("VARIABLES")
+    ShowType::Processlist => @pp.text("PROCESSLIST")
+    ShowType::Grants => @pp.text("GRANTS")
+    ShowType::Functions => @pp.text("FUNCTIONS")
+    ShowType::CreateTable => @pp.text("CREATE TABLE")
+    ShowType::CreateView => @pp.text("CREATE VIEW")
+    ShowType::CreateFunction => @pp.text("CREATE FUNCTION")
+    ShowType::CreateProcedure => @pp.text("CREATE PROCEDURE")
+    ShowType::CreateEvent => @pp.text("CREATE EVENT")
+    ShowType::CreateTrigger => @pp.text("CREATE TRIGGER")
   }
 }
 
@@ -1193,5 +1244,91 @@ pub impl @pp.Pretty for ShowFilter with pretty(self) {
   match self {
     ShowFilter::Like(pattern) => @pp.text("LIKE '") + @pp.text(pattern) + @pp.text("'")
     ShowFilter::Where(expr) => @pp.text("WHERE ") + expr.pretty()
+  }
+}
+
+///|
+pub struct SetStmt {
+  // Variable scope (GLOBAL, SESSION, or LOCAL/user variables)
+  scope : SetScope
+  // Variable assignments
+  assignments : Array[SetAssignment]
+} derive(Eq, Show)
+
+///|
+pub enum SetScope {
+  Global      // SET GLOBAL var = value
+  Session     // SET SESSION var = value  
+  UserVar     // SET @var = value
+  Local       // Default scope (session for system vars)
+} derive(Eq, Show)
+
+///|
+pub struct SetAssignment {
+  // Variable name
+  variable : String
+  // Assigned value
+  value : Expr
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for SetStmt with pretty(self) {
+  @pp.text("SET ") +
+  (match self.scope {
+    SetScope::Global => @pp.text("GLOBAL ")
+    SetScope::Session => @pp.text("SESSION ")
+    SetScope::UserVar => @pp.empty
+    SetScope::Local => @pp.empty
+  }) +
+  @pp.separate(@pp.text(", "), self.assignments.map(fn(a) { a.pretty() }))
+}
+
+///|
+pub impl @pp.Pretty for SetAssignment with pretty(self) {
+  (match self.variable {
+    variable if variable.strip_prefix("@") != None => @pp.text(variable)
+    variable => @pp.text(variable) 
+  }) +
+  @pp.text(" = ") +
+  self.value.pretty()
+}
+
+///|
+/// MySQL ON DUPLICATE KEY UPDATE or PostgreSQL ON CONFLICT
+pub enum OnInsert {
+  /// ON DUPLICATE KEY UPDATE (MySQL when the key already exists, then execute an update instead)
+  DuplicateKeyUpdate(Array[Assignment])
+  /// ON CONFLICT is a PostgreSQL and SQLite extension (future implementation)
+  // OnConflict(OnConflict)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for OnInsert with pretty(self) {
+  match self {
+    OnInsert::DuplicateKeyUpdate(assignments) =>
+      @pp.text("ON DUPLICATE KEY UPDATE ") +
+      @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
+  }
+}
+
+///|
+/// SQLite-style conflict resolution for INSERT statements
+/// See: https://sqlite.org/lang_conflict.html
+pub enum SqliteOnConflict {
+  Rollback
+  Abort
+  Fail
+  Ignore
+  Replace
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for SqliteOnConflict with pretty(self) {
+  match self {
+    SqliteOnConflict::Rollback => @pp.text("OR ROLLBACK")
+    SqliteOnConflict::Abort => @pp.text("OR ABORT")
+    SqliteOnConflict::Fail => @pp.text("OR FAIL")
+    SqliteOnConflict::Ignore => @pp.text("OR IGNORE")
+    SqliteOnConflict::Replace => @pp.text("OR REPLACE")
   }
 }

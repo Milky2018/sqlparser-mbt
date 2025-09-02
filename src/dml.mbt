@@ -1660,6 +1660,17 @@ fn Parser::parse_insert_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[InsertStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Insert))
+  
+  // Parse optional conflict resolution (OR REPLACE, OR IGNORE, etc.)
+  let (or_conflict, tokens) = match tokens {
+    [Keyword(Or), Keyword(Replace), .. tokens] => (Some(SqliteOnConflict::Replace), tokens)
+    [Keyword(Or), Keyword(Rollback), .. tokens] => (Some(SqliteOnConflict::Rollback), tokens)
+    [Keyword(Or), Keyword(Abort), .. tokens] => (Some(SqliteOnConflict::Abort), tokens)
+    [Keyword(Or), Keyword(Fail), .. tokens] => (Some(SqliteOnConflict::Fail), tokens)
+    [Keyword(Or), Keyword(Ignore), .. tokens] => (Some(SqliteOnConflict::Ignore), tokens)
+    _ => (None, tokens)
+  }
+  
   let tokens = self.expect_token(tokens, Keyword(Into))
   let (table_name, tokens) = self.parse_object_name(tokens)
   
@@ -1674,6 +1685,15 @@ fn Parser::parse_insert_statement(
         }
         [Identifier(col), RParen, .. tokens] => {
           columns.push(col)
+          break (columns, tokens)
+        }
+        // Handle keywords as column names
+        [Keyword(keyword), Comma, .. tokens] => {
+          columns.push(keyword.to_string().to_lower())
+          continue tokens
+        }
+        [Keyword(keyword), RParen, .. tokens] => {
+          columns.push(keyword.to_string().to_lower())
           break (columns, tokens)
         }
         [token, .. _tokens] =>
@@ -1727,7 +1747,16 @@ fn Parser::parse_insert_statement(
     [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
   }
   
-  ({ table_name, columns, source }, tokens)
+  // Parse optional ON DUPLICATE KEY UPDATE clause
+  let (on_insert, tokens) = match tokens {
+    [Keyword(On), Keyword(Duplicate), Keyword(Key), Keyword(Update), .. tokens] => {
+      let (assignments, tokens) = self.parse_duplicate_key_assignments(tokens)
+      (Some(OnInsert::DuplicateKeyUpdate(assignments)), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({ table_name, columns, source, or: or_conflict, on: on_insert }, tokens)
 }
 
 ///|
@@ -1917,6 +1946,7 @@ fn Parser::parse_truncate_statement(
   let (table_name, tokens) = self.parse_object_name(tokens)
   ({ table_name, }, tokens)
 }
+
 
 ///|
 test "Truncate table" {

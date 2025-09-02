@@ -91,6 +91,11 @@ pub(all) enum Keyword {
   Delete
   Update
   Set
+  Replace
+  Rollback
+  Abort
+  Fail
+  Ignore
   Truncate
   Alter
   Column
@@ -104,4 +109,16 @@ pub(all) enum Keyword {
   Unlock
   Listen
   Notify
+  Schemas
+  Variables
+  Processlist
+  Grants
+  Functions
+  Extended
+  Global
+  Session
+  Procedure
+  Event
+  Trigger
+  Duplicate
 } derive(Eq, Show)

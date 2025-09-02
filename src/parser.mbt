@@ -76,6 +76,8 @@ fn Parser::parse_statement(
       self.parse_query(tokens).map(Statement::Query(_))
     [Keyword(Show), .. _rest] =>
       self.parse_show_statement(tokens).map(Statement::Show(_))
+    [Keyword(Set), .. _rest] =>
+      self.parse_set_statement(tokens).map(Statement::Set(_))
     [Keyword(Create), Keyword(Table), .. _rest] =>
       self.parse_create_table_statement(tokens).map(Statement::CreateTable(_))
     [Keyword(Create), Keyword(View), .. _rest] =>
@@ -86,6 +88,8 @@ fn Parser::parse_statement(
       self.parse_drop_table_statement(tokens).map(Statement::DropTable(_))
     [Keyword(Insert), .. _rest] =>
       self.parse_insert_statement(tokens).map(Statement::Insert(_))
+    [Keyword(Replace), .. _rest] =>
+      self.parse_replace_statement(tokens).map(Statement::Insert(_))
     [Keyword(Delete), .. _rest] =>
       self.parse_delete_statement(tokens).map(Statement::Delete(_))
     [Keyword(Update), .. _rest] =>
@@ -113,13 +117,53 @@ fn Parser::parse_show_statement(
 ) -> ParserResult[ShowStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Show))
   
+  // Parse optional modifiers (EXTENDED, FULL, GLOBAL/SESSION)
+  let mut extended = false
+  let mut full = false
+  let mut global_scope = false
+  
+  let tokens = match tokens {
+    [Keyword(Extended), .. tokens] => { extended = true; tokens }
+    _ => tokens
+  }
+  
+  let tokens = match tokens {
+    [Keyword(Full), .. tokens] => { full = true; tokens }
+    _ => tokens
+  }
+  
+  let tokens = match tokens {
+    [Keyword(Global), .. tokens] => { global_scope = true; tokens }
+    [Keyword(Session), .. tokens] => tokens  // SESSION is default
+    _ => tokens
+  }
+  
   let (show_type, tokens) = match tokens {
     [Keyword(Tables), .. tokens] => (ShowType::Tables, tokens)
     [Keyword(Columns), .. tokens] => (ShowType::Columns, tokens)
     [Keyword(Status), .. tokens] => (ShowType::Status, tokens)
     [Keyword(Databases), .. tokens] => (ShowType::Databases, tokens)
+    [Keyword(Schemas), .. tokens] => (ShowType::Schemas, tokens)
+    [Keyword(Variables), .. tokens] => (ShowType::Variables, tokens)
+    [Keyword(Processlist), .. tokens] => (ShowType::Processlist, tokens)
+    [Keyword(Grants), .. tokens] => (ShowType::Grants, tokens)
+    [Keyword(Functions), .. tokens] => (ShowType::Functions, tokens)
+    [Keyword(Create), Keyword(Table), .. tokens] => {
+      // For SHOW CREATE TABLE, the table name comes directly after, not after FROM
+      let (obj_name, tokens) = self.parse_object_name(tokens)
+      return ({ show_type: ShowType::CreateTable, object: Some(obj_name), filter: None, extended, full, global_scope }, tokens)
+    }
+    [Keyword(Create), Keyword(View), .. tokens] => {
+      // For SHOW CREATE VIEW, the view name comes directly after, not after FROM  
+      let (obj_name, tokens) = self.parse_object_name(tokens)
+      return ({ show_type: ShowType::CreateView, object: Some(obj_name), filter: None, extended, full, global_scope }, tokens)
+    }
+    [Keyword(Create), Keyword(Functions), .. tokens] => (ShowType::CreateFunction, tokens)
+    [Keyword(Create), Keyword(Procedure), .. tokens] => (ShowType::CreateProcedure, tokens)
+    [Keyword(Create), Keyword(Event), .. tokens] => (ShowType::CreateEvent, tokens)
+    [Keyword(Create), Keyword(Trigger), .. tokens] => (ShowType::CreateTrigger, tokens)
     [token, .. _tokens] =>
-      raise UnexpectedTokenMessageError(token, "expected TABLES, COLUMNS, STATUS, or DATABASES")
+      raise UnexpectedTokenMessageError(token, "expected SHOW statement type")
     [] => raise InternalBug("parse_show_statement: unexpected end of tokens")
   }
   
@@ -143,7 +187,162 @@ fn Parser::parse_show_statement(
     _ => (None, tokens)
   }
   
-  ({ show_type, object, filter, }, tokens)
+  ({ show_type, object, filter, extended, full, global_scope }, tokens)
+}
+
+///|
+fn Parser::parse_set_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[SetStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Set))
+  
+  // Parse scope (GLOBAL, SESSION, or default)
+  let (scope, tokens) = match tokens {
+    [Keyword(Global), .. tokens] => (SetScope::Global, tokens)
+    [Keyword(Session), .. tokens] => (SetScope::Session, tokens)
+    _ => (SetScope::Local, tokens)  // Default scope
+  }
+  
+  // Parse variable assignments
+  let (assignments, tokens) = self.parse_set_assignments(tokens)
+  
+  // Determine final scope based on first variable name (if any user vars, use UserVar scope)
+  let final_scope = if assignments.length() > 0 && assignments[0].variable.strip_prefix("@") != None {
+    SetScope::UserVar
+  } else {
+    scope
+  }
+  
+  ({ scope: final_scope, assignments }, tokens)
+}
+
+///|
+fn Parser::parse_set_assignments(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[SetAssignment]] raise ParserError {
+  let assignments : Array[SetAssignment] = []
+  
+  // Parse first assignment
+  let (variable, tokens) = match tokens {
+    [Identifier(name), .. rest] => (name, rest)
+    [token, .. _] => raise UnexpectedTokenMessageError(token, "expected variable name")
+    [] => raise InternalBug("parse_set_assignments: unexpected end of tokens")
+  }
+  
+  let tokens = self.expect_token(tokens, Eq)
+  let (value, tokens) = self.parse_expr(tokens)
+  assignments.push({ variable, value })
+  
+  // Parse additional assignments
+  loop tokens {
+    [Comma, .. rest] => {
+      let (variable, remaining_tokens) = match rest {
+        [Identifier(name), .. remaining] => (name, remaining)
+        [token, .. _] => raise UnexpectedTokenMessageError(token, "expected variable name")
+        [] => raise InternalBug("parse_set_assignments: unexpected end of tokens after comma")
+      }
+      
+      let remaining_tokens = self.expect_token(remaining_tokens, Eq)
+      let (value, remaining_tokens) = self.parse_expr(remaining_tokens)
+      assignments.push({ variable, value })
+      continue remaining_tokens
+    }
+    tokens => break (assignments, tokens)
+  }
+}
+
+///|
+fn Parser::parse_replace_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[InsertStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Replace))
+  let tokens = self.expect_token(tokens, Keyword(Into))
+  
+  // Parse table name
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  
+  // Parse optional column list: (col1, col2, ...)
+  let (columns, tokens) = match tokens {
+    [LParen, .. tokens] => {
+      let columns = []
+      let tokens = loop tokens {
+        [Identifier(col), Comma, .. tokens] => {
+          columns.push(col)
+          continue tokens
+        }
+        [Identifier(col), RParen, .. tokens] => {
+          columns.push(col)
+          break tokens
+        }
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(
+            token, "expected column name in REPLACE column list"
+          )
+        [] => raise InternalBug("parse_replace_statement: unexpected end of tokens")
+      }
+      (columns, tokens)
+    }
+    _ => ([], tokens)
+  }
+  
+  // Parse VALUES (...) or SELECT query
+  let (source, tokens) = match tokens {
+    [Keyword(Values), .. tokens] => {
+      let values = []
+      let tokens = loop tokens {
+        [LParen, .. tokens] => {
+          let (exprs, tokens) = self.parse_comma_separated_exprs(tokens)
+          let tokens = self.expect_token(tokens, RParen)
+          values.push(exprs)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            tokens => break tokens
+          }
+        }
+        tokens => break tokens
+      }
+      (InsertSource::Values(values), tokens)
+    }
+    [Keyword(Select), .. _rest] => {
+      let (query, tokens) = self.parse_query(tokens)
+      (InsertSource::Query(query), tokens)
+    }
+    _ => raise UnexpectedTokenError(tokens[0], Keyword(Values))
+  }
+  
+  // Parse optional ON DUPLICATE KEY UPDATE clause (even for REPLACE)
+  let (on_insert, tokens) = match tokens {
+    [Keyword(On), Keyword(Duplicate), Keyword(Key), Keyword(Update), .. tokens] => {
+      let (assignments, tokens) = self.parse_duplicate_key_assignments(tokens)
+      (Some(OnInsert::DuplicateKeyUpdate(assignments)), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({ table_name, columns, source, or: Some(SqliteOnConflict::Replace), on: on_insert }, tokens)
+}
+
+///|
+fn Parser::parse_comma_separated_exprs(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[Expr]] raise ParserError {
+  let exprs = []
+  let (expr, tokens) = self.parse_expr(tokens)
+  exprs.push(expr)
+  
+  let tokens = loop tokens {
+    [Comma, .. tokens] => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      exprs.push(expr)
+      continue tokens
+    }
+    tokens => break tokens
+  }
+  (exprs, tokens)
 }
 
 test "Parse simple select statement" {
@@ -164,4 +363,26 @@ test "Parse simple select statement" {
       #|  t;
     ),
   )
+}
+
+///|
+fn Parser::parse_duplicate_key_assignments(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[Assignment]] raise ParserError {
+  let assignments = []
+  let tokens = loop tokens {
+    [Identifier(column), Eq, .. tokens] => {
+      let (value, tokens) = self.parse_expr(tokens)
+      assignments.push({ column, value })
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => break tokens
+      }
+    }
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected column assignment in ON DUPLICATE KEY UPDATE")
+    [] => raise InternalBug("parse_duplicate_key_assignments: unexpected end of tokens")
+  }
+  (assignments, tokens)
 }

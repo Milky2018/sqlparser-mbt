@@ -99,6 +99,7 @@ fn Lexer::next_token(
     ['.', .. rest] => read_frac(rest)
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
     ['_', .. _rest] as code => self.read_identifier_or_keyword(code)
+    ['@', .. _rest] as code => self.read_user_variable(code)
     [c, .. _rest] as code if c.is_ascii_alphabetic() =>
       self.read_identifier_or_keyword(code)
     [c, .. _rest] => raise UnknownCharacter(c)
@@ -248,6 +249,11 @@ fn Lexer::read_identifier_or_keyword(
     "delete" => Keyword(Delete)
     "update" => Keyword(Update)
     "set" => Keyword(Set)
+    "replace" => Keyword(Replace)
+    "rollback" => Keyword(Rollback)
+    "abort" => Keyword(Abort)
+    "fail" => Keyword(Fail)
+    "ignore" => Keyword(Ignore)
     "truncate" => Keyword(Truncate)
     "alter" => Keyword(Alter)
     "column" => Keyword(Column)
@@ -261,6 +267,18 @@ fn Lexer::read_identifier_or_keyword(
     "unlock" => Keyword(Unlock)
     "listen" => Keyword(Listen)
     "notify" => Keyword(Notify)
+    "schemas" => Keyword(Schemas)
+    "variables" => Keyword(Variables)
+    "processlist" => Keyword(Processlist)
+    "grants" => Keyword(Grants)
+    "functions" => Keyword(Functions)
+    "extended" => Keyword(Extended)
+    "global" => Keyword(Global)
+    "session" => Keyword(Session)
+    "procedure" => Keyword(Procedure)
+    "event" => Keyword(Event)
+    "trigger" => Keyword(Trigger)
+    "duplicate" => Keyword(Duplicate)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)
@@ -269,6 +287,28 @@ fn Lexer::read_identifier_or_keyword(
 ///|
 fn is_ascii_alphabetic_or_digit(ch : Char) -> Bool {
   ch.is_ascii_alphabetic() || ch.is_ascii_digit() || ch == '_'
+}
+
+///|
+fn Lexer::read_user_variable(
+  _self : Lexer,
+  input : @string.View,
+) -> (Token, @string.View) {
+  // Skip the @ character
+  let input = match input {
+    ['@', .. rest] => rest
+    _ => input
+  }
+  
+  // Read the variable name part
+  let (idx, rest) = loop (input, 0) {
+    ([c, .. rest], n) if is_ascii_alphabetic_or_digit(c) =>
+      continue (rest, n + 1)
+    (rest, n) => break (n, rest)
+  }
+  
+  let variable_name = "@" + input.view(start_offset=0, end_offset=idx).to_string()
+  (Token::Identifier(variable_name), rest)
 }
 
 ///|

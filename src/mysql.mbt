@@ -154,3 +154,195 @@ test "MySQL DIV operator" {
     ),
   )
 }
+
+///|
+test "MySQL SHOW VARIABLES" {
+  let tokens = "SHOW VARIABLES;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SHOW VARIABLES;
+    ),
+  )
+}
+
+///|
+test "MySQL SHOW GLOBAL STATUS" {
+  let tokens = "SHOW GLOBAL STATUS;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SHOW GLOBAL STATUS;
+    ),
+  )
+}
+
+///|
+test "MySQL SHOW FULL PROCESSLIST" {
+  let tokens = "SHOW FULL PROCESSLIST;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SHOW FULL PROCESSLIST;
+    ),
+  )
+}
+
+///|
+test "MySQL SHOW CREATE TABLE" {
+  let tokens = "SHOW CREATE TABLE users;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SHOW CREATE TABLE users;
+    ),
+  )
+}
+
+///|
+test "MySQL SHOW EXTENDED COLUMNS" {
+  let tokens = "SHOW EXTENDED COLUMNS FROM users LIKE 'name%';"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SHOW EXTENDED COLUMNS FROM users LIKE 'name%';
+    ),
+  )
+}
+
+///|
+test "MySQL SET session variable" {
+  let tokens = "SET SESSION sql_mode = 'STRICT_TRANS_TABLES';"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SET SESSION sql_mode = 'STRICT_TRANS_TABLES';
+    ),
+  )
+}
+
+///|
+test "MySQL SET global variable" {
+  let tokens = "SET GLOBAL max_connections = 200;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SET GLOBAL max_connections = 200;
+    ),
+  )
+}
+
+///|
+test "MySQL SET user variable" {
+  let tokens = "SET @counter = 1;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SET @counter = 1;
+    ),
+  )
+}
+
+///|
+test "MySQL SET multiple variables" {
+  let tokens = "SET @name = 'John', @age = 30, @salary = 50000.50;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SET @name = 'John', @age = 30, @salary = 50000.5;
+    ),
+  )
+}
+
+///|
+test "MySQL SET local variable" {
+  let tokens = "SET autocommit = 0;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SET autocommit = 0;
+    ),
+  )
+}
+
+///|
+test "MySQL REPLACE INTO statement" {
+  let tokens = "REPLACE INTO users (id, name) VALUES (1, 'John');"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|REPLACE INTO users (id, name) VALUES (1, 'John');
+    ),
+  )
+}
+
+///|
+test "MySQL REPLACE INTO with multiple values" {
+  let tokens = "REPLACE INTO products (id, name, price) VALUES (1, 'Widget', 10.50), (2, 'Gadget', 15.00);"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|REPLACE INTO products (id, name, price) VALUES (1, 'Widget', 10.5), (2, 'Gadget', 15);
+    ),
+  )
+}
+
+///|
+test "MySQL INSERT OR REPLACE statement" {
+  let tokens = "INSERT OR REPLACE INTO settings (key, value) VALUES ('theme', 'dark');"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|REPLACE INTO settings (key, value) VALUES ('theme', 'dark');
+    ),
+  )
+}
+
+///|
+test "MySQL INSERT with ON DUPLICATE KEY UPDATE" {
+  let tokens = "INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON DUPLICATE KEY UPDATE name = 'John Updated', email = 'john.new@example.com';"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON DUPLICATE KEY UPDATE name = 'John Updated', email = 'john.new@example.com';
+    ),
+  )
+}
+
+///|
+test "MySQL INSERT single assignment ON DUPLICATE KEY UPDATE" {
+  let tokens = "INSERT INTO counters (id, count) VALUES (1, 1) ON DUPLICATE KEY UPDATE count = count + 1;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO counters (id, count) VALUES (1, 1) ON DUPLICATE KEY UPDATE count = count + 1;
+    ),
+  )
+}
+
+///|
+test "MySQL REPLACE with ON DUPLICATE KEY UPDATE" {
+  let tokens = "REPLACE INTO settings (setting_key, setting_value) VALUES ('theme', 'dark') ON DUPLICATE KEY UPDATE setting_value = 'light';"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|REPLACE INTO settings (setting_key, setting_value) VALUES ('theme', 'dark') ON DUPLICATE KEY UPDATE setting_value = 'light';
+    ),
+  )
+}
