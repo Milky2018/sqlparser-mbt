@@ -109,7 +109,7 @@ test "PostgreSQL NOTIFY with payload" {
 
 test "PostgreSQL ARRAY syntax with integers" {
   let tokens = "SELECT ARRAY[1, 2, 3, 4] FROM test;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -124,7 +124,7 @@ test "PostgreSQL ARRAY syntax with integers" {
 ///|
 test "PostgreSQL bracket array syntax" {
   let tokens = "SELECT [1, 2, 3] FROM test;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -139,7 +139,7 @@ test "PostgreSQL bracket array syntax" {
 ///|
 test "PostgreSQL empty ARRAY" {
   let tokens = "SELECT ARRAY[] FROM test;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -154,7 +154,7 @@ test "PostgreSQL empty ARRAY" {
 ///|
 test "PostgreSQL ARRAY with strings" {
   let tokens = "SELECT ARRAY['hello', 'world'] FROM test;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -169,7 +169,7 @@ test "PostgreSQL ARRAY with strings" {
 ///|
 test "PostgreSQL nested arrays" {
   let tokens = "SELECT ARRAY[ARRAY[1, 2], ARRAY[3, 4]] FROM test;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -184,7 +184,7 @@ test "PostgreSQL nested arrays" {
 ///|
 test "PostgreSQL mixed bracket and ARRAY syntax" {
   let tokens = "SELECT ARRAY[[1, 2], [3, 4]] FROM test;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
