@@ -83,6 +83,13 @@ fn Parser::parse_query(
   self : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[QueryStmt] raise ParserError {
+  let (with_clause, tokens) = match tokens {
+    [Keyword(With), .. tokens] => {
+      let (ctes, tokens) = self.parse_cte_list(tokens)
+      (Some(ctes), tokens)
+    }
+    _ => (None, tokens)
+  }
   let (body, tokens) = self.parse_set_expr(tokens, 0)
   let (order_by, tokens) = match tokens {
     [Keyword(Order), Keyword(By), .. tokens] => self.parse_order_by(tokens)
@@ -102,7 +109,7 @@ fn Parser::parse_query(
     }
     _ => (None, tokens)
   }
-  ({ body, order_by, limit, offset }, tokens)
+  ({ with_clause, body, order_by, limit, offset }, tokens)
 }
 
 ///|
@@ -2081,6 +2088,71 @@ fn Parser::parse_truncate_statement(
   let tokens = self.expect_token(tokens, Keyword(Truncate))
   let (table_name, tokens) = self.parse_object_name(tokens)
   ({ table_name, }, tokens)
+}
+
+///|
+fn Parser::parse_cte_list(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[Cte]] raise ParserError {
+  let ctes = []
+  let tokens = loop tokens {
+    tokens => {
+      let (cte, tokens) = self.parse_cte(tokens)
+      ctes.push(cte)
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        tokens => break tokens
+      }
+    }
+  }
+  (ctes, tokens)
+}
+
+///|
+fn Parser::parse_cte(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Cte] raise ParserError {
+  // Parse CTE name
+  let (cte_name, tokens) = match tokens {
+    [Identifier(name), .. tokens] => (name, tokens)
+    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected CTE name")
+    [] => raise ParserError::InternalBug("parse_cte: unexpected end of tokens")
+  }
+  
+  // Parse optional column list: cte_name(col1, col2, ...)
+  let (columns, tokens) = match tokens {
+    [LParen, .. tokens] => {
+      let cols = []
+      let tokens = loop tokens {
+        [RParen, .. tokens] => break tokens
+        [Identifier(col), .. tokens] => {
+          cols.push(col)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            [RParen, .. tokens] => break tokens
+            [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected ',' or ')'")
+            [] => raise ParserError::InternalBug("parse_cte: unexpected end of tokens in column list")
+          }
+        }
+        [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected column name")
+        [] => raise ParserError::InternalBug("parse_cte: unexpected end of tokens in column list")
+      }
+      (Some(cols), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  // Parse AS keyword
+  let tokens = self.expect_token(tokens, Keyword(As))
+  
+  // Parse parenthesized query
+  let tokens = self.expect_token(tokens, LParen)
+  let (query, tokens) = self.parse_query(tokens)
+  let tokens = self.expect_token(tokens, RParen)
+  
+  ({ name: cte_name, query, columns }, tokens)
 }
 
 

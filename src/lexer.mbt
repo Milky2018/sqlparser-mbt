@@ -282,6 +282,7 @@ fn Lexer::read_identifier_or_keyword(
     "trigger" => Keyword(Trigger)
     "duplicate" => Keyword(Duplicate)
     "array" => Keyword(Array)
+    "with" => Keyword(With)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

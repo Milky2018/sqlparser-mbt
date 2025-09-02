@@ -74,6 +74,8 @@ pub impl @pp.Pretty for Statement with pretty(self) {
 
 ///|
 pub struct QueryStmt {
+  // WITH <cte1> AS (...), <cte2> AS (...)
+  with_clause : Array[Cte]?
   // SELECT ...
   body : SetExpr
   // ORDER BY <order_by>
@@ -86,6 +88,13 @@ pub struct QueryStmt {
 
 ///|
 pub impl @pp.Pretty for QueryStmt with pretty(self) {
+  (match self.with_clause {
+    Some(ctes) => 
+      @pp.text("WITH ") +
+      @pp.separate(@pp.text(", ") + @pp.hardline, ctes.map(@pp.pretty)) +
+      @pp.hardline
+    None => @pp.empty
+  }) +
   self.body.pretty() +
   (if self.order_by.length() > 0 {
     @pp.hardline +
@@ -449,6 +458,31 @@ pub impl @pp.Pretty for Subscript with pretty(self) {
       @pp.text("]")
     }
   }
+}
+
+///|
+/// Common Table Expression (CTE) for WITH clauses
+pub struct Cte {
+  name : String          // CTE name
+  query : QueryStmt       // CTE query body
+  columns : Array[String]?  // Optional column list: WITH cte(col1, col2) AS (...)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for Cte with pretty(self) {
+  @pp.text(self.name) +
+  (match self.columns {
+    Some(cols) => 
+      @pp.text("(") + 
+      @pp.separate(@pp.text(", "), cols.map(@pp.text)) +
+      @pp.text(")")
+    None => @pp.empty
+  }) +
+  @pp.text(" AS (") +
+  @pp.hardline +
+  @pp.nest(self.query.pretty()) +
+  @pp.hardline +
+  @pp.text(")")
 }
 
 ///|

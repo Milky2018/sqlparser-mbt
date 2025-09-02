@@ -122,4 +122,5 @@ pub(all) enum Keyword {
   Trigger
   Duplicate
   Array
+  With
 } derive(Eq, Show)
