@@ -114,6 +114,10 @@ fn Parser::parse_statement(
       self.parse_release_savepoint_statement(tokens).map(Statement::ReleaseSavepoint(_))
     [Keyword(Release), .. _rest] =>
       self.parse_release_savepoint_statement(tokens).map(Statement::ReleaseSavepoint(_))
+    [Keyword(Grant), .. _rest] =>
+      self.parse_grant_statement(tokens).map(Statement::Grant(_))
+    [Keyword(Revoke), .. _rest] =>
+      self.parse_revoke_statement(tokens).map(Statement::Revoke(_))
     [LParen, .. rest] => {
       let (stmt, tokens) = self.parse_statement(rest)
       let tokens = self.expect_token(tokens, RParen)

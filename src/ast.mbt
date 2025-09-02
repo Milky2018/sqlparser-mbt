@@ -49,6 +49,9 @@ pub enum Statement {
   Rollback(RollbackStmt)
   Savepoint(SavepointStmt)
   ReleaseSavepoint(ReleaseSavepointStmt)
+  // DCL (Data Control Language) statements
+  Grant(GrantStmt)
+  Revoke(RevokeStmt)
 } derive(Eq, Show)
 
 ///|
@@ -79,6 +82,8 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Rollback(stmt) => stmt.pretty()
     Savepoint(stmt) => stmt.pretty()
     ReleaseSavepoint(stmt) => stmt.pretty()
+    Grant(stmt) => stmt.pretty()
+    Revoke(stmt) => stmt.pretty()
   }) +
   @pp.text(";")
 }
@@ -1509,4 +1514,123 @@ pub impl @pp.Pretty for ReleaseSavepointStmt with pretty(self) {
   @pp.text("RELEASE ") +
   (if self.savepoint_keyword { @pp.text("SAVEPOINT ") } else { @pp.empty }) +
   @pp.text(self.name)
+}
+
+///|
+// DCL (Data Control Language) statement structures
+
+pub struct GrantStmt {
+  // GRANT privileges ON object TO grantees [WITH GRANT OPTION]
+  privileges : Array[Privilege]
+  objects : Array[ObjectName]    // tables, views, etc.
+  grantees : Array[String]       // users or roles
+  with_grant_option : Bool
+} derive(Eq, Show)
+
+///|
+pub enum Privilege {
+  // Basic privileges
+  Select(Array[String]?)         // SELECT [(column_list)]
+  Insert(Array[String]?)         // INSERT [(column_list)]
+  Update(Array[String]?)         // UPDATE [(column_list)]
+  Delete                         // DELETE
+  References(Array[String]?)     // REFERENCES [(column_list)]
+  // DDL privileges  
+  Create                         // CREATE
+  Drop                           // DROP
+  Alter                          // ALTER
+  Index                          // INDEX/CREATE INDEX
+  // Special privileges
+  All                           // ALL [PRIVILEGES]
+  Usage                         // USAGE (for sequences, schemas)
+  Execute                       // EXECUTE (for functions, procedures)
+  Connect                       // CONNECT (for databases)
+  Temporary                     // TEMPORARY/TEMP (for databases)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for GrantStmt with pretty(self) {
+  @pp.text("GRANT ") +
+  @pp.separate(@pp.text(", "), self.privileges.map(@pp.pretty)) +
+  @pp.text(" ON ") +
+  @pp.separate(@pp.text(", "), self.objects.map(@pp.pretty)) +
+  @pp.text(" TO ") +
+  @pp.separate(@pp.text(", "), self.grantees.map(@pp.text)) +
+  (if self.with_grant_option { @pp.text(" WITH GRANT OPTION") } else { @pp.empty })
+}
+
+///|
+pub impl @pp.Pretty for Privilege with pretty(self) {
+  match self {
+    Privilege::Select(cols) => @pp.text("SELECT") + (match cols {
+      Some(column_names) if column_names.length() > 0 =>
+        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+      _ => @pp.empty
+    })
+    Privilege::Insert(cols) => @pp.text("INSERT") + (match cols {
+      Some(column_names) if column_names.length() > 0 =>
+        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+      _ => @pp.empty
+    })
+    Privilege::Update(cols) => @pp.text("UPDATE") + (match cols {
+      Some(column_names) if column_names.length() > 0 =>
+        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+      _ => @pp.empty
+    })
+    Privilege::Delete => @pp.text("DELETE")
+    Privilege::References(cols) => @pp.text("REFERENCES") + (match cols {
+      Some(column_names) if column_names.length() > 0 =>
+        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+      _ => @pp.empty
+    })
+    Privilege::Create => @pp.text("CREATE")
+    Privilege::Drop => @pp.text("DROP")
+    Privilege::Alter => @pp.text("ALTER")
+    Privilege::Index => @pp.text("INDEX")
+    Privilege::All => @pp.text("ALL PRIVILEGES")
+    Privilege::Usage => @pp.text("USAGE")
+    Privilege::Execute => @pp.text("EXECUTE")
+    Privilege::Connect => @pp.text("CONNECT")
+    Privilege::Temporary => @pp.text("TEMPORARY")
+  }
+}
+
+///|
+pub struct RevokeStmt {
+  // REVOKE [GRANT OPTION FOR] privileges ON object FROM grantees [RESTRICT | CASCADE]
+  grant_option_for : Bool        // whether GRANT OPTION FOR was specified
+  privileges : Array[Privilege]
+  objects : Array[ObjectName]    // tables, views, etc.
+  grantees : Array[String]       // users or roles
+  cascade : RevokeOption?        // RESTRICT | CASCADE
+} derive(Eq, Show)
+
+///|
+pub enum RevokeOption {
+  Restrict                       // RESTRICT
+  Cascade                        // CASCADE
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for RevokeStmt with pretty(self) {
+  @pp.text("REVOKE ") +
+  (if self.grant_option_for { @pp.text("GRANT OPTION FOR ") } else { @pp.empty }) +
+  @pp.separate(@pp.text(", "), self.privileges.map(@pp.pretty)) +
+  @pp.text(" ON ") +
+  @pp.separate(@pp.text(", "), self.objects.map(@pp.pretty)) +
+  @pp.text(" FROM ") +
+  @pp.separate(@pp.text(", "), self.grantees.map(@pp.text)) +
+  (match self.cascade {
+    Some(RevokeOption::Restrict) => @pp.text(" RESTRICT")
+    Some(RevokeOption::Cascade) => @pp.text(" CASCADE")
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for RevokeOption with pretty(self) {
+  match self {
+    RevokeOption::Restrict => @pp.text("RESTRICT")
+    RevokeOption::Cascade => @pp.text("CASCADE")
+  }
 }

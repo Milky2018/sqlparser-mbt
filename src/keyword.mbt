@@ -130,4 +130,16 @@ pub(all) enum Keyword {
   Savepoint
   Release
   Work
+  Grant
+  Revoke
+  Privileges
+  Usage
+  Execute
+  Connect
+  Temporary
+  Temp
+  Option
+  Restrict
+  Cascade
+  Index
 } derive(Eq, Show)
