@@ -264,8 +264,8 @@ pub enum Expr {
   BinaryOperation(Expr, BinaryOperator, Expr)
   // - <expr>
   UnaryOperation(UnaryOperator, Expr)
-  // sum(*)
-  FunctionCall(String, DuplicateTreatment?, Array[Expr])
+  // sum(*) [FILTER (WHERE condition)]
+  FunctionCall(String, DuplicateTreatment?, Array[Expr], Expr?)
   // *
   Wildcard
   // DATE '1998-05-19'
@@ -333,12 +333,17 @@ pub impl @pp.Pretty for Expr with pretty(self) {
       @pp.space +
       wrap_parens(right, op)
     Expr::UnaryOperation(op, expr) => op.pretty() + expr.pretty()
-    Expr::FunctionCall(name, dup, args) =>
+    Expr::FunctionCall(name, dup, args, filter) =>
       @pp.text(name) +
       @pp.parens(
         (if dup is Some(dup) { dup.pretty() + @pp.space } else { @pp.empty }) +
         @pp.separate(@pp.text(", "), args.map(@pp.pretty)),
-      )
+      ) +
+      (if filter is Some(filter) { 
+        @pp.text(" FILTER (WHERE ") + filter.pretty() + @pp.text(")")
+      } else { 
+        @pp.empty 
+      })
     Expr::Wildcard => @pp.char('*')
     Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
     Interval(s, qualifier) =>
@@ -518,6 +523,13 @@ pub enum BinaryOperator {
   Mod
   And
   Or
+  // PostgreSQL JSON operators
+  JsonExtract        // ->
+  JsonExtractText    // ->>
+  JsonExtractPath    // #>
+  JsonExtractPathText // #>>
+  JsonContains       // @>
+  JsonContainedIn    // <@
 } derive(Eq, Show)
 
 ///|
@@ -538,6 +550,13 @@ pub impl @pp.Pretty for BinaryOperator with pretty(self) {
     BinaryOperator::Mod => @pp.text("%")
     BinaryOperator::And => @pp.hardline + @pp.text("AND")
     BinaryOperator::Or => @pp.hardline + @pp.text("OR")
+    // PostgreSQL JSON operators
+    BinaryOperator::JsonExtract => @pp.text("->")
+    BinaryOperator::JsonExtractText => @pp.text("->>")
+    BinaryOperator::JsonExtractPath => @pp.text("#>")
+    BinaryOperator::JsonExtractPathText => @pp.text("#>>")
+    BinaryOperator::JsonContains => @pp.text("@>")
+    BinaryOperator::JsonContainedIn => @pp.text("<@")
   }
 }
 

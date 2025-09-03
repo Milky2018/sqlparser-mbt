@@ -29,6 +29,7 @@ pub(all) enum Keyword {
   And
   Or
   Extract
+  Filter
   Case
   When
   Then

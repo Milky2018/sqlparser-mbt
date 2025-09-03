@@ -312,6 +312,13 @@ fn try_binary_operator(token : Token) -> BinaryOperator? {
     Keyword(And) => Some(BinaryOperator::And)
     Keyword(Or) => Some(BinaryOperator::Or)
     Keyword(Div) => Some(BinaryOperator::IntegerDiv) // MySQL DIV operator
+    // PostgreSQL JSON operators
+    JsonExtract => Some(BinaryOperator::JsonExtract)
+    JsonExtractText => Some(BinaryOperator::JsonExtractText)
+    JsonExtractPath => Some(BinaryOperator::JsonExtractPath)
+    JsonExtractPathText => Some(BinaryOperator::JsonExtractPathText)
+    JsonContains => Some(BinaryOperator::JsonContains)
+    JsonContainedIn => Some(BinaryOperator::JsonContainedIn)
     _ => None
   }
 }
@@ -371,14 +378,14 @@ fn Parser::parse_primary_expr(
         [Keyword(All), .. tokens] => (Some(DuplicateTreatment::All), tokens)
         tokens => (None, tokens)
       }
-      loop tokens {
-        [RParen, .. tokens] => break (FunctionCall(name, dup, args), tokens)
+      let tokens = loop tokens {
+        [RParen, .. tokens] => break tokens
         tokens => {
           let (arg, tokens) = self.parse_expr(tokens)
           args.push(arg)
           match tokens {
             [Comma, .. tokens] => continue tokens
-            [RParen, .. tokens] => break (FunctionCall(name, dup, args), tokens)
+            [RParen, .. tokens] => break tokens
             _ =>
               raise UnexpectedTokenMessageError(
                 tokens[0],
@@ -387,6 +394,20 @@ fn Parser::parse_primary_expr(
           }
         }
       }
+      // Parse optional FILTER clause
+      let (filter, tokens) = if self.dialect.supports_filter_during_aggregation() {
+        match tokens {
+          [Keyword(Filter), LParen, Keyword(Where), .. tokens] => {
+            let (filter_expr, tokens) = self.parse_expr(tokens)
+            let tokens = self.expect_token(tokens, RParen)
+            (Some(filter_expr), tokens)
+          }
+          _ => (None, tokens)
+        }
+      } else {
+        (None, tokens)
+      }
+      (FunctionCall(name, dup, args, filter), tokens)
     }
     [Identifier(name), Period, .. tokens] => {
       let parts = [name]
@@ -452,6 +473,8 @@ fn Parser::parse_primary_expr(
       (expr, tokens)
     }
     [Token::Mul, .. tokens] => (Expr::Wildcard, tokens)
+    // Handle keywords that can also be used as identifiers
+    [Keyword(Status), .. tokens] => (Identifier("status"), tokens)
     [token, .. _tokens] =>
       raise UnimplementedError("parse_primary_expr: \{token}")
     [] =>

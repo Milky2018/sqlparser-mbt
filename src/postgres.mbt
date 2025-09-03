@@ -282,3 +282,136 @@ test "Complex PostgreSQL arrays fail with generic dialect" {
     _e => () // Expected behavior - parsing should fail
   }
 }
+
+///|
+// PostgreSQL JSON operator tests
+
+test "PostgreSQL JSON extract operator" {
+  let tokens = "SELECT data -> 'key' FROM json_table;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  data -> 'key'
+      #|FROM
+      #|  json_table;
+    ),
+  )
+}
+
+test "PostgreSQL JSON extract text operator" {
+  let tokens = "SELECT data ->> 'key' FROM json_table;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  data ->> 'key'
+      #|FROM
+      #|  json_table;
+    ),
+  )
+}
+
+test "PostgreSQL JSON path extract operator" {
+  let tokens = "SELECT data #> ARRAY['key', 'subkey'] FROM json_table;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  data #> ARRAY['key', 'subkey']
+      #|FROM
+      #|  json_table;
+    ),
+  )
+}
+
+test "PostgreSQL JSON contains operator" {
+  let tokens = "SELECT data @> '{\"key\":\"value\"}' FROM json_table;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  data @> '{"key":"value"}'
+      #|FROM
+      #|  json_table;
+    ),
+  )
+}
+
+test "PostgreSQL JSON contained in operator" {
+  let tokens = "SELECT '{\"a\":1}' <@ data FROM json_table;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  '{"a":1}' <@ data
+      #|FROM
+      #|  json_table;
+    ),
+  )
+}
+
+///|
+// PostgreSQL FILTER aggregation tests
+
+test "PostgreSQL COUNT with FILTER" {
+  let tokens = "SELECT count(*) FILTER (WHERE active) FROM users;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  count(*) FILTER (WHERE active)
+      #|FROM
+      #|  users;
+    ),
+  )
+}
+
+test "PostgreSQL COUNT without FILTER" {
+  let tokens = "SELECT count(*) FROM users;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  count(*)
+      #|FROM
+      #|  users;
+    ),
+  )
+}
+
+test "PostgreSQL SUM with FILTER" {
+  let tokens = "SELECT sum(amount) FILTER (WHERE status = 'completed') FROM orders;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  sum(amount) FILTER (WHERE status = 'completed')
+      #|FROM
+      #|  orders;
+    ),
+  )
+}
+
+test "PostgreSQL multiple aggregations with FILTER" {
+  let tokens = "SELECT count(*) FILTER (WHERE active), avg(age) FILTER (WHERE age > 18) FROM users;"
+  let stmt = parse_sql(dialect=Postgres::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  count(*) FILTER (WHERE active),
+      #|  avg(age) FILTER (WHERE age > 18)
+      #|FROM
+      #|  users;
+    ),
+  )
+}

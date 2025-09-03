@@ -13,6 +13,13 @@ pub fn BinaryOperator::get_precedence(self : Self) -> Precedence {
     | BinaryOperator::Spaceship => Precedence::Eq
     BinaryOperator::And => Precedence::And
     BinaryOperator::Or => Precedence::Or
+    // PostgreSQL JSON operators - higher precedence than comparison
+    BinaryOperator::JsonExtract
+    | BinaryOperator::JsonExtractText
+    | BinaryOperator::JsonExtractPath
+    | BinaryOperator::JsonExtractPathText
+    | BinaryOperator::JsonContains
+    | BinaryOperator::JsonContainedIn => Precedence::JsonOperator
   }
 }
 
@@ -26,6 +33,7 @@ pub(all) enum Precedence {
   Or
   Between
   UnaryNot
+  JsonOperator
 }
 
 ///|
@@ -39,5 +47,6 @@ pub fn Precedence::value(self : Precedence) -> Int {
     Or => 5
     Between => 20
     UnaryNot => 15
+    JsonOperator => 35  // Between PlusMinus and MulDivMod
   }
 }

@@ -35,6 +35,13 @@ pub(all) enum Token {
   RParen
   Period
   PlaceHolder
+  // PostgreSQL JSON operators
+  JsonExtract        // ->
+  JsonExtractText    // ->>
+  JsonExtractPath    // #>
+  JsonExtractPathText // #>>
+  JsonContains       // @>
+  JsonContainedIn    // <@
   Unknown(Char)
   Eof
 } derive(Eq, Show)
@@ -78,10 +85,13 @@ fn Lexer::next_token(
     [.. "<=>", .. rest] => (Spaceship, rest)
     [.. "<>", .. rest] => (Neq, rest)
     [.. "<=", .. rest] => (LtEq, rest)
+    [.. "<@", .. rest] => (JsonContainedIn, rest)  // PostgreSQL JSON <@
     ['<', .. rest] => (Lt, rest)
     [.. ">=", .. rest] => (GtEq, rest)
     ['>', .. rest] => (Gt, rest)
     ['+', .. rest] => (Plus, rest)
+    [.. "->>" , .. rest] => (JsonExtractText, rest)    // PostgreSQL JSON ->>
+    [.. "->" , .. rest] => (JsonExtract, rest)       // PostgreSQL JSON ->
     [.. "--", .. rest] => {
       let rest = skip_line_comment(rest)
       self.next_token(rest)
@@ -99,6 +109,11 @@ fn Lexer::next_token(
     ['"', .. rest] => self.read_double_quoted_string(rest)
     ['`', .. rest] => self.read_backtick_quoted_identifier(rest)
     ['.', .. rest] => read_frac(rest)
+    // PostgreSQL JSON operators (must come before general patterns and character matching)
+    [.. "#>>", .. rest] => (JsonExtractPathText, rest)  // PostgreSQL JSON #>>
+    [.. "#>", .. rest] => (JsonExtractPath, rest)       // PostgreSQL JSON #>
+    [.. "@>", .. rest] => (JsonContains, rest)          // PostgreSQL JSON @>
+    // General patterns after specific JSON operators
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
     ['_', .. _rest] as code => self.read_identifier_or_keyword(code)
     ['@', .. _rest] as code => self.read_user_variable(code)
@@ -189,6 +204,7 @@ fn Lexer::read_identifier_or_keyword(
     "exists" => Keyword(Exists)
     "between" => Keyword(Between)
     "extract" => Keyword(Extract)
+    "filter" => Keyword(Filter)
     "case" => Keyword(Case)
     "when" => Keyword(When)
     "then" => Keyword(Then)
