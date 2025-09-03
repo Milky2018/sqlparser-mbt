@@ -430,7 +430,15 @@ fn Parser::parse_primary_expr(
           )
       }
     }
-    [Identifier(name), .. tokens] => (Identifier(name), tokens)
+    [Identifier(name), .. tokens] => {
+      // Check if this is a BigQuery named parameter (@param_name)
+      if name.strip_prefix("@") is Some(_) && self.dialect.supports_named_parameters() {
+        let param_name = name.substring(start=1) // Remove the @ prefix
+        (NamedParameter(param_name), tokens)
+      } else {
+        (Identifier(name), tokens)
+      }
+    }
     [Keyword(Exists), LParen, .. tokens] => {
       let (sub_query, tokens) = self.parse_query(tokens)
       match tokens {
