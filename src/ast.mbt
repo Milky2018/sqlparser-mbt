@@ -514,8 +514,7 @@ pub impl @pp.Pretty for Cte with pretty(self) {
     None => @pp.empty
   }) +
   @pp.text(" AS (") +
-  @pp.hardline +
-  @pp.nest(self.query.pretty()) +
+  @pp.nest(@pp.hardline + self.query.pretty()) +
   @pp.hardline +
   @pp.text(")")
 }

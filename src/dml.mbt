@@ -2387,7 +2387,7 @@ test "Simple CTE with WITH clause" {
     stmt,
     content=(
       #|WITH sales AS (
-      #|SELECT
+      #|  SELECT
       #|    *
       #|  FROM
       #|    orders
@@ -2408,7 +2408,7 @@ test "CTE with column specification" {
     stmt,
     content=(
       #|WITH sales(id, total) AS (
-      #|SELECT
+      #|  SELECT
       #|    order_id,
       #|    amount
       #|  FROM
@@ -2430,13 +2430,13 @@ test "Multiple CTEs" {
     stmt,
     content=(
       #|WITH sales AS (
-      #|SELECT
+      #|  SELECT
       #|    *
       #|  FROM
       #|    orders
       #|), 
       #|customers AS (
-      #|SELECT
+      #|  SELECT
       #|    *
       #|  FROM
       #|    users
@@ -2458,7 +2458,7 @@ test "CTE with ORDER BY and LIMIT" {
     stmt,
     content=(
       #|WITH top_sales AS (
-      #|SELECT
+      #|  SELECT
       #|    *
       #|  FROM
       #|    orders
@@ -2483,13 +2483,13 @@ test "Nested CTE (CTE referencing another CTE)" {
     stmt,
     content=(
       #|WITH sales AS (
-      #|SELECT
+      #|  SELECT
       #|    *
       #|  FROM
       #|    orders
       #|), 
       #|big_sales AS (
-      #|SELECT
+      #|  SELECT
       #|    *
       #|  FROM
       #|    sales
@@ -2512,7 +2512,7 @@ test "CTE with aggregation" {
     stmt,
     content=(
       #|WITH monthly_sales AS (
-      #|SELECT
+      #|  SELECT
       #|    date_month,
       #|    sum(amount) AS total
       #|  FROM
