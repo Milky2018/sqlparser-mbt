@@ -318,6 +318,17 @@ fn Lexer::read_identifier_or_keyword(
     "restrict" => Keyword(Restrict)
     "cascade" => Keyword(Cascade)
     "index" => Keyword(Index)
+    // Window function keywords
+    "over" => Keyword(Over)
+    "window" => Keyword(Window)
+    "partition" => Keyword(Partition)
+    "rows" => Keyword(Rows)
+    "range" => Keyword(Range)
+    "preceding" => Keyword(Preceding)
+    "following" => Keyword(Following)
+    "current" => Keyword(Current)
+    "unbounded" => Keyword(Unbounded)
+    "row" => Keyword(Row)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

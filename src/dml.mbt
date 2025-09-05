@@ -366,10 +366,10 @@ fn Parser::parse_primary_expr(
     [Keyword(Interval), .. tokens] => self.parse_interval_expr(tokens)
     [Keyword(Extract), .. tokens] => self.parse_extract_expr(tokens)
     [Keyword(Substring), .. tokens] => self.parse_substring_expr(tokens)
-    [Keyword(Array), LBracket, .. tokens] if self.dialect.supports_array_syntax() => 
-      self.parse_array_expr([LBracket, .. tokens], true)
-    [LBracket, .. tokens] if self.dialect.supports_array_syntax() => 
-      self.parse_array_expr([LBracket, .. tokens], false)
+    [Keyword(Array), LBracket, .. tokens] if self.dialect.supports_array_syntax() =>
+      self.parse_array_expr([LBracket, ..tokens], true)
+    [LBracket, .. tokens] if self.dialect.supports_array_syntax() =>
+      self.parse_array_expr([LBracket, ..tokens], false)
     [Identifier(name), LParen, .. tokens] => {
       let args = []
       let (dup, tokens) = match tokens {
@@ -407,7 +407,15 @@ fn Parser::parse_primary_expr(
       } else {
         (None, tokens)
       }
-      (FunctionCall(name, dup, args, filter), tokens)
+      // Check for OVER clause to create window function
+      match tokens {
+        [Keyword(Over), LParen, .. tokens] => {
+          let (window_spec, tokens) = self.parse_window_spec(tokens)
+          let tokens = self.expect_token(tokens, RParen)
+          (WindowFunction(name, dup, args, window_spec), tokens)
+        }
+        _ => (FunctionCall(name, dup, args, filter), tokens)
+      }
     }
     [Identifier(name), Period, .. tokens] => {
       let parts = [name]
@@ -430,15 +438,15 @@ fn Parser::parse_primary_expr(
           )
       }
     }
-    [Identifier(name), .. tokens] => {
+    [Identifier(name), .. tokens] =>
       // Check if this is a BigQuery named parameter (@param_name)
-      if name.strip_prefix("@") is Some(_) && self.dialect.supports_named_parameters() {
+      if name.strip_prefix("@") is Some(_) &&
+        self.dialect.supports_named_parameters() {
         let param_name = name.substring(start=1) // Remove the @ prefix
         (NamedParameter(param_name), tokens)
       } else {
         (Identifier(name), tokens)
       }
-    }
     [Keyword(Exists), LParen, .. tokens] => {
       let (sub_query, tokens) = self.parse_query(tokens)
       match tokens {
@@ -500,7 +508,7 @@ fn Parser::parse_postfix_expr(
 ) -> ParserResult[Expr] raise ParserError {
   let mut current_expr = expr
   let remaining_tokens = tokens
-  
+
   // Parse multiple postfix operations in sequence  
   loop remaining_tokens {
     // Array/object indexing: expr[index] or expr[start:end]
@@ -529,19 +537,18 @@ fn Parser::parse_subscript(
   // tokens start right after the '['
   match tokens {
     // Handle slice notation: [start:end] or [start:end:stride] or [:end] or [start:]
-    tokens => {
+    tokens =>
       match tokens {
         // Handle [:...] format (colon at the beginning)
         [Colon, .. tokens] => {
           let (second_expr, tokens) = match tokens {
             [Colon, .. tokens] => (Option::None, tokens) // [::stride] format  
-            [RBracket, .. tokens] => (Option::None, [RBracket, .. tokens]) // [:] format
+            [RBracket, .. tokens] => (Option::None, [RBracket, ..tokens]) // [:] format
             tokens => {
               let (expr, tokens) = self.parse_expr(tokens)
               (Option::Some(expr), tokens)
             }
           }
-          
           let (third_expr, tokens) = match tokens {
             [Colon, .. tokens] => {
               // [start:end:stride] format
@@ -550,7 +557,6 @@ fn Parser::parse_subscript(
             }
             tokens => (Option::None, tokens)
           }
-          
           let tokens = self.expect_token(tokens, RBracket)
           (Subscript::Slice(Option::None, second_expr, third_expr), tokens)
         }
@@ -564,13 +570,12 @@ fn Parser::parse_subscript(
             [Colon, .. tokens] => {
               let (second_expr, tokens) = match tokens {
                 [Colon, .. tokens] => (Option::None, tokens) // [start::stride] format
-                [RBracket, .. tokens] => (Option::None, [RBracket, .. tokens]) // [start:] format
+                [RBracket, .. tokens] => (Option::None, [RBracket, ..tokens]) // [start:] format
                 tokens => {
                   let (expr, tokens) = self.parse_expr(tokens)
                   (Option::Some(expr), tokens)
                 }
               }
-              
               let (third_expr, tokens) = match tokens {
                 [Colon, .. tokens] => {
                   // [start:end:stride] format
@@ -579,9 +584,15 @@ fn Parser::parse_subscript(
                 }
                 tokens => (Option::None, tokens)
               }
-              
               let tokens = self.expect_token(tokens, RBracket)
-              (Subscript::Slice(Option::Some(first_expr), second_expr, third_expr), tokens)
+              (
+                Subscript::Slice(
+                  Option::Some(first_expr),
+                  second_expr,
+                  third_expr,
+                ),
+                tokens,
+              )
             }
             [token, .. _tokens] =>
               raise UnexpectedTokenMessageError(token, "expected ':' or ']'")
@@ -592,7 +603,6 @@ fn Parser::parse_subscript(
           }
         }
       }
-    }
   }
 }
 
@@ -1836,20 +1846,24 @@ fn Parser::parse_insert_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[InsertStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Insert))
-  
+
   // Parse optional conflict resolution (OR REPLACE, OR IGNORE, etc.)
   let (or_conflict, tokens) = match tokens {
-    [Keyword(Or), Keyword(Replace), .. tokens] => (Some(SqliteOnConflict::Replace), tokens)
-    [Keyword(Or), Keyword(Rollback), .. tokens] => (Some(SqliteOnConflict::Rollback), tokens)
-    [Keyword(Or), Keyword(Abort), .. tokens] => (Some(SqliteOnConflict::Abort), tokens)
-    [Keyword(Or), Keyword(Fail), .. tokens] => (Some(SqliteOnConflict::Fail), tokens)
-    [Keyword(Or), Keyword(Ignore), .. tokens] => (Some(SqliteOnConflict::Ignore), tokens)
+    [Keyword(Or), Keyword(Replace), .. tokens] =>
+      (Some(SqliteOnConflict::Replace), tokens)
+    [Keyword(Or), Keyword(Rollback), .. tokens] =>
+      (Some(SqliteOnConflict::Rollback), tokens)
+    [Keyword(Or), Keyword(Abort), .. tokens] =>
+      (Some(SqliteOnConflict::Abort), tokens)
+    [Keyword(Or), Keyword(Fail), .. tokens] =>
+      (Some(SqliteOnConflict::Fail), tokens)
+    [Keyword(Or), Keyword(Ignore), .. tokens] =>
+      (Some(SqliteOnConflict::Ignore), tokens)
     _ => (None, tokens)
   }
-  
   let tokens = self.expect_token(tokens, Keyword(Into))
   let (table_name, tokens) = self.parse_object_name(tokens)
-  
+
   // Parse optional column list: (col1, col2, ...)
   let (columns, tokens) = match tokens {
     [LParen, .. tokens] => {
@@ -1874,14 +1888,15 @@ fn Parser::parse_insert_statement(
         }
         [token, .. _tokens] =>
           raise UnexpectedTokenMessageError(
-            token, "expected column name in INSERT column list"
+            token, "expected column name in INSERT column list",
           )
-        [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+        [] =>
+          raise InternalBug("parse_insert_statement: unexpected end of tokens")
       }
     }
     _ => ([], tokens)
   }
-  
+
   // Parse INSERT source (VALUES or SELECT)
   let (source, tokens) = match tokens {
     [Keyword(Values), .. tokens] => {
@@ -1898,8 +1913,13 @@ fn Parser::parse_insert_statement(
                 [Comma, .. tokens] => continue tokens
                 [RParen, .. tokens] => break tokens
                 [token, .. _tokens] =>
-                  raise UnexpectedTokenMessageError(token, "expected ',' or ')'")
-                [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+                  raise UnexpectedTokenMessageError(
+                    token, "expected ',' or ')'",
+                  )
+                [] =>
+                  raise InternalBug(
+                    "parse_insert_statement: unexpected end of tokens",
+                  )
               }
             }
           }
@@ -1911,7 +1931,8 @@ fn Parser::parse_insert_statement(
         }
         [token, .. _tokens] =>
           raise UnexpectedTokenMessageError(token, "expected '(' after VALUES")
-        [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
+        [] =>
+          raise InternalBug("parse_insert_statement: unexpected end of tokens")
       }
     }
     [Keyword(Select), .. _tokens] => {
@@ -1922,7 +1943,7 @@ fn Parser::parse_insert_statement(
       raise UnexpectedTokenMessageError(token, "expected VALUES or SELECT")
     [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
   }
-  
+
   // Parse optional ON DUPLICATE KEY UPDATE clause
   let (on_insert, tokens) = match tokens {
     [Keyword(On), Keyword(Duplicate), Keyword(Key), Keyword(Update), .. tokens] => {
@@ -1931,7 +1952,6 @@ fn Parser::parse_insert_statement(
     }
     _ => (None, tokens)
   }
-  
   ({ table_name, columns, source, or: or_conflict, on: on_insert }, tokens)
 }
 
@@ -1997,7 +2017,7 @@ fn Parser::parse_delete_statement(
   let tokens = self.expect_token(tokens, Keyword(Delete))
   let tokens = self.expect_token(tokens, Keyword(From))
   let (table_name, tokens) = self.parse_object_name(tokens)
-  
+
   // Parse optional WHERE clause
   let (where_clause, tokens) = match tokens {
     [Keyword(Where), .. tokens] => {
@@ -2006,7 +2026,6 @@ fn Parser::parse_delete_statement(
     }
     _ => (None, tokens)
   }
-  
   ({ table_name, where_clause }, tokens)
 }
 
@@ -2043,7 +2062,7 @@ fn Parser::parse_update_statement(
   let tokens = self.expect_token(tokens, Keyword(Update))
   let (table_name, tokens) = self.parse_object_name(tokens)
   let tokens = self.expect_token(tokens, Keyword(Set))
-  
+
   // Parse assignments: col1 = expr1, col2 = expr2, ...
   let assignments = []
   let tokens = loop tokens {
@@ -2059,7 +2078,7 @@ fn Parser::parse_update_statement(
       raise UnexpectedTokenMessageError(token, "expected column assignment")
     [] => raise InternalBug("parse_update_statement: unexpected end of tokens")
   }
-  
+
   // Parse optional WHERE clause
   let (where_clause, tokens) = match tokens {
     [Keyword(Where), .. tokens] => {
@@ -2068,7 +2087,6 @@ fn Parser::parse_update_statement(
     }
     _ => (None, tokens)
   }
-  
   ({ table_name, assignments, where_clause }, tokens)
 }
 
@@ -2150,10 +2168,11 @@ fn Parser::parse_cte(
   // Parse CTE name
   let (cte_name, tokens) = match tokens {
     [Identifier(name), .. tokens] => (name, tokens)
-    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected CTE name")
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected CTE name")
     [] => raise ParserError::InternalBug("parse_cte: unexpected end of tokens")
   }
-  
+
   // Parse optional column list: cte_name(col1, col2, ...)
   let (columns, tokens) = match tokens {
     [LParen, .. tokens] => {
@@ -2165,29 +2184,186 @@ fn Parser::parse_cte(
           match tokens {
             [Comma, .. tokens] => continue tokens
             [RParen, .. tokens] => break tokens
-            [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected ',' or ')'")
-            [] => raise ParserError::InternalBug("parse_cte: unexpected end of tokens in column list")
+            [token, .. _tokens] =>
+              raise UnexpectedTokenMessageError(token, "expected ',' or ')'")
+            [] =>
+              raise ParserError::InternalBug(
+                "parse_cte: unexpected end of tokens in column list",
+              )
           }
         }
-        [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected column name")
-        [] => raise ParserError::InternalBug("parse_cte: unexpected end of tokens in column list")
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected column name")
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_cte: unexpected end of tokens in column list",
+          )
       }
       (Some(cols), tokens)
     }
     _ => (None, tokens)
   }
-  
+
   // Parse AS keyword
   let tokens = self.expect_token(tokens, Keyword(As))
-  
+
   // Parse parenthesized query
   let tokens = self.expect_token(tokens, LParen)
   let (query, tokens) = self.parse_query(tokens)
   let tokens = self.expect_token(tokens, RParen)
-  
   ({ name: cte_name, query, columns }, tokens)
 }
 
+///|
+/// Parse window specification: [PARTITION BY ...] [ORDER BY ...] [frame_clause]
+fn Parser::parse_window_spec(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[WindowSpec] raise ParserError {
+  // Parse optional PARTITION BY clause
+  let (partition_by, tokens) = match tokens {
+    [Keyword(Partition), Keyword(By), .. tokens] => {
+      let exprs = []
+      let tokens = loop tokens {
+        tokens => {
+          let (expr, tokens) = self.parse_expr(tokens)
+          exprs.push(expr)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            _ => break tokens
+          }
+        }
+      }
+      (exprs, tokens)
+    }
+    _ => ([], tokens)
+  }
+
+  // Parse optional ORDER BY clause
+  let (order_by, tokens) = match tokens {
+    [Keyword(Order), Keyword(By), .. tokens] => {
+      let order_exprs = []
+      let tokens = loop tokens {
+        tokens => {
+          let (order_expr, tokens) = self.parse_order_by_expr(tokens)
+          order_exprs.push(order_expr)
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            _ => break tokens
+          }
+        }
+      }
+      (order_exprs, tokens)
+    }
+    _ => ([], tokens)
+  }
+
+  // Parse optional frame clause
+  let (frame_clause, tokens) = self.parse_window_frame_clause(tokens)
+  ({ partition_by, order_by, frame_clause }, tokens)
+}
+
+///|
+/// Parse window frame clause: ROWS/RANGE [BETWEEN ... AND ...] or ROWS/RANGE ...
+fn Parser::parse_window_frame_clause(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[WindowFrameClause?] raise ParserError {
+  match tokens {
+    [Keyword(Rows), .. tokens] =>
+      self.parse_frame_bounds(WindowFrameUnits::Rows, tokens)
+    [Keyword(Range), .. tokens] =>
+      self.parse_frame_bounds(WindowFrameUnits::Range, tokens)
+    _ => (None, tokens)
+  }
+}
+
+///|
+/// Parse frame bounds: [BETWEEN ... AND ...] or single bound
+fn Parser::parse_frame_bounds(
+  self : Parser,
+  frame_units : WindowFrameUnits,
+  tokens : ArrayView[Token],
+) -> ParserResult[WindowFrameClause?] raise ParserError {
+  match tokens {
+    [Keyword(Unbounded), Keyword(Preceding), .. tokens] => {
+      let frame_start = WindowFrameBound::UnboundedPreceding
+      (Some({ frame_units, frame_start, frame_end: None }), tokens)
+    }
+    [Keyword(Current), Keyword(Row), .. tokens] => {
+      let frame_start = WindowFrameBound::CurrentRow
+      (Some({ frame_units, frame_start, frame_end: None }), tokens)
+    }
+    [Keyword(Between), .. tokens] => {
+      // Parse start bound
+      let (frame_start, tokens) = self.parse_frame_bound(tokens)
+      let tokens = self.expect_token(tokens, Keyword(And))
+      // Parse end bound
+      let (frame_end, tokens) = self.parse_frame_bound(tokens)
+      (Some({ frame_units, frame_start, frame_end: Some(frame_end) }), tokens)
+    }
+    _ => {
+      // Try to parse a single expression followed by PRECEDING/FOLLOWING
+      let (expr, tokens) = self.parse_expr(tokens) catch {
+        _ => return (None, tokens)
+      }
+      match tokens {
+        [Keyword(Preceding), .. tokens] =>
+          (
+            Some({
+              frame_units,
+              frame_start: WindowFrameBound::Preceding(expr),
+              frame_end: None,
+            }),
+            tokens,
+          )
+        [Keyword(Following), .. tokens] =>
+          (
+            Some({
+              frame_units,
+              frame_start: WindowFrameBound::Following(expr),
+              frame_end: None,
+            }),
+            tokens,
+          )
+        _ => (None, tokens) // Not a frame clause, backtrack
+      }
+    }
+  }
+}
+
+///|
+/// Parse individual frame bound
+fn Parser::parse_frame_bound(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[WindowFrameBound] raise ParserError {
+  match tokens {
+    [Keyword(Unbounded), Keyword(Preceding), .. tokens] =>
+      (WindowFrameBound::UnboundedPreceding, tokens)
+    [Keyword(Unbounded), Keyword(Following), .. tokens] =>
+      (WindowFrameBound::UnboundedFollowing, tokens)
+    [Keyword(Current), Keyword(Row), .. tokens] =>
+      (WindowFrameBound::CurrentRow, tokens)
+    _ => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      match tokens {
+        [Keyword(Preceding), .. tokens] =>
+          (WindowFrameBound::Preceding(expr), tokens)
+        [Keyword(Following), .. tokens] =>
+          (WindowFrameBound::Following(expr), tokens)
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(
+            token, "expected PRECEDING or FOLLOWING",
+          )
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_frame_bound: unexpected end of tokens",
+          )
+      }
+    }
+  }
+}
 
 ///|
 test "Truncate table" {
@@ -2224,6 +2400,7 @@ test "Simple CTE with WITH clause" {
   )
 }
 
+///|
 test "CTE with column specification" {
   let tokens = "WITH sales(id, total) AS (SELECT order_id, amount FROM orders) SELECT * FROM sales;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -2245,6 +2422,7 @@ test "CTE with column specification" {
   )
 }
 
+///|
 test "Multiple CTEs" {
   let tokens = "WITH sales AS (SELECT * FROM orders), customers AS (SELECT * FROM users) SELECT * FROM sales JOIN customers ON sales.user_id = customers.id;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -2268,11 +2446,11 @@ test "Multiple CTEs" {
       #|FROM
       #|  sales JOIN customers
       #|    ON sales.user_id = customers.id;
-
     ),
   )
 }
 
+///|
 test "CTE with ORDER BY and LIMIT" {
   let tokens = "WITH top_sales AS (SELECT * FROM orders ORDER BY amount DESC LIMIT 10) SELECT * FROM top_sales;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -2297,6 +2475,7 @@ test "CTE with ORDER BY and LIMIT" {
   )
 }
 
+///|
 test "Nested CTE (CTE referencing another CTE)" {
   let tokens = "WITH sales AS (SELECT * FROM orders), big_sales AS (SELECT * FROM sales WHERE amount > 1000) SELECT * FROM big_sales;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -2325,6 +2504,7 @@ test "Nested CTE (CTE referencing another CTE)" {
   )
 }
 
+///|
 test "CTE with aggregation" {
   let tokens = "WITH monthly_sales AS (SELECT date_month, SUM(amount) as total FROM orders GROUP BY date_month) SELECT * FROM monthly_sales;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -2344,6 +2524,97 @@ test "CTE with aggregation" {
       #|  *
       #|FROM
       #|  monthly_sales;
+    ),
+  )
+}
+
+///|
+/// Window Functions Tests
+test "Simple window function with empty OVER clause" {
+  let tokens = "SELECT rank() OVER () FROM test;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  rank() OVER ()
+      #|FROM
+      #|  test;
+    ),
+  )
+}
+
+///|
+test "Window function with ORDER BY" {
+  let tokens = "SELECT rank() OVER (ORDER BY salary DESC) FROM employees;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  rank() OVER (ORDER BY salary DESC)
+      #|FROM
+      #|  employees;
+    ),
+  )
+}
+
+///|
+test "Window function with PARTITION BY" {
+  let tokens = "SELECT count(*) OVER (PARTITION BY department) FROM employees;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  count(*) OVER (PARTITION BY department)
+      #|FROM
+      #|  employees;
+    ),
+  )
+}
+
+///|
+test "Window function with PARTITION BY and ORDER BY" {
+  let tokens = "SELECT row_number() OVER (PARTITION BY department ORDER BY salary DESC) FROM employees;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  row_number() OVER (PARTITION BY department ORDER BY salary DESC)
+      #|FROM
+      #|  employees;
+    ),
+  )
+}
+
+///|
+test "Window function with ROWS frame - UNBOUNDED PRECEDING" {
+  let tokens = "SELECT sum(salary) OVER (ORDER BY hire_date ROWS UNBOUNDED PRECEDING) FROM employees;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  sum(salary) OVER (ORDER BY hire_date ROWS UNBOUNDED PRECEDING)
+      #|FROM
+      #|  employees;
+    ),
+  )
+}
+
+///|
+test "Window function with ROWS frame - BETWEEN" {
+  let tokens = "SELECT avg(salary) OVER (ORDER BY hire_date ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM employees;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|SELECT
+      #|  avg(salary) OVER (ORDER BY hire_date ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+      #|FROM
+      #|  employees;
     ),
   )
 }

@@ -306,6 +306,8 @@ pub enum Expr {
   Array(ArrayExpr)
   // Array/Map indexing and slicing: arr[1], arr[1:3], obj.field
   CompoundFieldAccess(Expr, Array[AccessExpr])
+  // Window function: func() OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE ...)
+  WindowFunction(String, DuplicateTreatment?, Array[Expr], WindowSpec)
 } derive(Eq, Show)
 
 ///|
@@ -409,6 +411,15 @@ pub impl @pp.Pretty for Expr with pretty(self) {
     Expr::Array(arr) => arr.pretty()
     Expr::CompoundFieldAccess(root, access_chain) =>
       root.pretty() + @pp.separate(@pp.empty, access_chain.map(@pp.pretty))
+    Expr::WindowFunction(name, dup, args, window_spec) =>
+      @pp.text(name) +
+      @pp.parens(
+        (if dup is Some(dup) { dup.pretty() + @pp.space } else { @pp.empty }) +
+        @pp.separate(@pp.text(", "), args.map(@pp.pretty)),
+      ) +
+      @pp.text(" OVER (") +
+      window_spec.pretty() +
+      @pp.text(")")
   }
 }
 
@@ -838,6 +849,97 @@ pub impl @pp.Pretty for CaseExpr with pretty(self) {
   ) +
   @pp.hardline +
   @pp.text("END")
+}
+
+///| Window function specification: OVER ([PARTITION BY ...] [ORDER BY ...] [frame_clause])
+pub struct WindowSpec {
+  // PARTITION BY <expr>, ...
+  partition_by : Array[Expr]
+  // ORDER BY <expr> [ASC|DESC] [NULLS FIRST|LAST], ...
+  order_by : Array[OrderByExpr]
+  // frame clause: ROWS/RANGE BETWEEN ... AND ... or ROWS/RANGE ...
+  frame_clause : WindowFrameClause?
+} derive(Eq, Show)
+
+///| Window frame clause
+pub struct WindowFrameClause {
+  // ROWS or RANGE
+  frame_units : WindowFrameUnits
+  // Frame bounds
+  frame_start : WindowFrameBound
+  frame_end : WindowFrameBound?
+} derive(Eq, Show)
+
+///| Window frame units
+pub enum WindowFrameUnits {
+  Rows
+  Range
+} derive(Eq, Show)
+
+///| Window frame bound
+pub enum WindowFrameBound {
+  UnboundedPreceding
+  UnboundedFollowing
+  CurrentRow
+  Preceding(Expr)
+  Following(Expr)
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for WindowSpec with pretty(self) {
+  let partition_clause = if self.partition_by.is_empty() {
+    @pp.empty
+  } else {
+    @pp.text("PARTITION BY ") + @pp.separate(@pp.text(", "), self.partition_by.map(@pp.pretty))
+  }
+  
+  let order_clause = if self.order_by.is_empty() {
+    @pp.empty
+  } else {
+    @pp.text("ORDER BY ") + @pp.separate(@pp.text(", "), self.order_by.map(@pp.pretty))
+  }
+  
+  let frame_clause = match self.frame_clause {
+    Some(frame) => @pp.space + frame.pretty()
+    None => @pp.empty
+  }
+  
+  let clauses = []
+  if !self.partition_by.is_empty() {
+    clauses.push(partition_clause)
+  }
+  if !self.order_by.is_empty() {
+    clauses.push(order_clause)
+  }
+  
+  @pp.separate(@pp.space, clauses) + frame_clause
+}
+
+///|
+pub impl @pp.Pretty for WindowFrameClause with pretty(self) {
+  let units_text = match self.frame_units {
+    WindowFrameUnits::Rows => "ROWS"
+    WindowFrameUnits::Range => "RANGE"
+  }
+  
+  match self.frame_end {
+    Some(end_bound) => 
+      @pp.text(units_text) + @pp.text(" BETWEEN ") + 
+      self.frame_start.pretty() + @pp.text(" AND ") + end_bound.pretty()
+    None =>
+      @pp.text(units_text) + @pp.space + self.frame_start.pretty()
+  }
+}
+
+///|
+pub impl @pp.Pretty for WindowFrameBound with pretty(self) {
+  match self {
+    WindowFrameBound::UnboundedPreceding => @pp.text("UNBOUNDED PRECEDING")
+    WindowFrameBound::UnboundedFollowing => @pp.text("UNBOUNDED FOLLOWING")
+    WindowFrameBound::CurrentRow => @pp.text("CURRENT ROW")
+    WindowFrameBound::Preceding(expr) => expr.pretty() + @pp.text(" PRECEDING")
+    WindowFrameBound::Following(expr) => expr.pretty() + @pp.text(" FOLLOWING")
+  }
 }
 
 ///|

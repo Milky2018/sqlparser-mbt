@@ -143,4 +143,15 @@ pub(all) enum Keyword {
   Restrict
   Cascade
   Index
+  // Window function keywords
+  Over
+  Window
+  Partition
+  Rows
+  Range
+  Preceding
+  Following
+  Current
+  Unbounded
+  Row
 } derive(Eq, Show)
