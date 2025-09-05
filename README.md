@@ -135,4 +135,4 @@ The parser is designed for extensibility. To add new SQL features:
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache 2.0 License.
