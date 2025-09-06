@@ -2618,3 +2618,240 @@ test "Window function with ROWS frame - BETWEEN" {
     ),
   )
 }
+
+///|
+fn Parser::parse_merge_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[MergeStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Merge))
+  let tokens = self.expect_token(tokens, Keyword(Into))
+  
+  // Parse target table
+  let (target_table, tokens) = self.parse_object_name(tokens)
+  
+  // Parse optional target alias
+  let (target_alias, tokens) = match tokens {
+    [Keyword(As), Token::Identifier(alias_name), .. tokens] => 
+      (Some(alias_name), tokens)
+    [Token::Identifier(alias_name), .. tokens] if alias_name != "using" => 
+      (Some(alias_name), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse USING clause
+  let tokens = self.expect_token(tokens, Keyword(Using))
+  
+  // Parse source (table or subquery)
+  let (source, tokens) = match tokens {
+    [Token::LParen, .. _] => {
+      let tokens = self.expect_token(tokens, Token::LParen)
+      let (query, tokens) = self.parse_query(tokens)
+      let tokens = self.expect_token(tokens, Token::RParen)
+      (MergeSource::Query(query), tokens)
+    }
+    _ => {
+      let (table_name, tokens) = self.parse_object_name(tokens)
+      (MergeSource::Table(table_name), tokens)
+    }
+  }
+  
+  // Parse optional source alias
+  let (source_alias, tokens) = match tokens {
+    [Keyword(As), Token::Identifier(alias_name), .. tokens] => 
+      (Some(alias_name), tokens)
+    [Token::Identifier(alias_name), .. tokens] if alias_name != "on" => 
+      (Some(alias_name), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse ON condition
+  let tokens = self.expect_token(tokens, Keyword(On))
+  let (join_condition, tokens) = self.parse_expr(tokens)
+  
+  // Parse WHEN clauses
+  let when_clauses = []
+  let tokens = loop tokens {
+    [Keyword(When), .. rest_tokens] => {
+      let (when_clause, rest_tokens) = self.parse_merge_when_clause(rest_tokens)
+      when_clauses.push(when_clause)
+      continue rest_tokens
+    }
+    rest_tokens => break rest_tokens
+  }
+  
+  ({ target_table, target_alias, source, source_alias, join_condition, when_clauses }, tokens)
+}
+
+///|
+fn Parser::parse_merge_when_clause(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[MergeWhenClause] raise ParserError {
+  // Parse MATCHED or NOT MATCHED
+  let (match_type, tokens) = match tokens {
+    [Keyword(Matched), .. tokens] => (MergeMatchType::Matched, tokens)
+    [Keyword(Not), Keyword(Matched), .. tokens] => (MergeMatchType::NotMatched, tokens)
+    [token, .. _] => raise UnexpectedTokenMessageError(token, "expected MATCHED or NOT MATCHED")
+    [] => raise ParserError::InternalBug("parse_merge_when_clause: unexpected end of tokens")
+  }
+  
+  // Parse optional AND condition
+  let (condition, tokens) = match tokens {
+    [Keyword(And), .. tokens] => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  // Parse THEN action
+  let tokens = self.expect_token(tokens, Keyword(Then))
+  let (action, tokens) = self.parse_merge_action(tokens)
+  
+  ({ match_type, condition, action }, tokens)
+}
+
+///|
+fn Parser::parse_merge_action(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[MergeAction] raise ParserError {
+  match tokens {
+    [Keyword(Insert), .. tokens] => {
+      // Parse optional column list
+      let (columns, tokens) = match tokens {
+        [Token::LParen, .. tokens] => {
+          let columns = []
+          let tokens = loop tokens {
+            [Token::Identifier(col), Token::Comma, .. tokens] => {
+              columns.push(col)
+              continue tokens
+            }
+            [Token::Identifier(col), Token::RParen, .. tokens] => {
+              columns.push(col)
+              break tokens
+            }
+            [token, .. _] => raise UnexpectedTokenMessageError(token, "expected column name")
+            [] => raise ParserError::InternalBug("parse_merge_action: unexpected end of tokens")
+          }
+          (columns, tokens)
+        }
+        _ => ([], tokens)
+      }
+      
+      // Parse VALUES
+      let tokens = self.expect_token(tokens, Keyword(Values))
+      let tokens = self.expect_token(tokens, Token::LParen)
+      let (values, tokens) = self.parse_comma_separated_exprs(tokens)
+      let tokens = self.expect_token(tokens, Token::RParen)
+      
+      (MergeAction::Insert(columns, values), tokens)
+    }
+    [Keyword(Update), Keyword(Set), .. tokens] => {
+      // Parse assignments: col1 = expr1, col2 = expr2, ...
+      let assignments = []
+      let tokens = loop tokens {
+        [Identifier(column), Eq, .. tokens] => {
+          let (value, tokens) = self.parse_expr(tokens)
+          assignments.push({ column, value })
+          match tokens {
+            [Comma, .. tokens] => continue tokens
+            _ => break tokens
+          }
+        }
+        [token, .. _tokens] =>
+          raise UnexpectedTokenMessageError(token, "expected column assignment")
+        [] => raise ParserError::InternalBug("parse_merge_action: unexpected end of tokens")
+      }
+      (MergeAction::Update(assignments), tokens)
+    }
+    [Keyword(Delete), .. tokens] => (MergeAction::Delete, tokens)
+    [token, .. _] => raise UnexpectedTokenMessageError(token, "expected INSERT, UPDATE, or DELETE")
+    [] => raise ParserError::InternalBug("parse_merge_action: unexpected end of tokens")
+  }
+}
+
+///|
+test "MERGE - Simple" {
+  let tokens = "MERGE INTO target_table USING source_table ON target_table.id = source_table.id WHEN MATCHED THEN UPDATE SET name = source_table.name WHEN NOT MATCHED THEN INSERT VALUES (source_table.id, source_table.name);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|MERGE INTO target_table
+      #|USING source_table
+      #|ON target_table.id = source_table.id
+      #|  WHEN MATCHED THEN UPDATE SET name = source_table.name
+      #|  WHEN NOT MATCHED THEN INSERT VALUES (source_table.id, source_table.name);
+    ),
+  )
+}
+
+///|
+test "MERGE with table aliases" {
+  let tokens = "MERGE INTO customers c USING customer_updates cu ON c.id = cu.id WHEN MATCHED THEN UPDATE SET name = cu.name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|MERGE INTO customers AS c
+      #|USING customer_updates AS cu
+      #|ON c.id = cu.id
+      #|  WHEN MATCHED THEN UPDATE SET name = cu.name;
+    ),
+  )
+}
+
+///|
+test "MERGE with subquery source" {
+  let tokens = "MERGE INTO dest_table t USING (SELECT id, name FROM source) s ON t.id = s.id WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.id, s.name);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|MERGE INTO dest_table AS t
+      #|USING (
+      #|  SELECT
+      #|    id,
+      #|    name
+      #|  FROM
+      #|    source
+      #|) AS s
+      #|ON t.id = s.id
+      #|  WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.id, s.name);
+    ),
+  )
+}
+
+///|
+test "MERGE with conditional WHEN" {
+  let tokens = "MERGE INTO products p USING updates u ON p.id = u.id WHEN MATCHED AND u.price > p.price THEN UPDATE SET price = u.price WHEN NOT MATCHED THEN INSERT VALUES (u.id, u.name, u.price);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|MERGE INTO products AS p
+      #|USING updates AS u
+      #|ON p.id = u.id
+      #|  WHEN MATCHED AND u.price > p.price THEN UPDATE SET price = u.price
+      #|  WHEN NOT MATCHED THEN INSERT VALUES (u.id, u.name, u.price);
+    ),
+  )
+}
+
+///|
+test "MERGE with DELETE action" {
+  let tokens = "MERGE INTO inventory i USING changes c ON i.id = c.id WHEN MATCHED AND c.quantity = 0 THEN DELETE WHEN MATCHED THEN UPDATE SET quantity = c.quantity;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|MERGE INTO inventory AS i
+      #|USING changes AS c
+      #|ON i.id = c.id
+      #|  WHEN MATCHED AND c.quantity = 0 THEN DELETE
+      #|  WHEN MATCHED THEN UPDATE SET quantity = c.quantity;
+    ),
+  )
+}

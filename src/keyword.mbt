@@ -32,6 +32,8 @@ pub(all) enum Keyword {
   Filter
   Case
   When
+  Matched
+  Target
   Then
   Else
   Having
@@ -59,6 +61,8 @@ pub(all) enum Keyword {
   Precision
   Char
   Character
+  Collate
+  Authorization
   Varchar
   Varing
   Text
@@ -88,6 +92,7 @@ pub(all) enum Keyword {
   Insert
   Into
   Values
+  Merge
   If
   Delete
   Update
@@ -105,12 +110,14 @@ pub(all) enum Keyword {
   Columns
   Status
   Databases
+  Database
   Div
   Lock
   Unlock
   Listen
   Notify
   Schemas
+  Schema
   Variables
   Processlist
   Grants
@@ -143,6 +150,14 @@ pub(all) enum Keyword {
   Restrict
   Cascade
   Index
+  // Index types and options
+  Btree
+  Hash
+  Gin
+  Gist
+  Spgist
+  Brin
+  Concurrently
   // Window function keywords
   Over
   Window

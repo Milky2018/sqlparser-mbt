@@ -29,11 +29,16 @@ pub enum Statement {
   Query(QueryStmt)
   CreateTable(CreateTableStmt)
   CreateView(CreateViewStmt)
+  CreateIndex(CreateIndexStmt)
+  CreateDatabase(CreateDatabaseStmt)
+  CreateSchema(CreateSchemaStmt)
   DropView(DropViewStmt)
   DropTable(DropTableStmt)
+  DropIndex(DropIndexStmt)
   Insert(InsertStmt)
   Delete(DeleteStmt)
   Update(UpdateStmt)
+  Merge(MergeStmt)
   Truncate(TruncateStmt)
   AlterTable(AlterTableStmt)
   Show(ShowStmt)
@@ -60,11 +65,16 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Statement::Query(stmt) => stmt.pretty()
     CreateTable(stmt) => stmt.pretty()
     CreateView(stmt) => stmt.pretty()
+    CreateIndex(stmt) => stmt.pretty()
+    CreateDatabase(stmt) => stmt.pretty()
+    CreateSchema(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
     DropTable(stmt) => stmt.pretty()
+    DropIndex(stmt) => stmt.pretty()
     Insert(stmt) => stmt.pretty()
     Delete(stmt) => stmt.pretty()
     Update(stmt) => stmt.pretty()
+    Merge(stmt) => stmt.pretty()
     Truncate(stmt) => stmt.pretty()
     AlterTable(stmt) => stmt.pretty()
     Show(stmt) => stmt.pretty()
@@ -1099,9 +1109,142 @@ pub struct ViewColumnDef {
   name : String
 } derive(Eq, Show)
 
+///| CREATE INDEX statement
+pub struct CreateIndexStmt {
+  // CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] <index_name>
+  unique : Bool
+  concurrently : Bool
+  if_not_exists : Bool
+  name : String
+  // ON <table_name>
+  table_name : ObjectName
+  // [USING <method>] - e.g., BTREE, HASH, GIN, GIST
+  index_method : IndexMethod?
+  // (<column> [ASC|DESC] [NULLS FIRST|LAST], ...)
+  columns : Array[IndexColumn]
+  // [WHERE <predicate>] - partial index
+  where_clause : Expr?
+} derive(Eq, Show)
+
+///| Index creation method
+pub enum IndexMethod {
+  Btree
+  Hash
+  Gin
+  Gist
+  Spgist
+  Brin
+} derive(Eq, Show)
+
+///| Index column specification
+pub struct IndexColumn {
+  name : Expr // Can be column name or expression
+  asc : Bool? // None = default, Some(true) = ASC, Some(false) = DESC
+  nulls_first : Bool? // None = default, Some(true) = NULLS FIRST, Some(false) = NULLS LAST
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CreateIndexStmt with pretty(self) {
+  @pp.text("CREATE") +
+  (if self.unique { @pp.text(" UNIQUE") } else { @pp.empty }) +
+  @pp.text(" INDEX") +
+  (if self.concurrently { @pp.text(" CONCURRENTLY") } else { @pp.empty }) +
+  (if self.if_not_exists { @pp.text(" IF NOT EXISTS") } else { @pp.empty }) +
+  @pp.text(" ") + @pp.text(self.name) +
+  @pp.text(" ON ") + self.table_name.pretty() +
+  (match self.index_method {
+    Some(index_method) => @pp.text(" USING ") + index_method.pretty()
+    None => @pp.empty
+  }) +
+  @pp.text(" (") +
+  @pp.separate(@pp.text(", "), self.columns.map(@pp.pretty)) +
+  @pp.text(")") +
+  (match self.where_clause {
+    Some(expr) => @pp.text(" WHERE ") + expr.pretty()
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for IndexMethod with pretty(self) {
+  match self {
+    IndexMethod::Btree => @pp.text("BTREE")
+    IndexMethod::Hash => @pp.text("HASH")
+    IndexMethod::Gin => @pp.text("GIN")
+    IndexMethod::Gist => @pp.text("GIST")
+    IndexMethod::Spgist => @pp.text("SPGIST")
+    IndexMethod::Brin => @pp.text("BRIN")
+  }
+}
+
+///|
+pub impl @pp.Pretty for IndexColumn with pretty(self) {
+  self.name.pretty() +
+  (match self.asc {
+    Some(true) => @pp.text(" ASC")
+    Some(false) => @pp.text(" DESC")
+    None => @pp.empty
+  }) +
+  (match self.nulls_first {
+    Some(true) => @pp.text(" NULLS FIRST")
+    Some(false) => @pp.text(" NULLS LAST")
+    None => @pp.empty
+  })
+}
+
 ///|
 pub impl @pp.Pretty for ViewColumnDef with pretty(self) {
   @pp.text(self.name)
+}
+
+///|
+/// CREATE DATABASE statement
+pub struct CreateDatabaseStmt {
+  /// CREATE DATABASE <database_name>
+  name : String
+  /// IF NOT EXISTS flag
+  if_not_exists : Bool
+  /// Optional character set specification
+  character_set : String?
+  /// Optional collation specification  
+  collate : String?
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CreateDatabaseStmt with pretty(self) {
+  @pp.text("CREATE DATABASE ") +
+  (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
+  @pp.text(self.name) +
+  (match self.character_set {
+    Some(charset) => @pp.text(" CHARACTER SET ") + @pp.text(charset)
+    None => @pp.empty
+  }) +
+  (match self.collate {
+    Some(collation) => @pp.text(" COLLATE ") + @pp.text(collation)
+    None => @pp.empty
+  })
+}
+
+///|
+/// CREATE SCHEMA statement (synonym for CREATE DATABASE in many dialects)
+pub struct CreateSchemaStmt {
+  /// CREATE SCHEMA <schema_name>
+  name : String
+  /// IF NOT EXISTS flag
+  if_not_exists : Bool
+  /// Optional AUTHORIZATION user
+  authorization : String?
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CreateSchemaStmt with pretty(self) {
+  @pp.text("CREATE SCHEMA ") +
+  (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
+  @pp.text(self.name) +
+  (match self.authorization {
+    Some(user) => @pp.text(" AUTHORIZATION ") + @pp.text(user)
+    None => @pp.empty
+  })
 }
 
 ///|
@@ -1314,6 +1457,141 @@ pub impl @pp.Pretty for Assignment with pretty(self) {
 }
 
 ///|
+/// MERGE statement for conditional INSERT/UPDATE/DELETE operations
+pub struct MergeStmt {
+  /// Target table: MERGE INTO target_table
+  target_table : ObjectName
+  /// Target table alias: MERGE INTO target_table AS alias
+  target_alias : String?
+  /// Source table/query: USING source_table or USING (SELECT ...)
+  source : MergeSource
+  /// Source alias: USING source AS alias
+  source_alias : String?
+  /// Join condition: ON condition
+  join_condition : Expr
+  /// WHEN clauses defining actions
+  when_clauses : Array[MergeWhenClause]
+} derive(Eq, Show)
+
+///|
+/// Source for MERGE statement
+pub enum MergeSource {
+  /// Table source: USING table_name
+  Table(ObjectName)
+  /// Subquery source: USING (SELECT ...)
+  Query(QueryStmt)
+} derive(Eq, Show)
+
+///|
+/// WHEN clause in MERGE statement
+pub struct MergeWhenClause {
+  /// WHEN MATCHED / WHEN NOT MATCHED
+  match_type : MergeMatchType
+  /// Optional additional condition: WHEN MATCHED AND condition
+  condition : Expr?
+  /// Action to perform: INSERT / UPDATE / DELETE
+  action : MergeAction
+} derive(Eq, Show)
+
+///|
+/// Match type for WHEN clause
+pub enum MergeMatchType {
+  /// WHEN MATCHED
+  Matched
+  /// WHEN NOT MATCHED
+  NotMatched
+} derive(Eq, Show)
+
+///|
+/// Actions that can be performed in MERGE
+pub enum MergeAction {
+  /// INSERT (columns) VALUES (values)
+  Insert(Array[String], Array[Expr])  // columns, values
+  /// UPDATE SET assignments
+  Update(Array[Assignment])
+  /// DELETE (no parameters needed)
+  Delete
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for MergeStmt with pretty(self) {
+  @pp.text("MERGE INTO ") +
+  self.target_table.pretty() +
+  (match self.target_alias {
+    Some(target_alias) => @pp.text(" AS ") + @pp.text(target_alias)
+    None => @pp.empty
+  }) +
+  @pp.hardline +
+  @pp.text("USING ") +
+  self.source.pretty() +
+  (match self.source_alias {
+    Some(source_alias) => @pp.text(" AS ") + @pp.text(source_alias)
+    None => @pp.empty
+  }) +
+  @pp.hardline +
+  @pp.text("ON ") + self.join_condition.pretty() +
+  (if self.when_clauses.is_empty() {
+    @pp.empty
+  } else {
+    @pp.hardline +
+    @pp.separate(
+      @pp.hardline,
+      self.when_clauses.map(fn(clause) { @pp.text("  ") + clause.pretty() })
+    )
+  })
+}
+
+///|
+pub impl @pp.Pretty for MergeSource with pretty(self) {
+  match self {
+    MergeSource::Table(table) => table.pretty()
+    MergeSource::Query(query) => 
+      @pp.parens(@pp.nest(@pp.hardline + query.pretty()) + @pp.hardline)
+  }
+}
+
+///|
+pub impl @pp.Pretty for MergeWhenClause with pretty(self) {
+  @pp.text("WHEN ") +
+  self.match_type.pretty() +
+  (match self.condition {
+    Some(cond) => @pp.text(" AND ") + cond.pretty()
+    None => @pp.empty
+  }) +
+  @pp.text(" THEN ") +
+  self.action.pretty()
+}
+
+///|
+pub impl @pp.Pretty for MergeMatchType with pretty(self) {
+  match self {
+    MergeMatchType::Matched => @pp.text("MATCHED")
+    MergeMatchType::NotMatched => @pp.text("NOT MATCHED")
+  }
+}
+
+///|
+pub impl @pp.Pretty for MergeAction with pretty(self) {
+  match self {
+    MergeAction::Insert(columns, values) => {
+      @pp.text("INSERT ") +
+      (if columns.length() > 0 {
+        @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.text))) +
+        @pp.space
+      } else {
+        @pp.empty
+      }) +
+      @pp.text("VALUES ") +
+      @pp.parens(@pp.separate(@pp.text(", "), values.map(@pp.pretty)))
+    }
+    MergeAction::Update(assignments) =>
+      @pp.text("UPDATE SET ") +
+      @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
+    MergeAction::Delete => @pp.text("DELETE")
+  }
+}
+
+///|
 pub struct TruncateStmt {
   // TRUNCATE <table_name>
   table_name : ObjectName
@@ -1341,6 +1619,30 @@ pub impl @pp.Pretty for DropTableStmt with pretty(self) {
     @pp.empty
   }) +
   self.table_name.pretty()
+}
+
+///|
+pub struct DropIndexStmt {
+  /// DROP INDEX <index_name>
+  name : String
+  /// IF EXISTS flag
+  if_exists : Bool
+  /// CONCURRENTLY flag (PostgreSQL)
+  concurrently : Bool
+  /// ON table_name (some dialects require table name)
+  table_name : ObjectName?
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for DropIndexStmt with pretty(self) {
+  @pp.text("DROP INDEX ") +
+  (if self.concurrently { @pp.text("CONCURRENTLY ") } else { @pp.empty }) +
+  (if self.if_exists { @pp.text("IF EXISTS ") } else { @pp.empty }) +
+  @pp.text(self.name) +
+  (match self.table_name {
+    Some(table) => @pp.text(" ON ") + table.pretty()
+    None => @pp.empty
+  })
 }
 
 ///|

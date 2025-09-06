@@ -37,6 +37,222 @@ fn Parser::parse_create_table_statement(
   ({ name, if_not_exists, definition }, tokens)
 }
 
+///| Parse CREATE INDEX statement
+fn Parser::parse_create_index_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateIndexStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  
+  // Parse optional UNIQUE
+  let (unique, tokens) = match tokens {
+    [Keyword(Unique), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  let tokens = self.expect_token(tokens, Keyword(Index))
+  
+  // Parse optional CONCURRENTLY
+  let (concurrently, tokens) = match tokens {
+    [Keyword(Concurrently), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse index name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("index_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_create_index_statement: unexpected end of tokens")
+  }
+  
+  // Parse ON table_name
+  let tokens = self.expect_token(tokens, Keyword(On))
+  let (table_name, tokens) = self.parse_object_name(tokens)
+  
+  // Parse optional USING method
+  let (index_method, tokens) = match tokens {
+    [Keyword(Using), Keyword(Btree), .. tokens] => (Some(IndexMethod::Btree), tokens)
+    [Keyword(Using), Keyword(Hash), .. tokens] => (Some(IndexMethod::Hash), tokens)
+    [Keyword(Using), Keyword(Gin), .. tokens] => (Some(IndexMethod::Gin), tokens)
+    [Keyword(Using), Keyword(Gist), .. tokens] => (Some(IndexMethod::Gist), tokens)
+    [Keyword(Using), Keyword(Spgist), .. tokens] => (Some(IndexMethod::Spgist), tokens)
+    [Keyword(Using), Keyword(Brin), .. tokens] => (Some(IndexMethod::Brin), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse column list
+  let tokens = self.expect_token(tokens, LParen)
+  let columns = []
+  let tokens = loop tokens {
+    [RParen, .. rest_tokens] => break rest_tokens
+    rest_tokens => {
+      let (column_expr, rest_tokens) = self.parse_expr(rest_tokens)
+      
+      // Parse optional ASC/DESC
+      let (asc, rest_tokens) = match rest_tokens {
+        [Keyword(Asc), .. rest_tokens] => (Some(true), rest_tokens)
+        [Keyword(Desc), .. rest_tokens] => (Some(false), rest_tokens)
+        _ => (None, rest_tokens)
+      }
+      
+      // Parse optional NULLS FIRST/LAST
+      let (nulls_first, rest_tokens) = match rest_tokens {
+        [Keyword(Nulls), Keyword(First), .. rest_tokens] => (Some(true), rest_tokens)
+        [Keyword(Nulls), Keyword(Last), .. rest_tokens] => (Some(false), rest_tokens)
+        _ => (None, rest_tokens)
+      }
+      
+      columns.push({ name: column_expr, asc, nulls_first })
+      
+      match rest_tokens {
+        [Comma, .. rest_tokens] => continue rest_tokens
+        [RParen, .. rest_tokens] => break rest_tokens
+        [token, .. _] => raise UnexpectedTokenError(token, RParen)
+        [] => raise ParserError::InternalBug("parse_create_index_statement: unexpected end of tokens")
+      }
+    }
+  }
+  
+  // Parse optional WHERE clause
+  let (where_clause, tokens) = match tokens {
+    [Keyword(Where), .. tokens] => {
+      let (expr, tokens) = self.parse_expr(tokens)
+      (Some(expr), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({
+    unique,
+    concurrently,
+    if_not_exists,
+    name,
+    table_name,
+    index_method,
+    columns,
+    where_clause,
+  }, tokens)
+}
+
+///| CREATE INDEX Tests
+
+test "CREATE INDEX - Simple" {
+  let tokens = "CREATE INDEX idx_name ON users (email);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX idx_name ON users (email);
+    ),
+  )
+}
+
+test "CREATE UNIQUE INDEX" {
+  let tokens = "CREATE UNIQUE INDEX idx_unique_email ON users (email);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE UNIQUE INDEX idx_unique_email ON users (email);
+    ),
+  )
+}
+
+test "CREATE INDEX with multiple columns" {
+  let tokens = "CREATE INDEX idx_name_age ON users (name, age DESC);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX idx_name_age ON users (name, age DESC);
+    ),
+  )
+}
+
+test "CREATE INDEX with USING method" {
+  let tokens = "CREATE INDEX idx_hash ON users USING HASH (id);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX idx_hash ON users USING HASH (id);
+    ),
+  )
+}
+
+test "CREATE INDEX with WHERE clause" {
+  let tokens = "CREATE INDEX idx_active_users ON users (created_at) WHERE active = true;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX idx_active_users ON users (created_at) WHERE active = TRUE;
+    ),
+  )
+}
+
+test "CREATE INDEX CONCURRENTLY" {
+  let tokens = "CREATE INDEX CONCURRENTLY idx_concurrent ON users (email);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX CONCURRENTLY idx_concurrent ON users (email);
+    ),
+  )
+}
+
+test "CREATE INDEX IF NOT EXISTS" {
+  let tokens = "CREATE INDEX IF NOT EXISTS idx_exists ON users (email);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX IF NOT EXISTS idx_exists ON users (email);
+    ),
+  )
+}
+
+test "CREATE INDEX with NULLS ordering" {
+  let tokens = "CREATE INDEX idx_ordered ON users (name ASC NULLS FIRST, age DESC NULLS LAST);"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX idx_ordered ON users (name ASC NULLS FIRST, age DESC NULLS LAST);
+    ),
+  )
+}
+
+test "CREATE INDEX with expression" {
+  let tokens = "CREATE INDEX idx_lower_email ON users (LOWER(email));"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE INDEX idx_lower_email ON users (lower(email));
+    ),
+  )
+}
+
+test "CREATE UNIQUE INDEX with all options" {
+  let tokens = "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_complex ON users USING BTREE (email ASC NULLS FIRST, created_at DESC) WHERE active = true;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_complex ON users USING BTREE (email ASC NULLS FIRST, created_at DESC) WHERE active = TRUE;
+    ),
+  )
+}
+
 ///|
 test "Create table" {
   let tokens = "CREATE TABLE users;"
@@ -573,6 +789,106 @@ test "Drop table IF EXISTS" {
 }
 
 ///|
+fn Parser::parse_drop_index_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[DropIndexStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Drop))
+  let tokens = self.expect_token(tokens, Keyword(Index))
+  
+  // Parse optional CONCURRENTLY (PostgreSQL)
+  let (concurrently, tokens) = match tokens {
+    [Keyword(Concurrently), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse optional IF EXISTS
+  let (if_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse index name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("index_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_drop_index_statement: unexpected end of tokens")
+  }
+  
+  // Parse optional ON table_name (some dialects)
+  let (table_name, tokens) = match tokens {
+    [Keyword(On), .. tokens] => {
+      let (table_name, tokens) = self.parse_object_name(tokens)
+      (Some(table_name), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  ({ name, if_exists, concurrently, table_name }, tokens)
+}
+
+///|
+test "DROP INDEX - Simple" {
+  let tokens = "DROP INDEX idx_name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP INDEX idx_name;
+    ),
+  )
+}
+
+///|
+test "DROP INDEX IF EXISTS" {
+  let tokens = "DROP INDEX IF EXISTS idx_name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP INDEX IF EXISTS idx_name;
+    ),
+  )
+}
+
+///|
+test "DROP INDEX CONCURRENTLY" {
+  let tokens = "DROP INDEX CONCURRENTLY idx_name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP INDEX CONCURRENTLY idx_name;
+    ),
+  )
+}
+
+///|
+test "DROP INDEX CONCURRENTLY IF EXISTS" {
+  let tokens = "DROP INDEX CONCURRENTLY IF EXISTS idx_name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP INDEX CONCURRENTLY IF EXISTS idx_name;
+    ),
+  )
+}
+
+///|
+test "DROP INDEX with table name" {
+  let tokens = "DROP INDEX idx_name ON users;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|DROP INDEX idx_name ON users;
+    ),
+  )
+}
+
+///|
 fn Parser::parse_alter_table_statement(
   self : Parser,
   tokens : ArrayView[Token],
@@ -645,6 +961,167 @@ test "Alter table IF EXISTS drop column IF EXISTS" {
     stmt,
     content=(
       #|ALTER TABLE IF EXISTS mytable DROP COLUMN IF EXISTS mycolumn;
+    ),
+  )
+}
+
+///|
+fn Parser::parse_create_database_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateDatabaseStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  let tokens = self.expect_token(tokens, Keyword(Database))
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse database name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("database_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_create_database_statement: unexpected end of tokens")
+  }
+  
+  // Parse optional CHARACTER SET
+  let (character_set, tokens) = match tokens {
+    [Keyword(Character), Keyword(Set), Token::Identifier(charset), .. tokens] => 
+      (Some(charset), tokens)
+    [Keyword(Character), Keyword(Set), Token::StringLiteral(charset), .. tokens] => 
+      (Some(charset), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse optional COLLATE
+  let (collate, tokens) = match tokens {
+    [Keyword(Collate), Token::Identifier(collation), .. tokens] => 
+      (Some(collation), tokens)
+    [Keyword(Collate), Token::StringLiteral(collation), .. tokens] => 
+      (Some(collation), tokens)
+    _ => (None, tokens)
+  }
+  
+  ({ name, if_not_exists, character_set, collate }, tokens)
+}
+
+///|
+fn Parser::parse_create_schema_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateSchemaStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  let tokens = self.expect_token(tokens, Keyword(Schema))
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse schema name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("schema_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_create_schema_statement: unexpected end of tokens")
+  }
+  
+  // Parse optional AUTHORIZATION
+  let (authorization, tokens) = match tokens {
+    [Keyword(Authorization), Token::Identifier(user), .. tokens] => 
+      (Some(user), tokens)
+    [Keyword(Authorization), Token::StringLiteral(user), .. tokens] => 
+      (Some(user), tokens)
+    _ => (None, tokens)
+  }
+  
+  ({ name, if_not_exists, authorization }, tokens)
+}
+
+///|
+test "CREATE DATABASE - Simple" {
+  let tokens = "CREATE DATABASE mydb;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE DATABASE mydb;
+    ),
+  )
+}
+
+///|
+test "CREATE DATABASE IF NOT EXISTS" {
+  let tokens = "CREATE DATABASE IF NOT EXISTS mydb;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE DATABASE IF NOT EXISTS mydb;
+    ),
+  )
+}
+
+///|
+test "CREATE DATABASE with CHARACTER SET" {
+  let tokens = "CREATE DATABASE mydb CHARACTER SET utf8;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE DATABASE mydb CHARACTER SET utf8;
+    ),
+  )
+}
+
+///|
+test "CREATE DATABASE with CHARACTER SET and COLLATE" {
+  let tokens = "CREATE DATABASE mydb CHARACTER SET utf8 COLLATE utf8_general_ci;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE DATABASE mydb CHARACTER SET utf8 COLLATE utf8_general_ci;
+    ),
+  )
+}
+
+///|
+test "CREATE SCHEMA - Simple" {
+  let tokens = "CREATE SCHEMA myschema;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SCHEMA myschema;
+    ),
+  )
+}
+
+///|
+test "CREATE SCHEMA IF NOT EXISTS" {
+  let tokens = "CREATE SCHEMA IF NOT EXISTS myschema;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SCHEMA IF NOT EXISTS myschema;
+    ),
+  )
+}
+
+///|
+test "CREATE SCHEMA with AUTHORIZATION" {
+  let tokens = "CREATE SCHEMA myschema AUTHORIZATION myuser;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SCHEMA myschema AUTHORIZATION myuser;
     ),
   )
 }

@@ -84,10 +84,20 @@ fn Parser::parse_statement(
       self.parse_create_table_statement(tokens).map(Statement::CreateTable(_))
     [Keyword(Create), Keyword(View), .. _rest] =>
       self.parse_create_view_statement(tokens).map(Statement::CreateView(_))
+    [Keyword(Create), Keyword(Index), .. _rest] =>
+      self.parse_create_index_statement(tokens).map(Statement::CreateIndex(_))
+    [Keyword(Create), Keyword(Unique), Keyword(Index), .. _rest] =>
+      self.parse_create_index_statement(tokens).map(Statement::CreateIndex(_))
+    [Keyword(Create), Keyword(Database), .. _rest] =>
+      self.parse_create_database_statement(tokens).map(Statement::CreateDatabase(_))
+    [Keyword(Create), Keyword(Schema), .. _rest] =>
+      self.parse_create_schema_statement(tokens).map(Statement::CreateSchema(_))
     [Keyword(Drop), Keyword(View), .. _rest] =>
       self.parse_drop_view_statement(tokens).map(Statement::DropView(_))
     [Keyword(Drop), Keyword(Table), .. _rest] =>
       self.parse_drop_table_statement(tokens).map(Statement::DropTable(_))
+    [Keyword(Drop), Keyword(Index), .. _rest] =>
+      self.parse_drop_index_statement(tokens).map(Statement::DropIndex(_))
     [Keyword(Insert), .. _rest] =>
       self.parse_insert_statement(tokens).map(Statement::Insert(_))
     [Keyword(Replace), .. _rest] =>
@@ -96,6 +106,8 @@ fn Parser::parse_statement(
       self.parse_delete_statement(tokens).map(Statement::Delete(_))
     [Keyword(Update), .. _rest] =>
       self.parse_update_statement(tokens).map(Statement::Update(_))
+    [Keyword(Merge), .. _rest] =>
+      self.parse_merge_statement(tokens).map(Statement::Merge(_))
     [Keyword(Truncate), .. _rest] =>
       self.parse_truncate_statement(tokens).map(Statement::Truncate(_))
     [Keyword(Alter), Keyword(Table), .. _rest] =>
