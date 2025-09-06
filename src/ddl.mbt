@@ -1125,3 +1125,251 @@ test "CREATE SCHEMA with AUTHORIZATION" {
     ),
   )
 }
+
+///|
+fn Parser::parse_create_function_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateFunctionStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  let tokens = self.expect_token(tokens, Keyword(Function))
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse function name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("function_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_create_function_statement: unexpected end of tokens")
+  }
+  
+  // Parse parameter list
+  let tokens = self.expect_token(tokens, LParen)
+  let parameters = []
+  let tokens = loop tokens {
+    [RParen, .. rest_tokens] => break rest_tokens
+    rest_tokens => {
+      let (param, rest_tokens) = self.parse_function_parameter(rest_tokens)
+      parameters.push(param)
+      match rest_tokens {
+        [Comma, .. rest_tokens] => continue rest_tokens
+        [RParen, .. rest_tokens] => break rest_tokens
+        [token, .. _] => raise UnexpectedTokenError(token, RParen)
+        [] => raise ParserError::InternalBug("parse_create_function_statement: unexpected end of tokens")
+      }
+    }
+  }
+  
+  // Parse optional RETURNS clause
+  let (return_type, tokens) = match tokens {
+    [Keyword(Returns), .. tokens] => {
+      let (data_type, tokens) = self.parse_data_type(tokens)
+      (Some(data_type), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  // Parse optional LANGUAGE clause
+  let (language, tokens) = match tokens {
+    [Keyword(Language), Token::Identifier(lang), .. tokens] => (Some(lang), tokens)
+    [Keyword(Language), Token::StringLiteral(lang), .. tokens] => (Some(lang), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse optional DETERMINISTIC
+  let (deterministic, tokens) = match tokens {
+    [Keyword(Deterministic), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse optional body AS 'string'
+  let (body, tokens) = match tokens {
+    [Keyword(As), Token::StringLiteral(body_text), .. tokens] => (Some(body_text), tokens)
+    _ => (None, tokens)
+  }
+  
+  ({ name, parameters, return_type, language, body, deterministic, if_not_exists }, tokens)
+}
+
+///|
+fn Parser::parse_create_procedure_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateProcedureStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  let tokens = self.expect_token(tokens, Keyword(Procedure))
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse procedure name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("procedure_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_create_procedure_statement: unexpected end of tokens")
+  }
+  
+  // Parse parameter list
+  let tokens = self.expect_token(tokens, LParen)
+  let parameters = []
+  let tokens = loop tokens {
+    [RParen, .. rest_tokens] => break rest_tokens
+    rest_tokens => {
+      let (param, rest_tokens) = self.parse_function_parameter(rest_tokens)
+      parameters.push(param)
+      match rest_tokens {
+        [Comma, .. rest_tokens] => continue rest_tokens
+        [RParen, .. rest_tokens] => break rest_tokens
+        [token, .. _] => raise UnexpectedTokenError(token, RParen)
+        [] => raise ParserError::InternalBug("parse_create_procedure_statement: unexpected end of tokens")
+      }
+    }
+  }
+  
+  // Parse optional LANGUAGE clause
+  let (language, tokens) = match tokens {
+    [Keyword(Language), Token::Identifier(lang), .. tokens] => (Some(lang), tokens)
+    [Keyword(Language), Token::StringLiteral(lang), .. tokens] => (Some(lang), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse optional body AS 'string'
+  let (body, tokens) = match tokens {
+    [Keyword(As), Token::StringLiteral(body_text), .. tokens] => (Some(body_text), tokens)
+    _ => (None, tokens)
+  }
+  
+  ({ name, parameters, language, body, if_not_exists }, tokens)
+}
+
+///|
+fn Parser::parse_function_parameter(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[FunctionParameter] raise ParserError {
+  // Parse optional parameter mode (IN, OUT, INOUT)
+  let (mode, tokens) = match tokens {
+    [Keyword(In), .. tokens] => (Some(ParameterMode::In), tokens)
+    [Keyword(Out), .. tokens] => (Some(ParameterMode::Out), tokens)
+    [Keyword(InOut), .. tokens] => (Some(ParameterMode::InOut), tokens)
+    _ => (None, tokens)
+  }
+  
+  // Parse parameter name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("parameter_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_function_parameter: unexpected end of tokens")
+  }
+  
+  // Parse parameter type
+  let (param_type, tokens) = self.parse_data_type(tokens)
+  
+  ({ name, param_type, mode }, tokens)
+}
+
+///|
+test "CREATE FUNCTION - Simple" {
+  let tokens = "CREATE FUNCTION my_func() RETURNS INTEGER AS 'SELECT 1';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE FUNCTION my_func() RETURNS INTEGER AS 'SELECT 1';
+    ),
+  )
+}
+
+///|
+test "CREATE FUNCTION IF NOT EXISTS" {
+  let tokens = "CREATE FUNCTION IF NOT EXISTS my_func() RETURNS INTEGER AS 'SELECT 1';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE FUNCTION IF NOT EXISTS my_func() RETURNS INTEGER AS 'SELECT 1';
+    ),
+  )
+}
+
+///|
+test "CREATE FUNCTION with parameters" {
+  let tokens = "CREATE FUNCTION add_nums(IN a INTEGER, IN b INTEGER) RETURNS INTEGER LANGUAGE sql AS 'SELECT a + b';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE FUNCTION add_nums(IN a INTEGER, IN b INTEGER) RETURNS INTEGER LANGUAGE sql AS 'SELECT a + b';
+    ),
+  )
+}
+
+///|
+test "CREATE FUNCTION DETERMINISTIC" {
+  let tokens = "CREATE FUNCTION my_func() RETURNS INTEGER DETERMINISTIC AS 'SELECT 1';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE FUNCTION my_func() RETURNS INTEGER DETERMINISTIC AS 'SELECT 1';
+    ),
+  )
+}
+
+///|
+test "CREATE PROCEDURE - Simple" {
+  let tokens = "CREATE PROCEDURE my_proc() AS 'BEGIN SELECT 1; END';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE PROCEDURE my_proc() AS 'BEGIN SELECT 1; END';
+    ),
+  )
+}
+
+///|
+test "CREATE PROCEDURE with parameters" {
+  let tokens = "CREATE PROCEDURE update_user(IN user_id INTEGER, IN new_name VARCHAR(100)) LANGUAGE plpgsql AS 'BEGIN UPDATE users SET name = new_name WHERE id = user_id; END';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE PROCEDURE update_user(IN user_id INTEGER, IN new_name VARCHAR(100)) LANGUAGE plpgsql AS 'BEGIN UPDATE users SET name = new_name WHERE id = user_id; END';
+    ),
+  )
+}
+
+///|
+test "CREATE FUNCTION with OUT parameter" {
+  let tokens = "CREATE FUNCTION get_user_info(IN user_id INTEGER, OUT user_name VARCHAR(100), OUT user_age INTEGER) AS 'SELECT name, age FROM users WHERE id = user_id';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE FUNCTION get_user_info(IN user_id INTEGER, OUT user_name VARCHAR(100), OUT user_age INTEGER) AS 'SELECT name, age FROM users WHERE id = user_id';
+    ),
+  )
+}
+
+///|
+test "CREATE FUNCTION with INOUT parameter" {
+  let tokens = "CREATE FUNCTION modify_value(INOUT value INTEGER) RETURNS INTEGER AS 'SELECT value * 2';"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE FUNCTION modify_value(INOUT value INTEGER) RETURNS INTEGER AS 'SELECT value * 2';
+    ),
+  )
+}

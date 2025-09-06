@@ -82,7 +82,7 @@ The parser follows a modular design:
 
 ## Testing
 
-The library includes comprehensive test coverage with 220+ tests covering:
+The library includes comprehensive test coverage with 284+ tests covering:
 
 - All SQL statement types across all language categories
 - Dialect-specific features and syntax variations
@@ -135,20 +135,20 @@ The parser is designed for extensibility. To add new SQL features:
 
 ## Feature Roadmap
 
-This section outlines missing features compared to comprehensive SQL parsers like DataFusion sqlparser-rs. Current implementation provides ~25% feature coverage with strong support for analytical workloads and basic CRUD operations.
+This section outlines missing features compared to comprehensive SQL parsers like DataFusion sqlparser-rs. Current implementation provides ~30% feature coverage with strong support for analytical workloads and comprehensive CRUD operations.
 
 ### High Priority (Core Functionality)
 
 #### DDL Enhancements
-- [ ] **CREATE INDEX** - Index creation with various types (BTREE, HASH, UNIQUE)
-- [ ] **DROP INDEX** - Index removal operations  
-- [ ] **CREATE DATABASE/SCHEMA** - Database and schema management
-- [ ] **CREATE FUNCTION/PROCEDURE** - User-defined functions and procedures
+- [x] **CREATE INDEX** - Index creation with various types (BTREE, HASH, UNIQUE) ✅ **COMPLETED**
+- [x] **DROP INDEX** - Index removal operations ✅ **COMPLETED**
+- [x] **CREATE DATABASE/SCHEMA** - Database and schema management ✅ **COMPLETED**
+- [x] **CREATE FUNCTION/PROCEDURE** - User-defined functions and procedures ✅ **COMPLETED**
 - [ ] **CREATE SEQUENCE** - Sequence generators
 - [ ] **ALTER INDEX** - Index modifications
 
 #### DML Extensions  
-- [ ] **MERGE statements** - UPSERT operations for data synchronization
+- [x] **MERGE statements** - UPSERT operations for data synchronization ✅ **COMPLETED**
 - [ ] **Advanced INSERT** - More conflict resolution options beyond basic OR clauses
 - [ ] **COPY statements** - Bulk data import/export operations
 - [ ] **LOAD DATA** - MySQL-style data loading

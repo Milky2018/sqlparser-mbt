@@ -32,6 +32,8 @@ pub enum Statement {
   CreateIndex(CreateIndexStmt)
   CreateDatabase(CreateDatabaseStmt)
   CreateSchema(CreateSchemaStmt)
+  CreateFunction(CreateFunctionStmt)
+  CreateProcedure(CreateProcedureStmt)
   DropView(DropViewStmt)
   DropTable(DropTableStmt)
   DropIndex(DropIndexStmt)
@@ -68,6 +70,8 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     CreateIndex(stmt) => stmt.pretty()
     CreateDatabase(stmt) => stmt.pretty()
     CreateSchema(stmt) => stmt.pretty()
+    CreateFunction(stmt) => stmt.pretty()
+    CreateProcedure(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
     DropTable(stmt) => stmt.pretty()
     DropIndex(stmt) => stmt.pretty()
@@ -1245,6 +1249,120 @@ pub impl @pp.Pretty for CreateSchemaStmt with pretty(self) {
     Some(user) => @pp.text(" AUTHORIZATION ") + @pp.text(user)
     None => @pp.empty
   })
+}
+
+///|
+/// CREATE FUNCTION statement
+pub struct CreateFunctionStmt {
+  /// CREATE FUNCTION <function_name>
+  name : String
+  /// Function parameters: (param1 type1, param2 type2, ...)
+  parameters : Array[FunctionParameter]
+  /// RETURNS return_type
+  return_type : DataType?
+  /// Function body language (SQL, plpgsql, etc.)
+  language : String?
+  /// Function body/definition
+  body : String?
+  /// DETERMINISTIC flag
+  deterministic : Bool
+  /// IF NOT EXISTS flag
+  if_not_exists : Bool
+} derive(Eq, Show)
+
+///|
+/// Function parameter definition
+pub struct FunctionParameter {
+  /// Parameter name
+  name : String
+  /// Parameter data type
+  param_type : DataType
+  /// IN/OUT/INOUT mode (default IN)
+  mode : ParameterMode?
+} derive(Eq, Show)
+
+///|
+/// Parameter mode for functions/procedures
+pub enum ParameterMode {
+  In
+  Out
+  InOut
+} derive(Eq, Show)
+
+///|
+/// CREATE PROCEDURE statement
+pub struct CreateProcedureStmt {
+  /// CREATE PROCEDURE <procedure_name>
+  name : String
+  /// Procedure parameters: (param1 type1, param2 type2, ...)
+  parameters : Array[FunctionParameter]
+  /// Procedure body language (SQL, plpgsql, etc.)
+  language : String?
+  /// Procedure body/definition
+  body : String?
+  /// IF NOT EXISTS flag
+  if_not_exists : Bool
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CreateFunctionStmt with pretty(self) {
+  @pp.text("CREATE FUNCTION ") +
+  (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
+  @pp.text(self.name) +
+  @pp.parens(
+    @pp.separate(@pp.text(", "), self.parameters.map(@pp.pretty))
+  ) +
+  (match self.return_type {
+    Some(ret_type) => @pp.text(" RETURNS ") + ret_type.pretty()
+    None => @pp.empty
+  }) +
+  (match self.language {
+    Some(lang) => @pp.text(" LANGUAGE ") + @pp.text(lang)
+    None => @pp.empty
+  }) +
+  (if self.deterministic { @pp.text(" DETERMINISTIC") } else { @pp.empty }) +
+  (match self.body {
+    Some(body_text) => @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for CreateProcedureStmt with pretty(self) {
+  @pp.text("CREATE PROCEDURE ") +
+  (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
+  @pp.text(self.name) +
+  @pp.parens(
+    @pp.separate(@pp.text(", "), self.parameters.map(@pp.pretty))
+  ) +
+  (match self.language {
+    Some(lang) => @pp.text(" LANGUAGE ") + @pp.text(lang)
+    None => @pp.empty
+  }) +
+  (match self.body {
+    Some(body_text) => @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for FunctionParameter with pretty(self) {
+  (match self.mode {
+    Some(ParameterMode::In) => @pp.text("IN ")
+    Some(ParameterMode::Out) => @pp.text("OUT ")
+    Some(ParameterMode::InOut) => @pp.text("INOUT ")
+    None => @pp.empty
+  }) +
+  @pp.text(self.name) + @pp.space + self.param_type.pretty()
+}
+
+///|
+pub impl @pp.Pretty for ParameterMode with pretty(self) {
+  match self {
+    ParameterMode::In => @pp.text("IN")
+    ParameterMode::Out => @pp.text("OUT")
+    ParameterMode::InOut => @pp.text("INOUT")
+  }
 }
 
 ///|

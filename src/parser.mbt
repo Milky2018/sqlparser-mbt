@@ -92,6 +92,10 @@ fn Parser::parse_statement(
       self.parse_create_database_statement(tokens).map(Statement::CreateDatabase(_))
     [Keyword(Create), Keyword(Schema), .. _rest] =>
       self.parse_create_schema_statement(tokens).map(Statement::CreateSchema(_))
+    [Keyword(Create), Keyword(Function), .. _rest] =>
+      self.parse_create_function_statement(tokens).map(Statement::CreateFunction(_))
+    [Keyword(Create), Keyword(Procedure), .. _rest] =>
+      self.parse_create_procedure_statement(tokens).map(Statement::CreateProcedure(_))
     [Keyword(Drop), Keyword(View), .. _rest] =>
       self.parse_drop_view_statement(tokens).map(Statement::DropView(_))
     [Keyword(Drop), Keyword(Table), .. _rest] =>

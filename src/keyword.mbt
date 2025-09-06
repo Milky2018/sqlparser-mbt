@@ -122,10 +122,14 @@ pub(all) enum Keyword {
   Processlist
   Grants
   Functions
+  Function
   Extended
   Global
   Session
   Procedure
+  Returns
+  Language
+  Deterministic
   Event
   Trigger
   Duplicate
@@ -169,4 +173,7 @@ pub(all) enum Keyword {
   Current
   Unbounded
   Row
+  // Function/procedure parameter modes
+  Out
+  InOut
 } derive(Eq, Show)
