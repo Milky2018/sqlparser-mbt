@@ -37,6 +37,25 @@ pub impl Dialect for MySQL with supports_if_not_exists(_self) {
 }
 
 ///|
+pub impl Dialect for MySQL with read_keyword(_self : MySQL, word : String) -> Keyword? {
+  match word {
+    // MySQL-specific LOAD DATA keywords
+    "load" => Some(Load)
+    "data" => Some(Data)
+    "local" => Some(Local)
+    "infile" => Some(Infile)
+    "fields" => Some(Fields)
+    "lines" => Some(Lines)
+    "terminated" => Some(Terminated)
+    "enclosed" => Some(Enclosed)
+    "escaped" => Some(Escaped)
+    "starting" => Some(Starting)
+    "optionally" => Some(Optionally)
+    _ => None
+  }
+}
+
+///|
 pub impl Dialect for MySQL with parse_statement(
   _self : MySQL,
   parser : Parser,

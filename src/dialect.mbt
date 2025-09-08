@@ -32,6 +32,9 @@ pub trait Dialect {
   
   /// Custom statement parsing for dialect-specific syntax
   parse_statement(Self, parser : Parser, tokens : ArrayView[Token]) -> ParserResult[Statement]? raise ParserError = _
+  
+  /// Dialect-specific keyword recognition from string
+  read_keyword(Self, word : String) -> Keyword? = _
 }
 
 ///|
@@ -94,5 +97,11 @@ impl Dialect with parse_statement(
 ) -> ParserResult[Statement]? raise ParserError {
   // Debug: If this is being called instead of dialect-specific implementation,
   // we'll know there's a dispatch issue
+  None
+}
+
+///|
+impl Dialect with read_keyword(_self : Self, _word : String) -> Keyword? {
+  // By default, no dialect-specific keywords
   None
 }
