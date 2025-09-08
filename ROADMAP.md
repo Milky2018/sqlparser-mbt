@@ -9,8 +9,8 @@ This document outlines missing features compared to comprehensive SQL parsers li
 - [x] **DROP INDEX** - Index removal operations ✅ **COMPLETED**
 - [x] **CREATE DATABASE/SCHEMA** - Database and schema management ✅ **COMPLETED**
 - [x] **CREATE FUNCTION/PROCEDURE** - User-defined functions and procedures ✅ **COMPLETED**
-- [ ] **CREATE SEQUENCE** - Sequence generators
-- [ ] **ALTER INDEX** - Index modifications
+- [x] **CREATE SEQUENCE** - Sequence generators ✅ **COMPLETED**
+- [x] **ALTER INDEX** - Index modifications ✅ **COMPLETED**
 
 ### DML Extensions  
 - [x] **MERGE statements** - UPSERT operations for data synchronization ✅ **COMPLETED**
@@ -105,15 +105,16 @@ This document outlines missing features compared to comprehensive SQL parsers li
 3. **DROP INDEX** - Index removal with concurrency and existence checks
 4. **CREATE DATABASE/SCHEMA** - Database and schema management with character sets
 5. **CREATE FUNCTION/PROCEDURE** - User-defined functions and procedures with parameters
-6. **MERGE Statements** - Advanced UPSERT operations for data synchronization
+6. **CREATE SEQUENCE** - Sequence generators with all PostgreSQL-style options
+7. **ALTER INDEX** - Index modification operations with RENAME TO, SET TABLESPACE, RESET, and SET parameter operations
+8. **MERGE Statements** - Advanced UPSERT operations for data synchronization
 
 ### Current Coverage
 - **~30% feature coverage** compared to comprehensive SQL parsers
-- **284+ comprehensive tests** with high-quality test coverage
+- **303+ comprehensive tests** with high-quality test coverage
 - **5 major SQL language categories** fully supported (DML, DDL, TCL, DCL, Utility)
 - **6+ SQL dialects** with dialect-specific extensions
 
 ### Next Up
-- **CREATE SEQUENCE** - Sequence generators for auto-incrementing values
-- **ALTER INDEX** - Index modification operations
 - **Advanced INSERT** - Enhanced conflict resolution beyond basic OR clauses
+- **USE database** - Database switching for multi-database environments

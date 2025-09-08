@@ -154,6 +154,10 @@ pub(all) enum Keyword {
   Restrict
   Cascade
   Index
+  // ALTER INDEX keywords
+  Rename
+  Tablespace
+  Reset
   // Index types and options
   Btree
   Hash

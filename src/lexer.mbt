@@ -360,6 +360,10 @@ fn Lexer::read_identifier_or_keyword(
     "cycle" => Keyword(Cycle)
     "owned" => Keyword(Owned)
     "no" => Keyword(No)
+    // ALTER INDEX keywords
+    "rename" => Keyword(Rename)
+    "tablespace" => Keyword(Tablespace)
+    "reset" => Keyword(Reset)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

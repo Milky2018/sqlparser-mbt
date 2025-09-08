@@ -44,6 +44,7 @@ pub enum Statement {
   Merge(MergeStmt)
   Truncate(TruncateStmt)
   AlterTable(AlterTableStmt)
+  AlterIndex(AlterIndexStmt)
   Show(ShowStmt)
   Set(SetStmt)
   LockTables(Array[ObjectName])
@@ -83,6 +84,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Merge(stmt) => stmt.pretty()
     Truncate(stmt) => stmt.pretty()
     AlterTable(stmt) => stmt.pretty()
+    AlterIndex(stmt) => stmt.pretty()
     Show(stmt) => stmt.pretty()
     Set(stmt) => stmt.pretty()
     LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
@@ -1908,6 +1910,69 @@ pub impl @pp.Pretty for AlterTableOperation with pretty(self) {
       }) +
       @pp.text(column_name)
   }
+}
+
+///|
+/// ALTER INDEX statement
+pub struct AlterIndexStmt {
+  // ALTER INDEX <index_name>
+  name : String
+  // IF EXISTS flag  
+  if_exists : Bool
+  // Index alteration operation
+  operation : AlterIndexOperation
+} derive(Eq, Show)
+
+///|
+/// ALTER INDEX operations
+pub enum AlterIndexOperation {
+  /// RENAME TO new_name
+  RenameTo(String)
+  /// SET TABLESPACE tablespace_name
+  SetTablespace(String)
+  /// RESET (param1, param2, ...)
+  Reset(Array[String])
+  /// SET (param1 = value1, param2 = value2, ...)
+  Set(Array[IndexParameter])
+} derive(Eq, Show)
+
+///|
+/// Index parameter for SET operations
+pub struct IndexParameter {
+  name : String
+  value : String
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for AlterIndexStmt with pretty(self) {
+  @pp.text("ALTER INDEX ") +
+  (if self.if_exists {
+    @pp.text("IF EXISTS ")
+  } else {
+    @pp.empty
+  }) +
+  @pp.text(self.name) +
+  @pp.space +
+  self.operation.pretty()
+}
+
+///|
+pub impl @pp.Pretty for AlterIndexOperation with pretty(self) {
+  match self {
+    AlterIndexOperation::RenameTo(new_name) =>
+      @pp.text("RENAME TO ") + @pp.text(new_name)
+    AlterIndexOperation::SetTablespace(tablespace) =>
+      @pp.text("SET TABLESPACE ") + @pp.text(tablespace)
+    AlterIndexOperation::Reset(params) =>
+      @pp.text("RESET (") + @pp.separate(@pp.text(", "), params.map(@pp.text)) + @pp.text(")")
+    AlterIndexOperation::Set(params) =>
+      @pp.text("SET (") + @pp.separate(@pp.text(", "), params.map(@pp.pretty)) + @pp.text(")")
+  }
+}
+
+///|
+pub impl @pp.Pretty for IndexParameter with pretty(self) {
+  @pp.text(self.name) + @pp.text(" = ") + @pp.text(self.value)
 }
 
 ///|

@@ -122,6 +122,8 @@ fn Parser::parse_statement(
       self.parse_truncate_statement(tokens).map(Statement::Truncate(_))
     [Keyword(Alter), Keyword(Table), .. _rest] =>
       self.parse_alter_table_statement(tokens).map(Statement::AlterTable(_))
+    [Keyword(Alter), Keyword(Index), .. _rest] =>
+      self.parse_alter_index_statement(tokens).map(Statement::AlterIndex(_))
     [Keyword(Begin), .. _rest] =>
       self.parse_begin_statement(tokens).map(Statement::Begin(_))
     [Keyword(Start), Keyword(Transaction), .. _rest] =>
