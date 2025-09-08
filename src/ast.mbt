@@ -49,6 +49,7 @@ pub enum Statement {
   Set(SetStmt)
   Use(UseStmt)
   Copy(CopyStmt)
+  LoadData(LoadDataStmt)
   LockTables(Array[ObjectName])
   UnlockTables
   // PostgreSQL-specific statements
@@ -91,6 +92,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Set(stmt) => stmt.pretty()
     Use(stmt) => stmt.pretty()
     Copy(stmt) => stmt.pretty()
+    LoadData(stmt) => stmt.pretty()
     LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
     UnlockTables => @pp.text("UNLOCK TABLES")
     Listen(channel) => @pp.text("LISTEN ") + @pp.text(channel)
@@ -2607,5 +2609,153 @@ pub impl @pp.Pretty for RevokeOption with pretty(self) {
   match self {
     RevokeOption::Restrict => @pp.text("RESTRICT")
     RevokeOption::Cascade => @pp.text("CASCADE")
+  }
+}
+
+///|
+/// LOAD DATA statement for MySQL-style bulk data loading
+pub struct LoadDataStmt {
+  /// LOAD DATA [LOCAL] INFILE 'filename'
+  is_local : Bool                 // LOCAL keyword
+  filename : String               // INFILE filename
+  /// [REPLACE | IGNORE]
+  duplicate_handling : LoadDataDuplicateHandling?
+  /// INTO TABLE table_name
+  table_name : ObjectName
+  /// [CHARACTER SET charset_name]
+  character_set : String?
+  /// [FIELDS [TERMINATED BY 'string'] [ENCLOSED BY 'char'] [ESCAPED BY 'char']]
+  fields_options : LoadDataFieldsOptions?
+  /// [LINES [STARTING BY 'string'] [TERMINATED BY 'string']]
+  lines_options : LoadDataLinesOptions?
+  /// [IGNORE number LINES]
+  ignore_lines : Int?
+  /// [(column_name_or_user_var, ...)]
+  columns : Array[String]?
+  /// [SET column_name = expr, ...]
+  set_assignments : Array[Assignment]?
+} derive(Eq, Show)
+
+///|
+/// Duplicate handling for LOAD DATA
+pub enum LoadDataDuplicateHandling {
+  Replace   // REPLACE
+  Ignore    // IGNORE
+} derive(Eq, Show)
+
+///|
+/// FIELDS options for LOAD DATA
+pub struct LoadDataFieldsOptions {
+  /// TERMINATED BY 'string'
+  terminated_by : String?
+  /// [OPTIONALLY] ENCLOSED BY 'char'
+  enclosed_by : String?
+  optionally_enclosed : Bool
+  /// ESCAPED BY 'char'
+  escaped_by : String?
+} derive(Eq, Show)
+
+///|
+/// LINES options for LOAD DATA
+pub struct LoadDataLinesOptions {
+  /// STARTING BY 'string'
+  starting_by : String?
+  /// TERMINATED BY 'string'
+  terminated_by : String?
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for LoadDataStmt with pretty(self) {
+  @pp.text("LOAD DATA ") +
+  (if self.is_local { @pp.text("LOCAL ") } else { @pp.empty }) +
+  @pp.text("INFILE '") + @pp.text(self.filename) + @pp.text("' ") +
+  (match self.duplicate_handling {
+    Some(handling) => handling.pretty() + @pp.space
+    None => @pp.empty
+  }) +
+  @pp.text("INTO TABLE ") + self.table_name.pretty() +
+  (match self.character_set {
+    Some(charset) => @pp.text(" CHARACTER SET ") + @pp.text(charset)
+    None => @pp.empty
+  }) +
+  (match self.fields_options {
+    Some(fields) => @pp.space + fields.pretty()
+    None => @pp.empty
+  }) +
+  (match self.lines_options {
+    Some(lines) => @pp.space + lines.pretty()
+    None => @pp.empty
+  }) +
+  (match self.ignore_lines {
+    Some(num) => @pp.text(" IGNORE ") + @pp.text(num.to_string()) + @pp.text(" LINES")
+    None => @pp.empty
+  }) +
+  (match self.columns {
+    Some(cols) if cols.length() > 0 => 
+      @pp.space + @pp.parens(@pp.separate(@pp.text(", "), cols.map(@pp.text)))
+    _ => @pp.empty
+  }) +
+  (match self.set_assignments {
+    Some(assignments) if assignments.length() > 0 =>
+      @pp.text(" SET ") + @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
+    _ => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for LoadDataDuplicateHandling with pretty(self) {
+  match self {
+    LoadDataDuplicateHandling::Replace => @pp.text("REPLACE")
+    LoadDataDuplicateHandling::Ignore => @pp.text("IGNORE")
+  }
+}
+
+///|
+pub impl @pp.Pretty for LoadDataFieldsOptions with pretty(self) {
+  let parts = []
+  
+  match self.terminated_by {
+    Some(term) => parts.push(@pp.text("TERMINATED BY '") + @pp.text(term) + @pp.text("'"))
+    None => ()
+  }
+  
+  match self.enclosed_by {
+    Some(enc) => {
+      let prefix = if self.optionally_enclosed { "OPTIONALLY ENCLOSED BY '" } else { "ENCLOSED BY '" }
+      parts.push(@pp.text(prefix) + @pp.text(enc) + @pp.text("'"))
+    }
+    None => ()
+  }
+  
+  match self.escaped_by {
+    Some(esc) => parts.push(@pp.text("ESCAPED BY '") + @pp.text(esc) + @pp.text("'"))
+    None => ()
+  }
+  
+  if parts.length() > 0 {
+    @pp.text("FIELDS ") + @pp.separate(@pp.space, parts)
+  } else {
+    @pp.empty
+  }
+}
+
+///|
+pub impl @pp.Pretty for LoadDataLinesOptions with pretty(self) {
+  let parts = []
+  
+  match self.starting_by {
+    Some(start) => parts.push(@pp.text("STARTING BY '") + @pp.text(start) + @pp.text("'"))
+    None => ()
+  }
+  
+  match self.terminated_by {
+    Some(term) => parts.push(@pp.text("TERMINATED BY '") + @pp.text(term) + @pp.text("'"))
+    None => ()
+  }
+  
+  if parts.length() > 0 {
+    @pp.text("LINES ") + @pp.separate(@pp.space, parts)
+  } else {
+    @pp.empty
   }
 }

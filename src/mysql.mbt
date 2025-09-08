@@ -39,10 +39,15 @@ pub impl Dialect for MySQL with supports_if_not_exists(_self) {
 ///|
 pub impl Dialect for MySQL with parse_statement(
   _self : MySQL,
-  _parser : Parser,
+  parser : Parser,
   tokens : ArrayView[Token],
 ) -> ParserResult[Statement]? raise ParserError {
   match tokens {
+    [Keyword(Load), Keyword(Data), .. _rest] => {
+      // MySQL LOAD DATA statement
+      let (load_data_stmt, remaining_tokens) = parser.parse_load_data_statement(tokens)
+      Some((Statement::LoadData(load_data_stmt), remaining_tokens))
+    }
     [Keyword(Lock), Keyword(Tables), Identifier(table_name), Semicolon, .. rest] => {
       // MySQL LOCK TABLES statement
       let table = ObjectName::{ parts: [table_name] }
@@ -343,6 +348,67 @@ test "MySQL REPLACE with ON DUPLICATE KEY UPDATE" {
     stmt,
     content=(
       #|REPLACE INTO settings (setting_key, setting_value) VALUES ('theme', 'dark') ON DUPLICATE KEY UPDATE setting_value = 'light';
+    ),
+  )
+}
+
+///|
+test "MySQL basic LOAD DATA statement" {
+  let tokens = "LOAD DATA INFILE '/tmp/data.csv' INTO TABLE users;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LOAD DATA INFILE '/tmp/data.csv' INTO TABLE users;
+    ),
+  )
+}
+
+///|
+test "MySQL LOAD DATA with LOCAL and REPLACE" {
+  let tokens = "LOAD DATA LOCAL INFILE '/tmp/users.txt' REPLACE INTO TABLE employees;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LOAD DATA LOCAL INFILE '/tmp/users.txt' REPLACE INTO TABLE employees;
+    ),
+  )
+}
+
+///|
+test "MySQL LOAD DATA with FIELDS options" {
+  let tokens = "LOAD DATA INFILE '/data/products.csv' INTO TABLE products CHARACTER SET utf8 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"';"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LOAD DATA INFILE '/data/products.csv' INTO TABLE products CHARACTER SET utf8 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"';
+    ),
+  )
+}
+
+///|
+test "MySQL LOAD DATA with LINES options" {
+  let tokens = "LOAD DATA INFILE '/tmp/logs.txt' INTO TABLE logs LINES STARTING BY '>>>' TERMINATED BY '\n' IGNORE 5 LINES;"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LOAD DATA INFILE '/tmp/logs.txt' INTO TABLE logs LINES STARTING BY '>>>' TERMINATED BY '
+      #|' IGNORE 5 LINES;
+    ),
+  )
+}
+
+///|
+test "MySQL LOAD DATA with column list and SET" {
+  let tokens = "LOAD DATA INFILE '/data/sales.csv' IGNORE INTO TABLE sales FIELDS TERMINATED BY ',' (date, amount, customer) SET created_at = NOW();"
+  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|LOAD DATA INFILE '/data/sales.csv' IGNORE INTO TABLE sales FIELDS TERMINATED BY ',' (date, amount, customer) SET created_at = NOW();
     ),
   )
 }

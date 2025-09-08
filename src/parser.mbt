@@ -944,3 +944,198 @@ fn Parser::parse_on_conflict_clause(
   
   ({ conflict_target, conflict_action }, tokens)
 }
+
+///|
+fn Parser::parse_load_data_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[LoadDataStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Load))
+  let tokens = self.expect_token(tokens, Keyword(Data))
+
+  // Parse optional LOCAL keyword
+  let (is_local, tokens) = match tokens {
+    [Keyword(Local), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+
+  // Parse INFILE 'filename'
+  let tokens = self.expect_token(tokens, Keyword(Infile))
+  let (filename, tokens) = match tokens {
+    [StringLiteral(filename), .. tokens] => (filename, tokens)
+    [token, ..] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected filename string after INFILE",
+      )
+    [] =>
+      raise InternalBug(
+        "parse_load_data_statement: unexpected end after INFILE",
+      )
+  }
+
+  // Parse optional REPLACE or IGNORE
+  let (duplicate_handling, tokens) = match tokens {
+    [Keyword(Replace), .. tokens] =>
+      (Some(LoadDataDuplicateHandling::Replace), tokens)
+    [Keyword(Ignore), .. tokens] =>
+      (Some(LoadDataDuplicateHandling::Ignore), tokens)
+    _ => (None, tokens)
+  }
+
+  // Parse INTO TABLE table_name
+  let tokens = self.expect_token(tokens, Keyword(Into))
+  let tokens = self.expect_token(tokens, Keyword(Table))
+  let (table_name, tokens) = self.parse_object_name(tokens)
+
+  // Parse optional CHARACTER SET
+  let (character_set, tokens) = match tokens {
+    [Keyword(Character), Keyword(Set), Identifier(charset), .. tokens] =>
+      (Some(charset), tokens)
+    _ => (None, tokens)
+  }
+
+  // Parse optional FIELDS clause
+  let (fields_options, tokens) = match tokens {
+    [Keyword(Fields), .. tokens] => {
+      let (fields_opts, tokens) = self.parse_load_data_fields_options(tokens)
+      (Some(fields_opts), tokens)
+    }
+    _ => (None, tokens)
+  }
+
+  // Parse optional LINES clause
+  let (lines_options, tokens) = match tokens {
+    [Keyword(Lines), .. tokens] => {
+      let (lines_opts, tokens) = self.parse_load_data_lines_options(tokens)
+      (Some(lines_opts), tokens)
+    }
+    _ => (None, tokens)
+  }
+
+  // Parse optional IGNORE number LINES
+  let (ignore_lines, tokens) = match tokens {
+    [Keyword(Ignore), Number(num_str), Keyword(Lines), .. tokens] => {
+      // Convert string to integer
+      let num = @strconv.parse_int(num_str) catch {
+        _ =>
+          raise UnexpectedTokenMessageError(
+            tokens[0],
+            "expected valid number for IGNORE lines",
+          )
+      }
+      (Some(num), tokens)
+    }
+    _ => (None, tokens)
+  }
+
+  // Parse optional column list: (col1, col2, ...)
+  let (columns, tokens) = match tokens {
+    [LParen, .. tokens] => {
+      let columns = []
+      let tokens = loop tokens {
+        [Identifier(col), Comma, .. tokens] => {
+          columns.push(col)
+          continue tokens
+        }
+        [Identifier(col), RParen, .. tokens] => {
+          columns.push(col)
+          break tokens
+        }
+        [token, ..] =>
+          raise UnexpectedTokenMessageError(
+            token, "expected column name in LOAD DATA column list",
+          )
+        [] =>
+          raise InternalBug(
+            "parse_load_data_statement: unexpected end in column list",
+          )
+      }
+      (Some(columns), tokens)
+    }
+    _ => (None, tokens)
+  }
+
+  // Parse optional SET assignments
+  let (set_assignments, tokens) = match tokens {
+    [Keyword(Set), .. tokens] => {
+      let (assignments, tokens) = self.parse_duplicate_key_assignments(tokens)
+      (Some(assignments), tokens)
+    }
+    _ => (None, tokens)
+  }
+  (
+    {
+      is_local,
+      filename,
+      duplicate_handling,
+      table_name,
+      character_set,
+      fields_options,
+      lines_options,
+      ignore_lines,
+      columns,
+      set_assignments,
+    },
+    tokens,
+  )
+}
+
+///|
+fn Parser::parse_load_data_fields_options(
+  _self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[LoadDataFieldsOptions] {
+  let mut terminated_by = None
+  let mut enclosed_by = None
+  let mut optionally_enclosed = false
+  let mut escaped_by = None
+  let tokens = loop tokens {
+    [Keyword(Terminated), Keyword(By), StringLiteral(term), .. tokens] => {
+      terminated_by = Some(term)
+      continue tokens
+    }
+    [
+      Keyword(Optionally),
+      Keyword(Enclosed),
+      Keyword(By),
+      StringLiteral(enc),
+      .. tokens,
+    ] => {
+      enclosed_by = Some(enc)
+      optionally_enclosed = true
+      continue tokens
+    }
+    [Keyword(Enclosed), Keyword(By), StringLiteral(enc), .. tokens] => {
+      enclosed_by = Some(enc)
+      optionally_enclosed = false
+      continue tokens
+    }
+    [Keyword(Escaped), Keyword(By), StringLiteral(esc), .. tokens] => {
+      escaped_by = Some(esc)
+      continue tokens
+    }
+    tokens => break tokens
+  }
+  ({ terminated_by, enclosed_by, optionally_enclosed, escaped_by }, tokens)
+}
+
+///|
+fn Parser::parse_load_data_lines_options(
+  _self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[LoadDataLinesOptions] {
+  let mut starting_by = None
+  let mut terminated_by = None
+  let tokens = loop tokens {
+    [Keyword(Starting), Keyword(By), StringLiteral(start), .. tokens] => {
+      starting_by = Some(start)
+      continue tokens
+    }
+    [Keyword(Terminated), Keyword(By), StringLiteral(term), .. tokens] => {
+      terminated_by = Some(term)
+      continue tokens
+    }
+    tokens => break tokens
+  }
+  ({ starting_by, terminated_by }, tokens)
+}

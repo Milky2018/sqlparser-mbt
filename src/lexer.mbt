@@ -380,6 +380,18 @@ fn Lexer::read_identifier_or_keyword(
     "force_not_null" => Keyword(ForceNotNull)
     "force_null" => Keyword(ForceNull)
     "encoding" => Keyword(Encoding)
+    // LOAD DATA keywords
+    "load" => Keyword(Load)
+    "data" => Keyword(Data)
+    "local" => Keyword(Local)
+    "infile" => Keyword(Infile)
+    "fields" => Keyword(Fields)
+    "lines" => Keyword(Lines)
+    "terminated" => Keyword(Terminated)
+    "enclosed" => Keyword(Enclosed)
+    "escaped" => Keyword(Escaped)
+    "starting" => Keyword(Starting)
+    "optionally" => Keyword(Optionally)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

@@ -170,6 +170,18 @@ pub(all) enum Keyword {
   ForceNotNull
   ForceNull
   Encoding
+  // LOAD DATA keywords
+  Load
+  Data
+  Local
+  Infile
+  Fields
+  Lines
+  Terminated
+  Enclosed
+  Escaped
+  Starting
+  Optionally
   // ALTER INDEX keywords
   Rename
   Tablespace
