@@ -150,6 +150,7 @@ pub(all) enum Keyword {
   Revoke
   Privileges
   Usage
+  Use
   Execute
   Connect
   Temporary

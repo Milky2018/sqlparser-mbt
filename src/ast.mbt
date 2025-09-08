@@ -47,6 +47,7 @@ pub enum Statement {
   AlterIndex(AlterIndexStmt)
   Show(ShowStmt)
   Set(SetStmt)
+  Use(UseStmt)
   LockTables(Array[ObjectName])
   UnlockTables
   // PostgreSQL-specific statements
@@ -87,6 +88,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     AlterIndex(stmt) => stmt.pretty()
     Show(stmt) => stmt.pretty()
     Set(stmt) => stmt.pretty()
+    Use(stmt) => stmt.pretty()
     LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
     UnlockTables => @pp.text("UNLOCK TABLES")
     Listen(channel) => @pp.text("LISTEN ") + @pp.text(channel)
@@ -2112,6 +2114,18 @@ pub impl @pp.Pretty for SetAssignment with pretty(self) {
   }) +
   @pp.text(" = ") +
   self.value.pretty()
+}
+
+///|
+/// USE database statement for database switching
+pub struct UseStmt {
+  /// Database name to switch to
+  database_name : ObjectName
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for UseStmt with pretty(self) {
+  @pp.text("USE ") + self.database_name.pretty()
 }
 
 ///|

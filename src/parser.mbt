@@ -142,6 +142,8 @@ fn Parser::parse_statement(
       self.parse_grant_statement(tokens).map(Statement::Grant(_))
     [Keyword(Revoke), .. _rest] =>
       self.parse_revoke_statement(tokens).map(Statement::Revoke(_))
+    [Keyword(Use), .. _rest] =>
+      self.parse_use_statement(tokens).map(Statement::Use(_))
     [LParen, .. rest] => {
       let (stmt, tokens) = self.parse_statement(rest)
       let tokens = self.expect_token(tokens, RParen)
@@ -370,6 +372,19 @@ fn Parser::parse_replace_statement(
 }
 
 ///|
+fn Parser::parse_use_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[UseStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Use))
+  
+  // Parse database name
+  let (database_name, tokens) = self.parse_object_name(tokens)
+  
+  ({ database_name, }, tokens)
+}
+
+///|
 fn Parser::parse_comma_separated_exprs(
   self : Parser,
   tokens : ArrayView[Token],
@@ -406,6 +421,50 @@ test "Parse simple select statement" {
       #|FROM
       #|  t;
     ),
+  )
+}
+
+///|
+test "Parse USE database statement" {
+  let tokens = [
+    Keyword(Use),
+    Token::Identifier("mydb"),
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="USE mydb;",
+  )
+}
+
+///|
+test "Parse USE database statement with qualified name" {
+  let tokens = [
+    Keyword(Use),
+    Token::Identifier("company"),
+    Token::Period,
+    Token::Identifier("production"),
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="USE company.production;",
+  )
+}
+
+///|
+test "Parse USE database statement with backtick quoted name" {
+  let tokens = [
+    Keyword(Use),
+    Token::Identifier("my database"),
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="USE `my database`;",
   )
 }
 

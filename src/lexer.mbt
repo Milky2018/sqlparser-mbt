@@ -325,6 +325,7 @@ fn Lexer::read_identifier_or_keyword(
     "revoke" => Keyword(Revoke)
     "privileges" => Keyword(Privileges)
     "usage" => Keyword(Usage)
+    "use" => Keyword(Use)
     "execute" => Keyword(Execute)
     "connect" => Keyword(Connect)
     "temporary" => Keyword(Temporary)

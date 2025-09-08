@@ -1,1 +1,2 @@
 - Always commit your work after you finished some features and `moon test` passed.
+- This library is ported from datafusion-sqlparser-rs which is located in ../datafusion-sqlparser-rs.
