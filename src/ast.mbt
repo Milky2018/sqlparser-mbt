@@ -34,6 +34,7 @@ pub enum Statement {
   CreateSchema(CreateSchemaStmt)
   CreateFunction(CreateFunctionStmt)
   CreateProcedure(CreateProcedureStmt)
+  CreateSequence(CreateSequenceStmt)
   DropView(DropViewStmt)
   DropTable(DropTableStmt)
   DropIndex(DropIndexStmt)
@@ -72,6 +73,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     CreateSchema(stmt) => stmt.pretty()
     CreateFunction(stmt) => stmt.pretty()
     CreateProcedure(stmt) => stmt.pretty()
+    CreateSequence(stmt) => stmt.pretty()
     DropView(stmt) => stmt.pretty()
     DropTable(stmt) => stmt.pretty()
     DropIndex(stmt) => stmt.pretty()
@@ -747,7 +749,7 @@ pub enum JoinConstraint {
   On(Expr)
   // USING (<col_name>, ...)
   Using(Array[String])
-  None
+  Non
 } derive(Eq, Show)
 
 ///|
@@ -762,7 +764,7 @@ pub impl @pp.Pretty for JoinConstraint with pretty(self) {
         @pp.separate(@pp.text(", "), cols.map(@pp.text)) +
         @pp.char(')'),
       )
-    JoinConstraint::None => @pp.empty
+    JoinConstraint::Non => @pp.empty
   }
 }
 
@@ -1343,6 +1345,108 @@ pub impl @pp.Pretty for CreateProcedureStmt with pretty(self) {
     Some(body_text) => @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
     None => @pp.empty
   })
+}
+
+///|
+/// CREATE SEQUENCE statement
+pub struct CreateSequenceStmt {
+  /// CREATE SEQUENCE <sequence_name>
+  name : String
+  /// IF NOT EXISTS flag
+  if_not_exists : Bool
+  /// TEMPORARY flag
+  temporary : Bool
+  /// INCREMENT BY value (default 1)
+  increment : Int?
+  /// MINVALUE value or NO MINVALUE
+  minvalue : SequenceLimit?
+  /// MAXVALUE value or NO MAXVALUE  
+  maxvalue : SequenceLimit?
+  /// START WITH value (default 1)
+  start_with : Int?
+  /// CACHE value
+  cache : Int?
+  /// CYCLE or NO CYCLE (default NO CYCLE)
+  cycle : Bool?
+  /// OWNED BY table.column or OWNED BY NONE
+  owned_by : SequenceOwnedBy?
+} derive(Eq, Show)
+
+///|
+/// Sequence limit specification
+pub enum SequenceLimit {
+  /// MINVALUE/MAXVALUE value
+  Value(Int)
+  /// NO MINVALUE/NO MAXVALUE
+  NoLimit
+} derive(Eq, Show)
+
+///|
+/// OWNED BY specification for sequences  
+pub enum SequenceOwnedBy {
+  /// OWNED BY table.column
+  Column(ObjectName, String)
+  /// OWNED BY NONE
+  ByNone
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CreateSequenceStmt with pretty(self) {
+  @pp.text("CREATE ") +
+  (if self.temporary { @pp.text("TEMPORARY ") } else { @pp.empty }) +
+  @pp.text("SEQUENCE ") +
+  (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
+  @pp.text(self.name) +
+  (match self.increment {
+    Some(inc) => @pp.text(" INCREMENT BY ") + @pp.text(inc.to_string())
+    None => @pp.empty
+  }) +
+  (match self.minvalue {
+    Some(SequenceLimit::Value(val)) => @pp.text(" MINVALUE ") + @pp.text(val.to_string())
+    Some(SequenceLimit::NoLimit) => @pp.text(" NO MINVALUE")
+    None => @pp.empty
+  }) +
+  (match self.maxvalue {
+    Some(SequenceLimit::Value(val)) => @pp.text(" MAXVALUE ") + @pp.text(val.to_string())
+    Some(SequenceLimit::NoLimit) => @pp.text(" NO MAXVALUE")
+    None => @pp.empty
+  }) +
+  (match self.start_with {
+    Some(start) => @pp.text(" START WITH ") + @pp.text(start.to_string())
+    None => @pp.empty
+  }) +
+  (match self.cache {
+    Some(cache_val) => @pp.text(" CACHE ") + @pp.text(cache_val.to_string())
+    None => @pp.empty
+  }) +
+  (match self.cycle {
+    Some(true) => @pp.text(" CYCLE")
+    Some(false) => @pp.text(" NO CYCLE")
+    None => @pp.empty
+  }) +
+  (match self.owned_by {
+    Some(SequenceOwnedBy::Column(table, column)) => 
+      @pp.text(" OWNED BY ") + table.pretty() + @pp.text(".") + @pp.text(column)
+    Some(SequenceOwnedBy::ByNone) => @pp.text(" OWNED BY NONE")
+    None => @pp.empty
+  })
+}
+
+///|
+pub impl @pp.Pretty for SequenceLimit with pretty(self) {
+  match self {
+    SequenceLimit::Value(val) => @pp.text(val.to_string())
+    SequenceLimit::NoLimit => @pp.text("NO LIMIT")
+  }
+}
+
+///|
+pub impl @pp.Pretty for SequenceOwnedBy with pretty(self) {
+  match self {
+    SequenceOwnedBy::Column(table, column) => 
+      table.pretty() + @pp.text(".") + @pp.text(column)
+    SequenceOwnedBy::ByNone => @pp.text("NONE")
+  }
 }
 
 ///|

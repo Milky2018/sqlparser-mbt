@@ -96,6 +96,12 @@ fn Parser::parse_statement(
       self.parse_create_function_statement(tokens).map(Statement::CreateFunction(_))
     [Keyword(Create), Keyword(Procedure), .. _rest] =>
       self.parse_create_procedure_statement(tokens).map(Statement::CreateProcedure(_))
+    [Keyword(Create), Keyword(Sequence), .. _rest] =>
+      self.parse_create_sequence_statement(tokens).map(Statement::CreateSequence(_))
+    [Keyword(Create), Keyword(Temporary), Keyword(Sequence), .. _rest] =>
+      self.parse_create_sequence_statement(tokens).map(Statement::CreateSequence(_))
+    [Keyword(Create), Keyword(Temp), Keyword(Sequence), .. _rest] =>
+      self.parse_create_sequence_statement(tokens).map(Statement::CreateSequence(_))
     [Keyword(Drop), Keyword(View), .. _rest] =>
       self.parse_drop_view_statement(tokens).map(Statement::DropView(_))
     [Keyword(Drop), Keyword(Table), .. _rest] =>

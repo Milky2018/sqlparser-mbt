@@ -1373,3 +1373,273 @@ test "CREATE FUNCTION with INOUT parameter" {
     ),
   )
 }
+
+///|
+fn Parser::parse_create_sequence_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CreateSequenceStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Create))
+  
+  // Parse optional TEMPORARY
+  let (temporary, tokens) = match tokens {
+    [Keyword(Temporary), .. tokens] => (true, tokens)
+    [Keyword(Temp), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  let tokens = self.expect_token(tokens, Keyword(Sequence))
+  
+  // Parse optional IF NOT EXISTS
+  let (if_not_exists, tokens) = match tokens {
+    [Keyword(If), Keyword(Not), Keyword(Exists), .. tokens] => (true, tokens)
+    _ => (false, tokens)
+  }
+  
+  // Parse sequence name
+  let (name, tokens) = match tokens {
+    [Token::Identifier(name), .. tokens] => (name, tokens)
+    [Token::StringLiteral(name), .. tokens] => (name, tokens)
+    [token, .. _] => raise UnexpectedTokenError(token, Token::Identifier("sequence_name".to_string()))
+    [] => raise ParserError::InternalBug("parse_create_sequence_statement: unexpected end of tokens")
+  }
+  
+  // Parse sequence options
+  let mut increment = None
+  let mut minvalue = None
+  let mut maxvalue = None 
+  let mut start_with = None
+  let mut cache = None
+  let mut cycle = None
+  let mut owned_by = None
+  
+  let tokens = loop tokens {
+    [Keyword(Increment), Keyword(By), Number(inc_str), .. rest_tokens] => {
+      let inc_val = @strconv.parse_int(inc_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(inc_str)
+      }
+      increment = Some(inc_val)
+      continue rest_tokens
+    }
+    [Keyword(Increment), Number(inc_str), .. rest_tokens] => {
+      let inc_val = @strconv.parse_int(inc_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(inc_str)
+      }
+      increment = Some(inc_val)
+      continue rest_tokens
+    }
+    [Keyword(Minvalue), Number(min_str), .. rest_tokens] => {
+      let min_val = @strconv.parse_int(min_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(min_str)
+      }
+      minvalue = Some(SequenceLimit::Value(min_val))
+      continue rest_tokens
+    }
+    [Keyword(No), Keyword(Minvalue), .. rest_tokens] => {
+      minvalue = Some(SequenceLimit::NoLimit)
+      continue rest_tokens
+    }
+    [Keyword(Maxvalue), Number(max_str), .. rest_tokens] => {
+      let max_val = @strconv.parse_int(max_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(max_str)
+      }
+      maxvalue = Some(SequenceLimit::Value(max_val))
+      continue rest_tokens
+    }
+    [Keyword(No), Keyword(Maxvalue), .. rest_tokens] => {
+      maxvalue = Some(SequenceLimit::NoLimit)
+      continue rest_tokens
+    }
+    [Keyword(Start), Keyword(With), Number(start_str), .. rest_tokens] => {
+      let start_val = @strconv.parse_int(start_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(start_str)
+      }
+      start_with = Some(start_val)
+      continue rest_tokens
+    }
+    [Keyword(Start), Number(start_str), .. rest_tokens] => {
+      let start_val = @strconv.parse_int(start_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(start_str)
+      }
+      start_with = Some(start_val)
+      continue rest_tokens
+    }
+    [Keyword(Cache), Number(cache_str), .. rest_tokens] => {
+      let cache_val = @strconv.parse_int(cache_str) catch {
+        _ => raise ParserError::InvalidDataTypeError(cache_str)
+      }
+      cache = Some(cache_val)
+      continue rest_tokens
+    }
+    [Keyword(Cycle), .. rest_tokens] => {
+      cycle = Some(true)
+      continue rest_tokens
+    }
+    [Keyword(No), Keyword(Cycle), .. rest_tokens] => {
+      cycle = Some(false)
+      continue rest_tokens
+    }
+    // More specific OWNED BY patterns first
+    [Keyword(Owned), Keyword(By), Identifier("NONE"), .. rest_tokens] => {
+      owned_by = Some(SequenceOwnedBy::ByNone)
+      continue rest_tokens
+    }
+    [Keyword(Owned), Keyword(By), Identifier("none"), .. rest_tokens] => {
+      owned_by = Some(SequenceOwnedBy::ByNone)
+      continue rest_tokens
+    }
+    // General OWNED BY table.column pattern
+    [Keyword(Owned), Keyword(By), Identifier(table_name), Period, Identifier(column_name), .. rest_tokens] => {
+      let table_obj = ObjectName::{ parts: [table_name] }
+      owned_by = Some(SequenceOwnedBy::Column(table_obj, column_name))
+      continue rest_tokens
+    }
+    rest_tokens => break rest_tokens
+  }
+  
+  ({ name, if_not_exists, temporary, increment, minvalue, maxvalue, start_with, cache, cycle, owned_by }, tokens)
+}
+
+///|
+test "CREATE SEQUENCE - Simple" {
+  let tokens = "CREATE SEQUENCE my_seq;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE IF NOT EXISTS" {
+  let tokens = "CREATE SEQUENCE IF NOT EXISTS my_seq;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE IF NOT EXISTS my_seq;
+    ),
+  )
+}
+
+///|
+test "CREATE TEMPORARY SEQUENCE" {
+  let tokens = "CREATE TEMPORARY SEQUENCE temp_seq;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TEMPORARY SEQUENCE temp_seq;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with INCREMENT BY" {
+  let tokens = "CREATE SEQUENCE my_seq INCREMENT BY 5;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq INCREMENT BY 5;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with MINVALUE and MAXVALUE" {
+  let tokens = "CREATE SEQUENCE my_seq MINVALUE 1 MAXVALUE 1000;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq MINVALUE 1 MAXVALUE 1000;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with NO MINVALUE NO MAXVALUE" {
+  let tokens = "CREATE SEQUENCE my_seq NO MINVALUE NO MAXVALUE;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq NO MINVALUE NO MAXVALUE;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with START WITH and CACHE" {
+  let tokens = "CREATE SEQUENCE my_seq START WITH 10 CACHE 20;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq START WITH 10 CACHE 20;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with CYCLE" {
+  let tokens = "CREATE SEQUENCE my_seq CYCLE;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq CYCLE;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with NO CYCLE" {
+  let tokens = "CREATE SEQUENCE my_seq NO CYCLE;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq NO CYCLE;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with OWNED BY" {
+  let tokens = "CREATE SEQUENCE user_id_seq OWNED BY users.id;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE user_id_seq OWNED BY users.id;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with OWNED BY NONE" {
+  let tokens = "CREATE SEQUENCE my_seq OWNED BY NONE;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE SEQUENCE my_seq OWNED BY NONE;
+    ),
+  )
+}
+
+///|
+test "CREATE SEQUENCE with all options" {
+  let tokens = "CREATE TEMPORARY SEQUENCE IF NOT EXISTS user_seq INCREMENT BY 2 MINVALUE 1 MAXVALUE 9999 START WITH 100 CACHE 10 CYCLE OWNED BY users.id;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|CREATE TEMPORARY SEQUENCE IF NOT EXISTS user_seq INCREMENT BY 2 MINVALUE 1 MAXVALUE 9999 START WITH 100 CACHE 10 CYCLE OWNED BY users.id;
+    ),
+  )
+}

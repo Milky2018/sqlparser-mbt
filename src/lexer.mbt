@@ -351,6 +351,15 @@ fn Lexer::read_identifier_or_keyword(
     // Function/procedure parameter modes
     "out" => Keyword(Out)
     "inout" => Keyword(InOut)
+    // Sequence keywords
+    "sequence" => Keyword(Sequence)
+    "increment" => Keyword(Increment)
+    "minvalue" => Keyword(Minvalue)
+    "maxvalue" => Keyword(Maxvalue)
+    "cache" => Keyword(Cache)
+    "cycle" => Keyword(Cycle)
+    "owned" => Keyword(Owned)
+    "no" => Keyword(No)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

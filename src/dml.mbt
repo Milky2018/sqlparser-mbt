@@ -708,7 +708,7 @@ fn Parser::parse_table_ref(
           continue tokens
         }
         tokens => {
-          joins.push({ join_operator: join_operator_maker(None), table_ref })
+          joins.push({ join_operator: join_operator_maker(Non), table_ref })
           continue tokens
         }
       }

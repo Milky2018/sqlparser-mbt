@@ -176,4 +176,13 @@ pub(all) enum Keyword {
   // Function/procedure parameter modes
   Out
   InOut
+  // Sequence keywords
+  Sequence
+  Increment
+  Minvalue
+  Maxvalue
+  Cache
+  Cycle
+  Owned
+  No
 } derive(Eq, Show)
