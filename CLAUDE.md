@@ -1,2 +1,4 @@
-- Always commit your work after you finished some features and `moon test` passed.
+- Always commit your work after you finished some features and `moon test` passed (fix warnings also).
 - This library is ported from datafusion-sqlparser-rs which is located in ../datafusion-sqlparser-rs.
+- Use `moon test` to test and debug. Make sure that all tests pass before commiting. The test result for `inspect` will only show the compound output with diffs represented by colors which you cannot read. So when you run `moon test` and see no diffs or duplicates, that's normal.
+- Update @ROADMAP.md after finishing any feature.

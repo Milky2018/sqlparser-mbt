@@ -369,6 +369,17 @@ fn Lexer::read_identifier_or_keyword(
     "rename" => Keyword(Rename)
     "tablespace" => Keyword(Tablespace)
     "reset" => Keyword(Reset)
+    "copy" => Keyword(Copy)
+    // COPY statement keywords
+    "format" => Keyword(Format)
+    "stdin" => Keyword(Stdin)
+    "stdout" => Keyword(Stdout)
+    "program" => Keyword(Program)
+    "header" => Keyword(Header)
+    "force_quote" => Keyword(ForceQuote)
+    "force_not_null" => Keyword(ForceNotNull)
+    "force_null" => Keyword(ForceNull)
+    "encoding" => Keyword(Encoding)
     word => Token::Identifier(word.to_string())
   }
   (token, rest)

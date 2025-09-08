@@ -159,6 +159,17 @@ pub(all) enum Keyword {
   Restrict
   Cascade
   Index
+  Copy
+  // COPY statement keywords
+  Format
+  Stdin
+  Stdout
+  Program
+  Header
+  ForceQuote
+  ForceNotNull
+  ForceNull
+  Encoding
   // ALTER INDEX keywords
   Rename
   Tablespace

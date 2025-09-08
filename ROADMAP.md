@@ -15,7 +15,7 @@ This document outlines missing features compared to comprehensive SQL parsers li
 ### DML Extensions  
 - [x] **MERGE statements** - UPSERT operations for data synchronization ✅ **COMPLETED**
 - [x] **Advanced INSERT** - More conflict resolution options beyond basic OR clauses ✅ **COMPLETED**
-- [ ] **COPY statements** - Bulk data import/export operations
+- [x] **COPY statements** - Bulk data import/export operations ✅ **COMPLETED**
 - [ ] **LOAD DATA** - MySQL-style data loading
 
 ### Essential Utilities
@@ -110,13 +110,14 @@ This document outlines missing features compared to comprehensive SQL parsers li
 8. **Advanced INSERT** - Enhanced conflict resolution with PostgreSQL ON CONFLICT support (DO NOTHING, DO UPDATE SET)
 9. **MERGE Statements** - Advanced UPSERT operations for data synchronization
 10. **USE Database** - Database switching for multi-database environments
+11. **COPY Statements** - Comprehensive bulk data import/export operations with full PostgreSQL syntax support
 
 ### Current Coverage
 - **~30% feature coverage** compared to comprehensive SQL parsers
-- **312+ comprehensive tests** with high-quality test coverage
+- **317+ comprehensive tests** with high-quality test coverage
 - **5 major SQL language categories** fully supported (DML, DDL, TCL, DCL, Utility)
 - **6+ SQL dialects** with dialect-specific extensions
 
 ### Next Up
-- **COPY statements** - Bulk data import/export operations
+- **LOAD DATA** - MySQL-style data loading operations
 - **EXPLAIN variants** - EXPLAIN ANALYZE, EXPLAIN VERBOSE for query analysis

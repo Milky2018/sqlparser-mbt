@@ -48,6 +48,7 @@ pub enum Statement {
   Show(ShowStmt)
   Set(SetStmt)
   Use(UseStmt)
+  Copy(CopyStmt)
   LockTables(Array[ObjectName])
   UnlockTables
   // PostgreSQL-specific statements
@@ -89,6 +90,7 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Show(stmt) => stmt.pretty()
     Set(stmt) => stmt.pretty()
     Use(stmt) => stmt.pretty()
+    Copy(stmt) => stmt.pretty()
     LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
     UnlockTables => @pp.text("UNLOCK TABLES")
     Listen(channel) => @pp.text("LISTEN ") + @pp.text(channel)
@@ -2126,6 +2128,182 @@ pub struct UseStmt {
 ///|
 pub impl @pp.Pretty for UseStmt with pretty(self) {
   @pp.text("USE ") + self.database_name.pretty()
+}
+
+///|
+/// COPY statement for bulk data import/export operations
+pub struct CopyStmt {
+  /// Source or target specification
+  source : CopySource
+  /// Direction of the operation (TO file or FROM file)
+  direction : CopyDirection
+  /// Target specification (file path or STDOUT/STDIN)
+  target : CopyTarget
+  /// Format options (CSV, TEXT, BINARY, etc.)
+  format_options : Array[CopyOption]
+} derive(Eq, Show)
+
+///|
+/// Source specification for COPY statement
+pub enum CopySource {
+  /// Copy from a table: COPY table_name
+  Table(ObjectName, Array[String]?)  // table_name, optional column_list
+  /// Copy from a query: COPY (SELECT ...)
+  Query(QueryStmt)
+} derive(Eq, Show)
+
+///|
+/// Direction of COPY operation
+pub enum CopyDirection {
+  /// COPY ... TO target
+  To
+  /// COPY ... FROM target  
+  From
+} derive(Eq, Show)
+
+///|
+/// Target specification for COPY statement
+pub enum CopyTarget {
+  /// File path: COPY ... TO/FROM 'filename'
+  File(String)
+  /// Standard input: COPY ... FROM STDIN
+  Stdin  
+  /// Standard output: COPY ... TO STDOUT
+  Stdout
+  /// Program: COPY ... TO/FROM PROGRAM 'command'
+  Program(String)
+} derive(Eq, Show)
+
+///|
+/// COPY statement options
+pub enum CopyOption {
+  /// FORMAT format_name (CSV, TEXT, BINARY)
+  Format(CopyFormat)
+  /// DELIMITER 'delimiter_string'
+  Delimiter(String)
+  /// NULL 'null_string'
+  Null(String)
+  /// HEADER [boolean]
+  Header(Bool?)
+  /// QUOTE 'quote_character'  
+  Quote(String)
+  /// ESCAPE 'escape_character'
+  Escape(String)
+  /// FORCE_QUOTE (column_list) or FORCE_QUOTE *
+  ForceQuote(CopyForceQuote)
+  /// FORCE_NOT_NULL (column_list)
+  ForceNotNull(Array[String])
+  /// FORCE_NULL (column_list) 
+  ForceNull(Array[String])
+  /// ENCODING 'encoding_name'
+  Encoding(String)
+} derive(Eq, Show)
+
+///|
+/// COPY format specification
+pub enum CopyFormat {
+  Csv
+  Text  
+  Binary
+} derive(Eq, Show)
+
+///|
+/// FORCE_QUOTE specification
+pub enum CopyForceQuote {
+  /// FORCE_QUOTE *
+  All
+  /// FORCE_QUOTE (column_list)
+  Columns(Array[String])
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for CopyStmt with pretty(self) {
+  @pp.text("COPY ") +
+  self.source.pretty() +
+  @pp.space +
+  self.direction.pretty() +
+  @pp.space +  
+  self.target.pretty() +
+  (if self.format_options.is_empty() {
+    @pp.empty
+  } else {
+    @pp.space +
+    @pp.text("(") +
+    @pp.separate(@pp.text(", "), self.format_options.map(@pp.pretty)) +
+    @pp.text(")")
+  })
+}
+
+///|
+pub impl @pp.Pretty for CopySource with pretty(self) {
+  match self {
+    CopySource::Table(table_name, columns) =>
+      table_name.pretty() +
+      (match columns {
+        Some(col_list) if col_list.length() > 0 => 
+          @pp.space +
+          @pp.parens(@pp.separate(@pp.text(", "), col_list.map(@pp.text)))
+        _ => @pp.empty
+      })
+    CopySource::Query(query) =>
+      @pp.parens(@pp.nest(@pp.hardline + query.pretty()) + @pp.hardline)
+  }
+}
+
+///|
+pub impl @pp.Pretty for CopyDirection with pretty(self) {
+  match self {
+    CopyDirection::To => @pp.text("TO")
+    CopyDirection::From => @pp.text("FROM")
+  }
+}
+
+///|
+pub impl @pp.Pretty for CopyTarget with pretty(self) {
+  match self {
+    CopyTarget::File(filename) => @pp.text("'") + @pp.text(filename) + @pp.text("'")
+    CopyTarget::Stdin => @pp.text("STDIN")
+    CopyTarget::Stdout => @pp.text("STDOUT") 
+    CopyTarget::Program(command) => @pp.text("PROGRAM '") + @pp.text(command) + @pp.text("'")
+  }
+}
+
+///|
+pub impl @pp.Pretty for CopyOption with pretty(self) {
+  match self {
+    CopyOption::Format(format) => @pp.text("FORMAT ") + format.pretty()
+    CopyOption::Delimiter(delim) => @pp.text("DELIMITER '") + @pp.text(delim) + @pp.text("'")
+    CopyOption::Null(null_str) => @pp.text("NULL '") + @pp.text(null_str) + @pp.text("'")
+    CopyOption::Header(Some(true)) => @pp.text("HEADER true")
+    CopyOption::Header(Some(false)) => @pp.text("HEADER false")
+    CopyOption::Header(None) => @pp.text("HEADER")
+    CopyOption::Quote(quote_char) => @pp.text("QUOTE '") + @pp.text(quote_char) + @pp.text("'")
+    CopyOption::Escape(escape_char) => @pp.text("ESCAPE '") + @pp.text(escape_char) + @pp.text("'")
+    CopyOption::ForceQuote(force_quote) => @pp.text("FORCE_QUOTE ") + force_quote.pretty()
+    CopyOption::ForceNotNull(columns) =>
+      @pp.text("FORCE_NOT_NULL (") + @pp.separate(@pp.text(", "), columns.map(@pp.text)) + @pp.text(")")
+    CopyOption::ForceNull(columns) =>
+      @pp.text("FORCE_NULL (") + @pp.separate(@pp.text(", "), columns.map(@pp.text)) + @pp.text(")")
+    CopyOption::Encoding(encoding) => @pp.text("ENCODING '") + @pp.text(encoding) + @pp.text("'")
+  }
+}
+
+///|
+pub impl @pp.Pretty for CopyFormat with pretty(self) {
+  match self {
+    CopyFormat::Csv => @pp.text("CSV")
+    CopyFormat::Text => @pp.text("TEXT")
+    CopyFormat::Binary => @pp.text("BINARY")
+  }
+}
+
+///|
+pub impl @pp.Pretty for CopyForceQuote with pretty(self) {
+  match self {
+    CopyForceQuote::All => @pp.text("*")
+    CopyForceQuote::Columns(columns) =>
+      @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.text)))
+  }
 }
 
 ///|

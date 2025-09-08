@@ -144,6 +144,8 @@ fn Parser::parse_statement(
       self.parse_revoke_statement(tokens).map(Statement::Revoke(_))
     [Keyword(Use), .. _rest] =>
       self.parse_use_statement(tokens).map(Statement::Use(_))
+    [Keyword(Copy), .. _rest] =>
+      self.parse_copy_statement(tokens).map(Statement::Copy(_))
     [LParen, .. rest] => {
       let (stmt, tokens) = self.parse_statement(rest)
       let tokens = self.expect_token(tokens, RParen)
@@ -372,6 +374,231 @@ fn Parser::parse_replace_statement(
 }
 
 ///|
+fn Parser::parse_copy_statement(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[CopyStmt] raise ParserError {
+  let tokens = self.expect_token(tokens, Keyword(Copy))
+  
+  // Parse source (table or query)
+  let (source, tokens) = match tokens {
+    [LParen, .. tokens] => {
+      // COPY (SELECT ...) TO/FROM ...
+      let (query, tokens) = self.parse_query(tokens)
+      let tokens = self.expect_token(tokens, RParen)
+      (CopySource::Query(query), tokens)
+    }
+    _ => {
+      // COPY table_name [(column_list)] TO/FROM ...
+      let (table_name, tokens) = self.parse_object_name(tokens)
+      
+      // Parse optional column list
+      let (columns, tokens) = match tokens {
+        [LParen, .. tokens] => {
+          let columns = []
+          let tokens = loop tokens {
+            [Identifier(col), Comma, .. tokens] => {
+              columns.push(col)
+              continue tokens
+            }
+            [Identifier(col), RParen, .. tokens] => {
+              columns.push(col)
+              break tokens
+            }
+            [token, .. _tokens] =>
+              raise UnexpectedTokenMessageError(token, "expected column name in COPY column list")
+            [] => raise InternalBug("parse_copy_statement: unexpected end of tokens in column list")
+          }
+          (Some(columns), tokens)
+        }
+        _ => (None, tokens)
+      }
+      
+      (CopySource::Table(table_name, columns), tokens)
+    }
+  }
+  
+  // Parse direction (TO or FROM)
+  let (direction, tokens) = match tokens {
+    [Keyword(To), .. tokens] => (CopyDirection::To, tokens)
+    [Keyword(From), .. tokens] => (CopyDirection::From, tokens)
+    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected TO or FROM in COPY statement")
+    [] => raise InternalBug("parse_copy_statement: unexpected end of tokens after source")
+  }
+  
+  // Parse target (file, stdin, stdout, or program)
+  let (target, tokens) = match tokens {
+    [Keyword(Stdin), .. tokens] => (CopyTarget::Stdin, tokens)
+    [Keyword(Stdout), .. tokens] => (CopyTarget::Stdout, tokens)
+    [Keyword(Program), StringLiteral(command), .. tokens] => (CopyTarget::Program(command), tokens)
+    [StringLiteral(filename), .. tokens] => (CopyTarget::File(filename), tokens)
+    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected filename, STDIN, STDOUT, or PROGRAM in COPY statement")
+    [] => raise InternalBug("parse_copy_statement: unexpected end of tokens after direction")
+  }
+  
+  // Parse optional format options
+  let (format_options, tokens) = match tokens {
+    [LParen, .. tokens] => self.parse_copy_options(tokens)
+    _ => ([], tokens)
+  }
+  
+  ({ source, direction, target, format_options, }, tokens)
+}
+
+///|
+fn Parser::parse_copy_options(
+  _self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[Array[CopyOption]] raise ParserError {
+  let options = []
+  
+  let tokens = loop tokens {
+    [RParen, .. tokens] => break tokens
+    [Keyword(Format), Identifier("csv"), .. tokens] => {
+      options.push(CopyOption::Format(CopyFormat::Csv))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(Format), Identifier("text"), .. tokens] => {
+      options.push(CopyOption::Format(CopyFormat::Text))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(Format), Identifier("binary"), .. tokens] => {
+      options.push(CopyOption::Format(CopyFormat::Binary))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Identifier("delimiter"), StringLiteral(delim), .. tokens] => {
+      options.push(CopyOption::Delimiter(delim))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Identifier("quote"), StringLiteral(quote_char), .. tokens] => {
+      options.push(CopyOption::Quote(quote_char))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Identifier("escape"), StringLiteral(escape_char), .. tokens] => {
+      options.push(CopyOption::Escape(escape_char))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(Null), StringLiteral(null_str), .. tokens] => {
+      options.push(CopyOption::Null(null_str))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(Header), Boolean(value), .. tokens] => {
+      options.push(CopyOption::Header(Some(value)))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(Header), .. tokens] => {
+      options.push(CopyOption::Header(None))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(ForceQuote), Mul, .. tokens] => {
+      options.push(CopyOption::ForceQuote(CopyForceQuote::All))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(ForceQuote), LParen, .. tokens] => {
+      let columns = []
+      let tokens = loop tokens {
+        [Identifier(col), Comma, .. tokens] => {
+          columns.push(col)
+          continue tokens
+        }
+        [Identifier(col), RParen, .. tokens] => {
+          columns.push(col)
+          break tokens
+        }
+        [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected column name in FORCE_QUOTE")
+        [] => raise InternalBug("parse_copy_options: unexpected end in FORCE_QUOTE")
+      }
+      options.push(CopyOption::ForceQuote(CopyForceQuote::Columns(columns)))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(ForceNotNull), LParen, .. tokens] => {
+      let columns = []
+      let tokens = loop tokens {
+        [Identifier(col), Comma, .. tokens] => {
+          columns.push(col)
+          continue tokens
+        }
+        [Identifier(col), RParen, .. tokens] => {
+          columns.push(col)
+          break tokens
+        }
+        [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected column name in FORCE_NOT_NULL")
+        [] => raise InternalBug("parse_copy_options: unexpected end in FORCE_NOT_NULL")
+      }
+      options.push(CopyOption::ForceNotNull(columns))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(ForceNull), LParen, .. tokens] => {
+      let columns = []
+      let tokens = loop tokens {
+        [Identifier(col), Comma, .. tokens] => {
+          columns.push(col)
+          continue tokens
+        }
+        [Identifier(col), RParen, .. tokens] => {
+          columns.push(col)
+          break tokens
+        }
+        [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected column name in FORCE_NULL")
+        [] => raise InternalBug("parse_copy_options: unexpected end in FORCE_NULL")
+      }
+      options.push(CopyOption::ForceNull(columns))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [Keyword(Encoding), StringLiteral(encoding), .. tokens] => {
+      options.push(CopyOption::Encoding(encoding))
+      match tokens {
+        [Comma, .. tokens] => continue tokens
+        _ => continue tokens
+      }
+    }
+    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected COPY option")
+    [] => raise InternalBug("parse_copy_options: unexpected end of tokens")
+  }
+  
+  (options, tokens)
+}
+
+///|
 fn Parser::parse_use_statement(
   self : Parser,
   tokens : ArrayView[Token],
@@ -465,6 +692,125 @@ test "Parse USE database statement with backtick quoted name" {
   inspect(
     stmt,
     content="USE `my database`;",
+  )
+}
+
+///|
+test "Parse COPY table TO file" {
+  let tokens = [
+    Keyword(Copy),
+    Token::Identifier("users"),
+    Keyword(To),
+    Token::StringLiteral("/tmp/users.csv"),
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="COPY users TO '/tmp/users.csv';",
+  )
+}
+
+///|
+test "Parse COPY table FROM file with CSV format" {
+  let tokens = [
+    Keyword(Copy),
+    Token::Identifier("products"),
+    Keyword(From),
+    Token::StringLiteral("/data/products.csv"),
+    Token::LParen,
+    Keyword(Format),
+    Token::Identifier("csv"),
+    Token::Comma,
+    Keyword(Header),
+    Token::RParen,
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="COPY products FROM '/data/products.csv' (FORMAT CSV, HEADER);",
+  )
+}
+
+///|
+test "Parse COPY table with column list TO STDOUT" {
+  let tokens = [
+    Keyword(Copy),
+    Token::Identifier("orders"),
+    Token::LParen,
+    Token::Identifier("id"),
+    Token::Comma,
+    Token::Identifier("amount"),
+    Token::RParen,
+    Keyword(To),
+    Keyword(Stdout),
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="COPY orders (id, amount) TO STDOUT;",
+  )
+}
+
+///|
+test "Parse COPY query TO file with options" {
+  let tokens = [
+    Keyword(Copy),
+    Token::LParen,
+    Keyword(Select),
+    Token::Mul,
+    Keyword(From),
+    Token::Identifier("customers"),
+    Token::RParen,
+    Keyword(To),
+    Token::StringLiteral("/tmp/customers.csv"),
+    Token::LParen,
+    Keyword(Format),
+    Token::Identifier("csv"),
+    Token::Comma,
+    Token::Identifier("delimiter"),
+    Token::StringLiteral(","),
+    Token::Comma,
+    Keyword(Null),
+    Token::StringLiteral(""),
+    Token::RParen,
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="COPY (\n  SELECT\n    *\n  FROM\n    customers\n) TO '/tmp/customers.csv' (FORMAT CSV, DELIMITER ',', NULL '');",
+  )
+}
+
+///|
+test "Parse COPY FROM STDIN with comprehensive options" {
+  let tokens = [
+    Keyword(Copy),
+    Token::Identifier("employees"),
+    Keyword(From),
+    Keyword(Stdin),
+    Token::LParen,
+    Keyword(Format),
+    Token::Identifier("csv"),
+    Token::Comma,
+    Token::Identifier("quote"),
+    Token::StringLiteral("\""),
+    Token::Comma,
+    Token::Identifier("escape"),
+    Token::StringLiteral("\\"),
+    Token::Comma,
+    Keyword(ForceQuote),
+    Token::Mul,
+    Token::RParen,
+    Token::Semicolon,
+  ]
+  let stmt = parse(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content="COPY employees FROM STDIN (FORMAT CSV, QUOTE '\"', ESCAPE '\\', FORCE_QUOTE *);",
   )
 }
 
