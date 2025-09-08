@@ -2119,8 +2119,8 @@ pub impl @pp.Pretty for SetAssignment with pretty(self) {
 pub enum OnInsert {
   /// ON DUPLICATE KEY UPDATE (MySQL when the key already exists, then execute an update instead)
   DuplicateKeyUpdate(Array[Assignment])
-  /// ON CONFLICT is a PostgreSQL and SQLite extension (future implementation)
-  // OnConflict(OnConflict)
+  /// ON CONFLICT clause (PostgreSQL and SQLite extension)
+  OnConflict(OnConflictClause)
 } derive(Eq, Show)
 
 ///|
@@ -2129,6 +2129,77 @@ pub impl @pp.Pretty for OnInsert with pretty(self) {
     OnInsert::DuplicateKeyUpdate(assignments) =>
       @pp.text("ON DUPLICATE KEY UPDATE ") +
       @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
+    OnInsert::OnConflict(conflict_clause) =>
+      @pp.text("ON CONFLICT ") + conflict_clause.pretty()
+  }
+}
+
+///|
+/// PostgreSQL ON CONFLICT clause for advanced conflict resolution
+/// Syntax: ON CONFLICT [ conflict_target ] conflict_action
+pub struct OnConflictClause {
+  /// Optional conflict target (column names, index expression, or constraint name)
+  conflict_target : ConflictTarget?
+  /// Action to take when conflict occurs
+  conflict_action : ConflictAction
+} derive(Eq, Show)
+
+///|
+/// Conflict target specification
+pub enum ConflictTarget {
+  /// ON CONFLICT (column1, column2, ...)
+  Columns(Array[String])
+  /// ON CONFLICT ON CONSTRAINT constraint_name
+  OnConstraint(String)
+  /// ON CONFLICT (expression) WHERE condition
+  OnExpression(Expr, Expr?)  // expression, optional WHERE condition
+} derive(Eq, Show)
+
+///|
+/// Action to take when conflict occurs
+pub enum ConflictAction {
+  /// DO NOTHING
+  DoNothing
+  /// DO UPDATE SET assignments [WHERE condition]
+  DoUpdate(Array[Assignment], Expr?)  // assignments, optional WHERE condition
+} derive(Eq, Show)
+
+///|
+pub impl @pp.Pretty for OnConflictClause with pretty(self) {
+  (match self.conflict_target {
+    Some(target) => target.pretty() + @pp.space
+    None => @pp.empty
+  }) +
+  self.conflict_action.pretty()
+}
+
+///|
+pub impl @pp.Pretty for ConflictTarget with pretty(self) {
+  match self {
+    ConflictTarget::Columns(columns) =>
+      @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.text)))
+    ConflictTarget::OnConstraint(constraint_name) =>
+      @pp.text("ON CONSTRAINT ") + @pp.text(constraint_name)
+    ConflictTarget::OnExpression(expr, where_condition) =>
+      @pp.parens(expr.pretty()) +
+      (match where_condition {
+        Some(condition) => @pp.text(" WHERE ") + condition.pretty()
+        None => @pp.empty
+      })
+  }
+}
+
+///|
+pub impl @pp.Pretty for ConflictAction with pretty(self) {
+  match self {
+    ConflictAction::DoNothing => @pp.text("DO NOTHING")
+    ConflictAction::DoUpdate(assignments, where_condition) =>
+      @pp.text("DO UPDATE SET ") +
+      @pp.separate(@pp.text(", "), assignments.map(@pp.pretty)) +
+      (match where_condition {
+        Some(condition) => @pp.text(" WHERE ") + condition.pretty()
+        None => @pp.empty
+      })
   }
 }
 

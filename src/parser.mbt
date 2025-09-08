@@ -431,3 +431,111 @@ fn Parser::parse_duplicate_key_assignments(
   }
   (assignments, tokens)
 }
+
+///|
+fn Parser::parse_on_conflict_clause(
+  self : Parser,
+  tokens : ArrayView[Token],
+) -> ParserResult[OnConflictClause] raise ParserError {
+  // Parse optional conflict target
+  let (conflict_target, tokens) = match tokens {
+    [LParen, .. tokens] => {
+      // Parse column list or expression
+      let (first_expr, tokens) = self.parse_expr(tokens)
+      
+      // Check if it's a simple column list or expression
+      match tokens {
+        [Comma, .. tokens] => {
+          // It's a column list: (col1, col2, ...)
+          let columns = []
+          // Extract column name from first expression if it's an identifier
+          match first_expr {
+            Expr::Identifier(name) => columns.push(name)
+            _ => raise UnexpectedTokenMessageError(tokens[0], "expected column name in conflict target")
+          }
+          
+          let tokens = loop tokens {
+            [Identifier(col), Comma, .. tokens] => {
+              columns.push(col)
+              continue tokens
+            }
+            [Identifier(col), RParen, .. tokens] => {
+              columns.push(col)
+              break tokens
+            }
+            [token, ..] => raise UnexpectedTokenMessageError(token, "expected column name")
+            [] => raise InternalBug("parse_on_conflict_clause: unexpected end in column list")
+          }
+          
+          // Check for optional WHERE condition after parentheses
+          let (where_condition, tokens) = match tokens {
+            [Keyword(Where), .. tokens] => {
+              let (condition, tokens) = self.parse_expr(tokens)
+              (Some(condition), tokens)
+            }
+            _ => (None, tokens)
+          }
+          
+          // For multiple columns, use Columns variant if no WHERE condition, otherwise OnExpression
+          match where_condition {
+            None => (Some(ConflictTarget::Columns(columns)), tokens)
+            Some(_condition) => (Some(ConflictTarget::OnExpression(Expr::CompoundIdentifier(columns), where_condition)), tokens)
+          }
+        }
+        [RParen, .. tokens] => {
+          // Single expression or column
+          
+          // Check for optional WHERE condition after parentheses
+          let (where_condition, tokens) = match tokens {
+            [Keyword(Where), .. tokens] => {
+              let (condition, tokens) = self.parse_expr(tokens)
+              (Some(condition), tokens)
+            }
+            _ => (None, tokens)
+          }
+          
+          match first_expr {
+            Expr::Identifier(name) => {
+              // Single column case
+              match where_condition {
+                None => (Some(ConflictTarget::Columns([name])), tokens)
+                Some(_) => (Some(ConflictTarget::OnExpression(first_expr, where_condition)), tokens)
+              }
+            }
+            _ => 
+              (Some(ConflictTarget::OnExpression(first_expr, where_condition)), tokens)
+          }
+        }
+        [token, ..] => raise UnexpectedTokenError(token, RParen)
+        [] => raise InternalBug("parse_on_conflict_clause: unexpected end after expression")
+      }
+    }
+    [Keyword(On), Keyword(Constraint), Identifier(constraint_name), .. tokens] => {
+      (Some(ConflictTarget::OnConstraint(constraint_name)), tokens)
+    }
+    _ => (None, tokens)
+  }
+  
+  // Parse conflict action (DO NOTHING or DO UPDATE SET ...)
+  let (conflict_action, tokens) = match tokens {
+    [Keyword(Do), Keyword(Nothing), .. tokens] => 
+      (ConflictAction::DoNothing, tokens)
+    [Keyword(Do), Keyword(Update), Keyword(Set), .. tokens] => {
+      let (assignments, tokens) = self.parse_duplicate_key_assignments(tokens)
+      
+      // Parse optional WHERE clause for DO UPDATE
+      let (where_condition, tokens) = match tokens {
+        [Keyword(Where), .. tokens] => {
+          let (condition, tokens) = self.parse_expr(tokens)
+          (Some(condition), tokens)
+        }
+        _ => (None, tokens)
+      }
+      (ConflictAction::DoUpdate(assignments, where_condition), tokens)
+    }
+    [token, ..] => raise UnexpectedTokenMessageError(token, "expected DO NOTHING or DO UPDATE SET")
+    [] => raise InternalBug("parse_on_conflict_clause: expected conflict action")
+  }
+  
+  ({ conflict_target, conflict_action }, tokens)
+}

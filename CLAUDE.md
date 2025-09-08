@@ -1,0 +1,1 @@
+- Always commit your work after you finished some features and `moon test` passed.

@@ -133,6 +133,10 @@ pub(all) enum Keyword {
   Event
   Trigger
   Duplicate
+  Conflict
+  Do
+  Nothing
+  Constraint
   Array
   With
   Begin

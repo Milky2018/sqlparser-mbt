@@ -1944,11 +1944,15 @@ fn Parser::parse_insert_statement(
     [] => raise InternalBug("parse_insert_statement: unexpected end of tokens")
   }
 
-  // Parse optional ON DUPLICATE KEY UPDATE clause
+  // Parse optional ON DUPLICATE KEY UPDATE or ON CONFLICT clause
   let (on_insert, tokens) = match tokens {
     [Keyword(On), Keyword(Duplicate), Keyword(Key), Keyword(Update), .. tokens] => {
       let (assignments, tokens) = self.parse_duplicate_key_assignments(tokens)
       (Some(OnInsert::DuplicateKeyUpdate(assignments)), tokens)
+    }
+    [Keyword(On), Keyword(Conflict), .. tokens] => {
+      let (on_conflict_clause, tokens) = self.parse_on_conflict_clause(tokens)
+      (Some(OnInsert::OnConflict(on_conflict_clause)), tokens)
     }
     _ => (None, tokens)
   }
@@ -2005,6 +2009,79 @@ test "Insert with schema" {
       #|  *
       #|FROM
       #|  another_schema.students;
+    ),
+  )
+}
+
+///|
+/// PostgreSQL ON CONFLICT Tests
+test "INSERT with ON CONFLICT DO NOTHING" {
+  let tokens = "INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT DO NOTHING;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT DO NOTHING;
+    ),
+  )
+}
+
+///|
+test "INSERT with ON CONFLICT (column) DO NOTHING" {
+  let tokens = "INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT (email) DO NOTHING;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT (email) DO NOTHING;
+    ),
+  )
+}
+
+///|
+test "INSERT with ON CONFLICT (multiple columns) DO UPDATE" {
+  let tokens = "INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT (id, email) DO UPDATE SET name = EXCLUDED.name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT (id, email) DO UPDATE SET name = excluded.name;
+    ),
+  )
+}
+
+///|
+test "INSERT with ON CONFLICT ON CONSTRAINT" {
+  let tokens = "INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT ON CONSTRAINT users_email_key DO UPDATE SET name = EXCLUDED.name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT ON CONSTRAINT users_email_key DO UPDATE SET name = excluded.name;
+    ),
+  )
+}
+
+///|
+test "INSERT with ON CONFLICT DO UPDATE with WHERE" {
+  let tokens = "INSERT INTO users (id, name, email, active) VALUES (1, 'John', 'john@example.com', true) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, active = EXCLUDED.active WHERE users.created_at < NOW();"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email, active) VALUES (1, 'John', 'john@example.com', TRUE) ON CONFLICT (email) DO UPDATE SET name = excluded.name, active = excluded.active WHERE users.created_at < now();
+    ),
+  )
+}
+
+///|
+test "INSERT with ON CONFLICT (expression) WHERE condition" {
+  let tokens = "INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT (LOWER(email)) WHERE active = true DO UPDATE SET name = EXCLUDED.name;"
+  let stmt = parse_sql(tokens)[0] |> pretty_print
+  inspect(
+    stmt,
+    content=(
+      #|INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com') ON CONFLICT (lower(email)) WHERE active = TRUE DO UPDATE SET name = excluded.name;
     ),
   )
 }
