@@ -6,7 +6,7 @@ pub suberror SqlParserError {
 
 ///|
 pub fn parse_sql(
-  dialect~ : &Dialect = MySQL::{  },
+  dialect? : &Dialect = MySQL::{  },
   input : String,
 ) -> Statements raise SqlParserError {
   let tokens = tokenize(dialect~, input) catch {

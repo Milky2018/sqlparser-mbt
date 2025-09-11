@@ -7,24 +7,28 @@ fn Parser::parse_begin_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[BeginStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Begin))
-  
+
   // Parse optional WORK or TRANSACTION keywords
   let mut work = false
   let mut transaction = false
-  
   let tokens = match tokens {
-    [Keyword(Transaction), .. tokens] => { transaction = true; tokens }
-    [Keyword(Work), .. tokens] => { 
+    [Keyword(Transaction), .. tokens] => {
+      transaction = true
+      tokens
+    }
+    [Keyword(Work), .. tokens] => {
       work = true
       // WORK can be followed by TRANSACTION
       match tokens {
-        [Keyword(Transaction), .. tokens] => { transaction = true; tokens }
+        [Keyword(Transaction), .. tokens] => {
+          transaction = true
+          tokens
+        }
         _ => tokens
       }
     }
     _ => tokens
   }
-  
   ({ work, transaction }, tokens)
 }
 
@@ -35,7 +39,7 @@ fn Parser::parse_start_transaction_statement(
 ) -> ParserResult[BeginStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Start))
   let tokens = self.expect_token(tokens, Keyword(Transaction))
-  
+
   // START TRANSACTION is equivalent to BEGIN TRANSACTION
   ({ work: false, transaction: true }, tokens)
 }
@@ -46,24 +50,28 @@ fn Parser::parse_commit_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[CommitStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Commit))
-  
+
   // Parse optional WORK or TRANSACTION keywords
   let mut work = false
   let mut transaction = false
-  
   let tokens = match tokens {
-    [Keyword(Transaction), .. tokens] => { transaction = true; tokens }
-    [Keyword(Work), .. tokens] => { 
+    [Keyword(Transaction), .. tokens] => {
+      transaction = true
+      tokens
+    }
+    [Keyword(Work), .. tokens] => {
       work = true
       // WORK can be followed by TRANSACTION
       match tokens {
-        [Keyword(Transaction), .. tokens] => { transaction = true; tokens }
+        [Keyword(Transaction), .. tokens] => {
+          transaction = true
+          tokens
+        }
         _ => tokens
       }
     }
     _ => tokens
   }
-  
   ({ work, transaction }, tokens)
 }
 
@@ -73,25 +81,30 @@ fn Parser::parse_rollback_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[RollbackStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Rollback))
-  
+
   // Parse optional WORK or TRANSACTION keywords
   let mut work = false
   let mut transaction = false
   let mut savepoint : String? = None
-  
   let tokens = match tokens {
-    [Keyword(Transaction), .. tokens] => { transaction = true; tokens }
-    [Keyword(Work), .. tokens] => { 
+    [Keyword(Transaction), .. tokens] => {
+      transaction = true
+      tokens
+    }
+    [Keyword(Work), .. tokens] => {
       work = true
       // WORK can be followed by TRANSACTION
       match tokens {
-        [Keyword(Transaction), .. tokens] => { transaction = true; tokens }
+        [Keyword(Transaction), .. tokens] => {
+          transaction = true
+          tokens
+        }
         _ => tokens
       }
     }
     _ => tokens
   }
-  
+
   // Parse optional TO [SAVEPOINT] savepoint_name
   let tokens = match tokens {
     [Keyword(To), Keyword(Savepoint), Identifier(name), .. tokens] => {
@@ -104,7 +117,6 @@ fn Parser::parse_rollback_statement(
     }
     _ => tokens
   }
-  
   ({ work, transaction, savepoint }, tokens)
 }
 
@@ -114,13 +126,13 @@ fn Parser::parse_savepoint_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[SavepointStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Savepoint))
-  
   let (name, tokens) = match tokens {
     [Identifier(name), .. tokens] => (name, tokens)
-    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected savepoint name")
-    [] => raise InternalBug("parse_savepoint_statement: unexpected end of tokens")
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected savepoint name")
+    [] =>
+      raise InternalBug("parse_savepoint_statement: unexpected end of tokens")
   }
-  
   ({ name, }, tokens)
 }
 
@@ -130,20 +142,25 @@ fn Parser::parse_release_savepoint_statement(
   tokens : ArrayView[Token],
 ) -> ParserResult[ReleaseSavepointStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Release))
-  
+
   // Parse optional SAVEPOINT keyword
   let mut savepoint_keyword = false
   let tokens = match tokens {
-    [Keyword(Savepoint), .. tokens] => { savepoint_keyword = true; tokens }
+    [Keyword(Savepoint), .. tokens] => {
+      savepoint_keyword = true
+      tokens
+    }
     _ => tokens
   }
-  
   let (name, tokens) = match tokens {
     [Identifier(name), .. tokens] => (name, tokens)
-    [token, .. _tokens] => raise UnexpectedTokenMessageError(token, "expected savepoint name")
-    [] => raise InternalBug("parse_release_savepoint_statement: unexpected end of tokens")
+    [token, .. _tokens] =>
+      raise UnexpectedTokenMessageError(token, "expected savepoint name")
+    [] =>
+      raise InternalBug(
+        "parse_release_savepoint_statement: unexpected end of tokens",
+      )
   }
-  
   ({ savepoint_keyword, name }, tokens)
 }
 
@@ -161,6 +178,7 @@ test "BEGIN statement" {
   )
 }
 
+///|
 test "BEGIN WORK statement" {
   let tokens = "BEGIN WORK;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -172,6 +190,7 @@ test "BEGIN WORK statement" {
   )
 }
 
+///|
 test "BEGIN TRANSACTION statement" {
   let tokens = "BEGIN TRANSACTION;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -183,6 +202,7 @@ test "BEGIN TRANSACTION statement" {
   )
 }
 
+///|
 test "START TRANSACTION statement" {
   let tokens = "START TRANSACTION;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -194,6 +214,7 @@ test "START TRANSACTION statement" {
   )
 }
 
+///|
 test "COMMIT statement" {
   let tokens = "COMMIT;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -205,6 +226,7 @@ test "COMMIT statement" {
   )
 }
 
+///|
 test "COMMIT WORK statement" {
   let tokens = "COMMIT WORK;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -216,6 +238,7 @@ test "COMMIT WORK statement" {
   )
 }
 
+///|
 test "ROLLBACK statement" {
   let tokens = "ROLLBACK;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -227,6 +250,7 @@ test "ROLLBACK statement" {
   )
 }
 
+///|
 test "ROLLBACK TO SAVEPOINT statement" {
   let tokens = "ROLLBACK TO SAVEPOINT sp1;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -238,6 +262,7 @@ test "ROLLBACK TO SAVEPOINT statement" {
   )
 }
 
+///|
 test "SAVEPOINT statement" {
   let tokens = "SAVEPOINT sp1;"
   let stmt = parse_sql(tokens)[0] |> pretty_print
@@ -249,6 +274,7 @@ test "SAVEPOINT statement" {
   )
 }
 
+///|
 test "RELEASE SAVEPOINT statement" {
   let tokens = "RELEASE SAVEPOINT sp1;"
   let stmt = parse_sql(tokens)[0] |> pretty_print

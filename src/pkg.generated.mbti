@@ -1,0 +1,1402 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Milky2018/sqlparser"
+
+import(
+  "Yoorkin/prettyprinter"
+)
+
+// Values
+fn parse(ArrayView[Token], dialect? : &Dialect) -> Array[Statement] raise ParserError
+
+fn parse_sql(dialect? : &Dialect, String) -> Statements raise SqlParserError
+
+fn[T : @prettyprinter.Pretty] pretty_print(T) -> String
+
+fn[T : Show] structural_print(T) -> String
+
+fn tokenize(dialect? : &Dialect, String) -> Array[Token] raise LexerError
+
+// Errors
+type LexerError
+impl Show for LexerError
+
+type ParserError
+impl Show for ParserError
+
+pub suberror SqlParserError {
+  LexerError(LexerError)
+  ParserError(ParserError)
+}
+impl Show for SqlParserError
+
+// Types and methods
+pub(all) struct ANSI {
+}
+impl Dialect for ANSI
+
+pub enum AccessExpr {
+  Dot(Expr)
+  Subscript(Subscript)
+}
+impl @prettyprinter.Pretty for AccessExpr
+impl Eq for AccessExpr
+impl Show for AccessExpr
+
+pub enum AlterIndexOperation {
+  RenameTo(String)
+  SetTablespace(String)
+  Reset(Array[String])
+  Set(Array[IndexParameter])
+}
+impl @prettyprinter.Pretty for AlterIndexOperation
+impl Eq for AlterIndexOperation
+impl Show for AlterIndexOperation
+
+pub struct AlterIndexStmt {
+  name : String
+  if_exists : Bool
+  operation : AlterIndexOperation
+}
+impl @prettyprinter.Pretty for AlterIndexStmt
+impl Eq for AlterIndexStmt
+impl Show for AlterIndexStmt
+
+pub enum AlterTableOperation {
+  DropColumn(String, Bool)
+}
+impl @prettyprinter.Pretty for AlterTableOperation
+impl Eq for AlterTableOperation
+impl Show for AlterTableOperation
+
+pub struct AlterTableStmt {
+  table_name : ObjectName
+  if_exists : Bool
+  operation : AlterTableOperation
+}
+impl @prettyprinter.Pretty for AlterTableStmt
+impl Eq for AlterTableStmt
+impl Show for AlterTableStmt
+
+pub struct ArrayExpr {
+  elem : Array[Expr]
+  named : Bool
+}
+impl @prettyprinter.Pretty for ArrayExpr
+impl Eq for ArrayExpr
+impl Show for ArrayExpr
+
+pub struct Assignment {
+  column : String
+  value : Expr
+}
+impl @prettyprinter.Pretty for Assignment
+impl Eq for Assignment
+impl Show for Assignment
+
+pub struct BeginStmt {
+  work : Bool
+  transaction : Bool
+}
+impl @prettyprinter.Pretty for BeginStmt
+impl Eq for BeginStmt
+impl Show for BeginStmt
+
+pub(all) struct BigQuery {
+}
+impl Dialect for BigQuery
+
+pub enum BinaryOperator {
+  Eq
+  Neq
+  Lt
+  Gt
+  LtEq
+  GtEq
+  Spaceship
+  Plus
+  Minus
+  Mul
+  Div
+  IntegerDiv
+  Mod
+  And
+  Or
+  JsonExtract
+  JsonExtractText
+  JsonExtractPath
+  JsonExtractPathText
+  JsonContains
+  JsonContainedIn
+}
+fn BinaryOperator::get_precedence(Self) -> Precedence
+impl @prettyprinter.Pretty for BinaryOperator
+impl Eq for BinaryOperator
+impl Show for BinaryOperator
+
+pub struct CaseExpr {
+  operand : Expr?
+  when_then_clauses : Array[(Expr, Expr)]
+  else_expr : Expr?
+}
+impl @prettyprinter.Pretty for CaseExpr
+impl Eq for CaseExpr
+impl Show for CaseExpr
+
+pub(all) struct ClickHouse {
+}
+impl Dialect for ClickHouse
+
+pub struct ColumnDef {
+  name : String
+  data_type : DataType
+  options : Array[ColumnDefOption]
+}
+impl @prettyprinter.Pretty for ColumnDef
+impl Eq for ColumnDef
+impl Show for ColumnDef
+
+pub enum ColumnDefOption {
+  NotNull
+  Unique
+  Default(Expr)
+  PrimaryKey
+}
+impl @prettyprinter.Pretty for ColumnDefOption
+impl Eq for ColumnDefOption
+impl Show for ColumnDefOption
+
+pub struct CommitStmt {
+  work : Bool
+  transaction : Bool
+}
+impl @prettyprinter.Pretty for CommitStmt
+impl Eq for CommitStmt
+impl Show for CommitStmt
+
+pub enum ConflictAction {
+  DoNothing
+  DoUpdate(Array[Assignment], Expr?)
+}
+impl @prettyprinter.Pretty for ConflictAction
+impl Eq for ConflictAction
+impl Show for ConflictAction
+
+pub enum ConflictTarget {
+  Columns(Array[String])
+  OnConstraint(String)
+  OnExpression(Expr, Expr?)
+}
+impl @prettyprinter.Pretty for ConflictTarget
+impl Eq for ConflictTarget
+impl Show for ConflictTarget
+
+pub enum CopyDirection {
+  To
+  From
+}
+impl @prettyprinter.Pretty for CopyDirection
+impl Eq for CopyDirection
+impl Show for CopyDirection
+
+pub enum CopyForceQuote {
+  All
+  Columns(Array[String])
+}
+impl @prettyprinter.Pretty for CopyForceQuote
+impl Eq for CopyForceQuote
+impl Show for CopyForceQuote
+
+pub enum CopyFormat {
+  Csv
+  Text
+  Binary
+}
+impl @prettyprinter.Pretty for CopyFormat
+impl Eq for CopyFormat
+impl Show for CopyFormat
+
+pub enum CopyOption {
+  Format(CopyFormat)
+  Delimiter(String)
+  Null(String)
+  Header(Bool?)
+  Quote(String)
+  Escape(String)
+  ForceQuote(CopyForceQuote)
+  ForceNotNull(Array[String])
+  ForceNull(Array[String])
+  Encoding(String)
+}
+impl @prettyprinter.Pretty for CopyOption
+impl Eq for CopyOption
+impl Show for CopyOption
+
+pub enum CopySource {
+  Table(ObjectName, Array[String]?)
+  Query(QueryStmt)
+}
+impl @prettyprinter.Pretty for CopySource
+impl Eq for CopySource
+impl Show for CopySource
+
+pub struct CopyStmt {
+  source : CopySource
+  direction : CopyDirection
+  target : CopyTarget
+  format_options : Array[CopyOption]
+}
+impl @prettyprinter.Pretty for CopyStmt
+impl Eq for CopyStmt
+impl Show for CopyStmt
+
+pub enum CopyTarget {
+  File(String)
+  Stdin
+  Stdout
+  Program(String)
+}
+impl @prettyprinter.Pretty for CopyTarget
+impl Eq for CopyTarget
+impl Show for CopyTarget
+
+pub struct CreateDatabaseStmt {
+  name : String
+  if_not_exists : Bool
+  character_set : String?
+  collate : String?
+}
+impl @prettyprinter.Pretty for CreateDatabaseStmt
+impl Eq for CreateDatabaseStmt
+impl Show for CreateDatabaseStmt
+
+pub struct CreateFunctionStmt {
+  name : String
+  parameters : Array[FunctionParameter]
+  return_type : DataType?
+  language : String?
+  body : String?
+  deterministic : Bool
+  if_not_exists : Bool
+}
+impl @prettyprinter.Pretty for CreateFunctionStmt
+impl Eq for CreateFunctionStmt
+impl Show for CreateFunctionStmt
+
+pub struct CreateIndexStmt {
+  unique : Bool
+  concurrently : Bool
+  if_not_exists : Bool
+  name : String
+  table_name : ObjectName
+  index_method : IndexMethod?
+  columns : Array[IndexColumn]
+  where_clause : Expr?
+}
+impl @prettyprinter.Pretty for CreateIndexStmt
+impl Eq for CreateIndexStmt
+impl Show for CreateIndexStmt
+
+pub struct CreateProcedureStmt {
+  name : String
+  parameters : Array[FunctionParameter]
+  language : String?
+  body : String?
+  if_not_exists : Bool
+}
+impl @prettyprinter.Pretty for CreateProcedureStmt
+impl Eq for CreateProcedureStmt
+impl Show for CreateProcedureStmt
+
+pub struct CreateSchemaStmt {
+  name : String
+  if_not_exists : Bool
+  authorization : String?
+}
+impl @prettyprinter.Pretty for CreateSchemaStmt
+impl Eq for CreateSchemaStmt
+impl Show for CreateSchemaStmt
+
+pub struct CreateSequenceStmt {
+  name : String
+  if_not_exists : Bool
+  temporary : Bool
+  increment : Int?
+  minvalue : SequenceLimit?
+  maxvalue : SequenceLimit?
+  start_with : Int?
+  cache : Int?
+  cycle : Bool?
+  owned_by : SequenceOwnedBy?
+}
+impl @prettyprinter.Pretty for CreateSequenceStmt
+impl Eq for CreateSequenceStmt
+impl Show for CreateSequenceStmt
+
+pub enum CreateTableDefinition {
+  Columns(Array[ColumnDef], Array[TableConstraint])
+  AsQuery(QueryStmt)
+}
+impl @prettyprinter.Pretty for CreateTableDefinition
+impl Eq for CreateTableDefinition
+impl Show for CreateTableDefinition
+
+pub struct CreateTableStmt {
+  name : String
+  if_not_exists : Bool
+  definition : CreateTableDefinition
+}
+impl @prettyprinter.Pretty for CreateTableStmt
+impl Eq for CreateTableStmt
+impl Show for CreateTableStmt
+
+type CreateViewStmt
+impl @prettyprinter.Pretty for CreateViewStmt
+impl Eq for CreateViewStmt
+impl Show for CreateViewStmt
+
+pub struct Cte {
+  name : String
+  query : QueryStmt
+  columns : Array[String]?
+}
+impl @prettyprinter.Pretty for Cte
+impl Eq for Cte
+impl Show for Cte
+
+pub enum DataType {
+  Integer
+  Smallint
+  Bigint
+  Float(Int?)
+  Real
+  Double
+  Char(Int)
+  Varchar(Int)
+  Text
+  Boolean
+  Timestamp
+  Blob
+}
+impl @prettyprinter.Pretty for DataType
+impl Eq for DataType
+impl Show for DataType
+
+pub enum DatetimeUnit {
+  Year
+  Month
+  Day
+  Hour
+  Minute
+  Second
+}
+impl @prettyprinter.Pretty for DatetimeUnit
+impl Eq for DatetimeUnit
+impl Show for DatetimeUnit
+
+pub struct DeleteStmt {
+  table_name : ObjectName
+  where_clause : Expr?
+}
+impl @prettyprinter.Pretty for DeleteStmt
+impl Eq for DeleteStmt
+impl Show for DeleteStmt
+
+pub struct DropIndexStmt {
+  name : String
+  if_exists : Bool
+  concurrently : Bool
+  table_name : ObjectName?
+}
+impl @prettyprinter.Pretty for DropIndexStmt
+impl Eq for DropIndexStmt
+impl Show for DropIndexStmt
+
+pub struct DropTableStmt {
+  table_name : ObjectName
+  if_exists : Bool
+}
+impl @prettyprinter.Pretty for DropTableStmt
+impl Eq for DropTableStmt
+impl Show for DropTableStmt
+
+pub struct DropViewStmt {
+  name : String
+}
+impl @prettyprinter.Pretty for DropViewStmt
+impl Eq for DropViewStmt
+impl Show for DropViewStmt
+
+pub(all) struct DuckDB {
+}
+impl Dialect for DuckDB
+
+pub enum DuplicateTreatment {
+  Distinct
+  All
+}
+impl @prettyprinter.Pretty for DuplicateTreatment
+impl Eq for DuplicateTreatment
+impl Show for DuplicateTreatment
+
+pub enum Expr {
+  Identifier(String)
+  CompoundIdentifier(Array[String])
+  Literal(Literal)
+  BinaryOperation(Expr, BinaryOperator, Expr)
+  UnaryOperation(UnaryOperator, Expr)
+  FunctionCall(String, DuplicateTreatment?, Array[Expr], Expr?)
+  Wildcard
+  Datetime(String)
+  Interval(String, IntervalQualifier)
+  Like(positive~ : Bool, Expr, Expr)
+  ILike(positive~ : Bool, Expr, Expr)
+  SubQuery(QueryStmt)
+  Exists(positive~ : Bool, QueryStmt)
+  Between(positive~ : Bool, Expr, Expr, Expr)
+  Extract(PrimaryDatetimeField, Expr)
+  Case(CaseExpr)
+  InList(positive~ : Bool, Expr, Array[Expr])
+  InSubQuery(positive~ : Bool, Expr, QueryStmt)
+  Substring(Expr, Expr?, Expr?)
+  PlaceHolder
+  NamedParameter(String)
+  Array(ArrayExpr)
+  CompoundFieldAccess(Expr, Array[AccessExpr])
+  WindowFunction(String, DuplicateTreatment?, Array[Expr], WindowSpec)
+}
+impl @prettyprinter.Pretty for Expr
+impl Eq for Expr
+impl Show for Expr
+
+pub struct FunctionParameter {
+  name : String
+  param_type : DataType
+  mode : ParameterMode?
+}
+impl @prettyprinter.Pretty for FunctionParameter
+impl Eq for FunctionParameter
+impl Show for FunctionParameter
+
+pub(all) struct Generic {
+}
+impl Dialect for Generic
+
+pub struct GrantStmt {
+  privileges : Array[Privilege]
+  objects : Array[ObjectName]
+  grantees : Array[String]
+  with_grant_option : Bool
+}
+impl @prettyprinter.Pretty for GrantStmt
+impl Eq for GrantStmt
+impl Show for GrantStmt
+
+pub struct IndexColumn {
+  name : Expr
+  asc : Bool?
+  nulls_first : Bool?
+}
+impl @prettyprinter.Pretty for IndexColumn
+impl Eq for IndexColumn
+impl Show for IndexColumn
+
+pub enum IndexMethod {
+  Btree
+  Hash
+  Gin
+  Gist
+  Spgist
+  Brin
+}
+impl @prettyprinter.Pretty for IndexMethod
+impl Eq for IndexMethod
+impl Show for IndexMethod
+
+pub struct IndexParameter {
+  name : String
+  value : String
+}
+impl @prettyprinter.Pretty for IndexParameter
+impl Eq for IndexParameter
+impl Show for IndexParameter
+
+pub enum InsertSource {
+  Values(Array[Array[Expr]])
+  Query(QueryStmt)
+}
+impl @prettyprinter.Pretty for InsertSource
+impl Eq for InsertSource
+impl Show for InsertSource
+
+pub struct InsertStmt {
+  table_name : ObjectName
+  columns : Array[String]
+  source : InsertSource
+  or : SqliteOnConflict?
+  on : OnInsert?
+}
+impl @prettyprinter.Pretty for InsertStmt
+impl Eq for InsertStmt
+impl Show for InsertStmt
+
+pub enum IntervalQualifier {
+  Single(PrimaryDatetimeField)
+  Range(PrimaryDatetimeField, PrimaryDatetimeField)
+}
+impl @prettyprinter.Pretty for IntervalQualifier
+impl Eq for IntervalQualifier
+impl Show for IntervalQualifier
+
+pub struct Join {
+  table_ref : TableRef
+  join_operator : JoinOperator
+}
+impl @prettyprinter.Pretty for Join
+impl Eq for Join
+impl Show for Join
+
+pub enum JoinConstraint {
+  On(Expr)
+  Using(Array[String])
+  Non
+}
+impl @prettyprinter.Pretty for JoinConstraint
+impl Eq for JoinConstraint
+impl Show for JoinConstraint
+
+pub enum JoinOperator {
+  Join(JoinConstraint)
+  Left(JoinConstraint)
+  LeftOuter(JoinConstraint)
+  Right(JoinConstraint)
+  RightOuter(JoinConstraint)
+  Full(JoinConstraint)
+  FullOuter(JoinConstraint)
+  Inner(JoinConstraint)
+  Cross
+}
+impl @prettyprinter.Pretty for JoinOperator
+impl Eq for JoinOperator
+impl Show for JoinOperator
+
+pub(all) enum Keyword {
+  Select
+  From
+  Where
+  As
+  Group
+  Order
+  By
+  Asc
+  Desc
+  Nulls
+  First
+  Last
+  Year
+  Month
+  Day
+  Hour
+  Minute
+  Second
+  Date
+  Interval
+  To
+  Like
+  Not
+  ILike
+  Exists
+  Between
+  And
+  Or
+  Extract
+  Filter
+  Case
+  When
+  Matched
+  Target
+  Then
+  Else
+  Having
+  End
+  In
+  Join
+  Left
+  Right
+  Full
+  Outer
+  Inner
+  Cross
+  On
+  Using
+  Limit
+  Offset
+  Create
+  Table
+  Integer
+  Int
+  Smallint
+  Bigint
+  Real
+  Double
+  Precision
+  Char
+  Character
+  Collate
+  Authorization
+  Varchar
+  Varing
+  Text
+  Time
+  Boolean
+  Float
+  Timestamp
+  Blob
+  Null
+  Default
+  Unique
+  View
+  Drop
+  Distinct
+  All
+  Substring
+  For
+  Primary
+  Key
+  Foreign
+  References
+  Check
+  Union
+  Intersect
+  Except
+  Top
+  Insert
+  Into
+  Values
+  Merge
+  If
+  Delete
+  Update
+  Set
+  Replace
+  Rollback
+  Abort
+  Fail
+  Ignore
+  Truncate
+  Alter
+  Column
+  Show
+  Tables
+  Columns
+  Status
+  Databases
+  Database
+  Div
+  Lock
+  Unlock
+  Listen
+  Notify
+  Schemas
+  Schema
+  Variables
+  Processlist
+  Grants
+  Functions
+  Function
+  Extended
+  Global
+  Session
+  Procedure
+  Returns
+  Language
+  Deterministic
+  Event
+  Trigger
+  Duplicate
+  Conflict
+  Do
+  Nothing
+  Constraint
+  Array
+  With
+  Begin
+  Start
+  Transaction
+  Commit
+  Savepoint
+  Release
+  Work
+  Grant
+  Revoke
+  Privileges
+  Usage
+  Use
+  Execute
+  Connect
+  Temporary
+  Temp
+  Option
+  Restrict
+  Cascade
+  Index
+  Copy
+  Format
+  Stdin
+  Stdout
+  Program
+  Header
+  ForceQuote
+  ForceNotNull
+  ForceNull
+  Encoding
+  Load
+  Data
+  Local
+  Infile
+  Fields
+  Lines
+  Terminated
+  Enclosed
+  Escaped
+  Starting
+  Optionally
+  Rename
+  Tablespace
+  Reset
+  Btree
+  Hash
+  Gin
+  Gist
+  Spgist
+  Brin
+  Concurrently
+  Over
+  Window
+  Partition
+  Rows
+  Range
+  Preceding
+  Following
+  Current
+  Unbounded
+  Row
+  Out
+  InOut
+  Sequence
+  Increment
+  Minvalue
+  Maxvalue
+  Cache
+  Cycle
+  Owned
+  No
+}
+impl Eq for Keyword
+impl Show for Keyword
+
+pub enum Literal {
+  Integer(Int)
+  Double(Double)
+  String(String)
+  Boolean(Bool)
+  Null
+}
+impl @prettyprinter.Pretty for Literal
+impl Eq for Literal
+impl Show for Literal
+
+pub enum LoadDataDuplicateHandling {
+  Replace
+  Ignore
+}
+impl @prettyprinter.Pretty for LoadDataDuplicateHandling
+impl Eq for LoadDataDuplicateHandling
+impl Show for LoadDataDuplicateHandling
+
+pub struct LoadDataFieldsOptions {
+  terminated_by : String?
+  enclosed_by : String?
+  optionally_enclosed : Bool
+  escaped_by : String?
+}
+impl @prettyprinter.Pretty for LoadDataFieldsOptions
+impl Eq for LoadDataFieldsOptions
+impl Show for LoadDataFieldsOptions
+
+pub struct LoadDataLinesOptions {
+  starting_by : String?
+  terminated_by : String?
+}
+impl @prettyprinter.Pretty for LoadDataLinesOptions
+impl Eq for LoadDataLinesOptions
+impl Show for LoadDataLinesOptions
+
+pub struct LoadDataStmt {
+  is_local : Bool
+  filename : String
+  duplicate_handling : LoadDataDuplicateHandling?
+  table_name : ObjectName
+  character_set : String?
+  fields_options : LoadDataFieldsOptions?
+  lines_options : LoadDataLinesOptions?
+  ignore_lines : Int?
+  columns : Array[String]?
+  set_assignments : Array[Assignment]?
+}
+impl @prettyprinter.Pretty for LoadDataStmt
+impl Eq for LoadDataStmt
+impl Show for LoadDataStmt
+
+pub enum MergeAction {
+  Insert(Array[String], Array[Expr])
+  Update(Array[Assignment])
+  Delete
+}
+impl @prettyprinter.Pretty for MergeAction
+impl Eq for MergeAction
+impl Show for MergeAction
+
+pub enum MergeMatchType {
+  Matched
+  NotMatched
+}
+impl @prettyprinter.Pretty for MergeMatchType
+impl Eq for MergeMatchType
+impl Show for MergeMatchType
+
+pub enum MergeSource {
+  Table(ObjectName)
+  Query(QueryStmt)
+}
+impl @prettyprinter.Pretty for MergeSource
+impl Eq for MergeSource
+impl Show for MergeSource
+
+pub struct MergeStmt {
+  target_table : ObjectName
+  target_alias : String?
+  source : MergeSource
+  source_alias : String?
+  join_condition : Expr
+  when_clauses : Array[MergeWhenClause]
+}
+impl @prettyprinter.Pretty for MergeStmt
+impl Eq for MergeStmt
+impl Show for MergeStmt
+
+pub struct MergeWhenClause {
+  match_type : MergeMatchType
+  condition : Expr?
+  action : MergeAction
+}
+impl @prettyprinter.Pretty for MergeWhenClause
+impl Eq for MergeWhenClause
+impl Show for MergeWhenClause
+
+pub(all) struct MySQL {
+}
+impl Dialect for MySQL
+
+pub struct ObjectName {
+  parts : Array[String]
+}
+impl @prettyprinter.Pretty for ObjectName
+impl Eq for ObjectName
+impl Show for ObjectName
+
+pub struct OnConflictClause {
+  conflict_target : ConflictTarget?
+  conflict_action : ConflictAction
+}
+impl @prettyprinter.Pretty for OnConflictClause
+impl Eq for OnConflictClause
+impl Show for OnConflictClause
+
+pub enum OnInsert {
+  DuplicateKeyUpdate(Array[Assignment])
+  OnConflict(OnConflictClause)
+}
+impl @prettyprinter.Pretty for OnInsert
+impl Eq for OnInsert
+impl Show for OnInsert
+
+pub struct OrderByExpr {
+  expr : Expr
+  asc : Bool?
+  nulls_first : Bool?
+}
+impl @prettyprinter.Pretty for OrderByExpr
+impl Eq for OrderByExpr
+impl Show for OrderByExpr
+
+pub enum ParameterMode {
+  In
+  Out
+  InOut
+}
+impl @prettyprinter.Pretty for ParameterMode
+impl Eq for ParameterMode
+impl Show for ParameterMode
+
+pub struct Parser {
+  dialect : &Dialect
+}
+
+pub(all) struct Postgres {
+}
+impl Dialect for Postgres
+
+pub(all) enum Precedence {
+  PlusMinus
+  MulDivMod
+  Eq
+  Like
+  And
+  Or
+  Between
+  UnaryNot
+  JsonOperator
+}
+fn Precedence::value(Self) -> Int
+
+type PrimaryDatetimeField
+impl @prettyprinter.Pretty for PrimaryDatetimeField
+impl Eq for PrimaryDatetimeField
+impl Show for PrimaryDatetimeField
+
+pub enum Privilege {
+  Select(Array[String]?)
+  Insert(Array[String]?)
+  Update(Array[String]?)
+  Delete
+  References(Array[String]?)
+  Create
+  Drop
+  Alter
+  Index
+  All
+  Usage
+  Execute
+  Connect
+  Temporary
+}
+impl @prettyprinter.Pretty for Privilege
+impl Eq for Privilege
+impl Show for Privilege
+
+pub enum Projection {
+  Wildcard
+  UnamedExpr(Expr)
+  AliasedExpr(Expr, String)
+}
+impl @prettyprinter.Pretty for Projection
+impl Eq for Projection
+impl Show for Projection
+
+pub struct QueryStmt {
+  with_clause : Array[Cte]?
+  body : SetExpr
+  order_by : Array[OrderByExpr]
+  limit : Expr?
+  offset : Expr?
+}
+impl @prettyprinter.Pretty for QueryStmt
+impl Eq for QueryStmt
+impl Show for QueryStmt
+
+pub(all) struct Redshift {
+}
+impl Dialect for Redshift
+
+pub struct ReleaseSavepointStmt {
+  savepoint_keyword : Bool
+  name : String
+}
+impl @prettyprinter.Pretty for ReleaseSavepointStmt
+impl Eq for ReleaseSavepointStmt
+impl Show for ReleaseSavepointStmt
+
+pub enum RevokeOption {
+  Restrict
+  Cascade
+}
+impl @prettyprinter.Pretty for RevokeOption
+impl Eq for RevokeOption
+impl Show for RevokeOption
+
+pub struct RevokeStmt {
+  grant_option_for : Bool
+  privileges : Array[Privilege]
+  objects : Array[ObjectName]
+  grantees : Array[String]
+  cascade : RevokeOption?
+}
+impl @prettyprinter.Pretty for RevokeStmt
+impl Eq for RevokeStmt
+impl Show for RevokeStmt
+
+pub struct RollbackStmt {
+  work : Bool
+  transaction : Bool
+  savepoint : String?
+}
+impl @prettyprinter.Pretty for RollbackStmt
+impl Eq for RollbackStmt
+impl Show for RollbackStmt
+
+pub(all) struct SQLite {
+}
+impl Dialect for SQLite
+
+pub struct SavepointStmt {
+  name : String
+}
+impl @prettyprinter.Pretty for SavepointStmt
+impl Eq for SavepointStmt
+impl Show for SavepointStmt
+
+type SelectStmt
+impl @prettyprinter.Pretty for SelectStmt
+impl Eq for SelectStmt
+impl Show for SelectStmt
+
+pub enum SequenceLimit {
+  Value(Int)
+  NoLimit
+}
+impl @prettyprinter.Pretty for SequenceLimit
+impl Eq for SequenceLimit
+impl Show for SequenceLimit
+
+pub enum SequenceOwnedBy {
+  Column(ObjectName, String)
+  ByNone
+}
+impl @prettyprinter.Pretty for SequenceOwnedBy
+impl Eq for SequenceOwnedBy
+impl Show for SequenceOwnedBy
+
+pub struct SetAssignment {
+  variable : String
+  value : Expr
+}
+impl @prettyprinter.Pretty for SetAssignment
+impl Eq for SetAssignment
+impl Show for SetAssignment
+
+type SetExpr
+impl Eq for SetExpr
+impl Show for SetExpr
+
+type SetOperator
+impl @prettyprinter.Pretty for SetOperator
+impl Eq for SetOperator
+impl Show for SetOperator
+
+pub enum SetScope {
+  Global
+  Session
+  UserVar
+  Local
+}
+impl Eq for SetScope
+impl Show for SetScope
+
+pub struct SetStmt {
+  scope : SetScope
+  assignments : Array[SetAssignment]
+}
+impl @prettyprinter.Pretty for SetStmt
+impl Eq for SetStmt
+impl Show for SetStmt
+
+pub enum ShowFilter {
+  Like(String)
+  Where(Expr)
+}
+impl @prettyprinter.Pretty for ShowFilter
+impl Eq for ShowFilter
+impl Show for ShowFilter
+
+pub struct ShowStmt {
+  show_type : ShowType
+  object : ObjectName?
+  filter : ShowFilter?
+  extended : Bool
+  full : Bool
+  global_scope : Bool
+}
+impl @prettyprinter.Pretty for ShowStmt
+impl Eq for ShowStmt
+impl Show for ShowStmt
+
+pub enum ShowType {
+  Tables
+  Columns
+  Status
+  Databases
+  Schemas
+  Variables
+  Processlist
+  Grants
+  Functions
+  CreateTable
+  CreateView
+  CreateFunction
+  CreateProcedure
+  CreateEvent
+  CreateTrigger
+}
+impl @prettyprinter.Pretty for ShowType
+impl Eq for ShowType
+impl Show for ShowType
+
+pub(all) struct Snowflake {
+}
+impl Dialect for Snowflake
+
+pub enum SqliteOnConflict {
+  Rollback
+  Abort
+  Fail
+  Ignore
+  Replace
+}
+impl @prettyprinter.Pretty for SqliteOnConflict
+impl Eq for SqliteOnConflict
+impl Show for SqliteOnConflict
+
+pub enum Statement {
+  Query(QueryStmt)
+  CreateTable(CreateTableStmt)
+  CreateView(CreateViewStmt)
+  CreateIndex(CreateIndexStmt)
+  CreateDatabase(CreateDatabaseStmt)
+  CreateSchema(CreateSchemaStmt)
+  CreateFunction(CreateFunctionStmt)
+  CreateProcedure(CreateProcedureStmt)
+  CreateSequence(CreateSequenceStmt)
+  DropView(DropViewStmt)
+  DropTable(DropTableStmt)
+  DropIndex(DropIndexStmt)
+  Insert(InsertStmt)
+  Delete(DeleteStmt)
+  Update(UpdateStmt)
+  Merge(MergeStmt)
+  Truncate(TruncateStmt)
+  AlterTable(AlterTableStmt)
+  AlterIndex(AlterIndexStmt)
+  Show(ShowStmt)
+  Set(SetStmt)
+  Use(UseStmt)
+  Copy(CopyStmt)
+  LoadData(LoadDataStmt)
+  LockTables(Array[ObjectName])
+  UnlockTables
+  Listen(String)
+  Notify(String, String?)
+  Begin(BeginStmt)
+  Commit(CommitStmt)
+  Rollback(RollbackStmt)
+  Savepoint(SavepointStmt)
+  ReleaseSavepoint(ReleaseSavepointStmt)
+  Grant(GrantStmt)
+  Revoke(RevokeStmt)
+}
+impl @prettyprinter.Pretty for Statement
+impl Eq for Statement
+impl Show for Statement
+
+pub struct Statements {
+  stmts : Array[Statement]
+}
+fn Statements::op_get(Self, Int) -> Statement
+impl @prettyprinter.Pretty for Statements
+impl Eq for Statements
+impl Show for Statements
+
+pub enum Subscript {
+  Index(Expr)
+  Slice(Expr?, Expr?, Expr?)
+}
+impl @prettyprinter.Pretty for Subscript
+impl Eq for Subscript
+impl Show for Subscript
+
+pub struct TableAlias {
+  name : String
+  columns : Array[String]
+}
+impl @prettyprinter.Pretty for TableAlias
+impl Eq for TableAlias
+impl Show for TableAlias
+
+pub enum TableConstraint {
+  Unique(Array[OrderByExpr])
+  PrimaryKey(Array[OrderByExpr])
+  ForeignKey(columns~ : Array[OrderByExpr], foreign_table~ : ObjectName, foreign_columns~ : Array[String])
+  Check(Expr)
+}
+impl @prettyprinter.Pretty for TableConstraint
+impl Eq for TableConstraint
+impl Show for TableConstraint
+
+pub enum TableFactor {
+  Column(ObjectName, TableAlias?)
+  SubQuery(QueryStmt, TableAlias?)
+}
+impl @prettyprinter.Pretty for TableFactor
+impl Eq for TableFactor
+impl Show for TableFactor
+
+pub struct TableRef {
+  factor : TableFactor
+  joins : Array[Join]
+}
+impl @prettyprinter.Pretty for TableRef
+impl Eq for TableRef
+impl Show for TableRef
+
+pub(all) enum Token {
+  Keyword(Keyword)
+  Identifier(String)
+  Number(String)
+  StringLiteral(String)
+  Boolean(Bool)
+  Comma
+  Semicolon
+  Colon
+  Eq
+  DoubleEq
+  Neq
+  Lt
+  Gt
+  LtEq
+  GtEq
+  Spaceship
+  Plus
+  Minus
+  Mul
+  Div
+  Mod
+  LBracket
+  RBracket
+  LBrace
+  RBrace
+  LParen
+  RParen
+  Period
+  PlaceHolder
+  JsonExtract
+  JsonExtractText
+  JsonExtractPath
+  JsonExtractPathText
+  JsonContains
+  JsonContainedIn
+  Unknown(Char)
+  Eof
+}
+impl Eq for Token
+impl Show for Token
+
+pub enum Top {
+  Constant(Int)
+  Expr(Expr)
+}
+impl @prettyprinter.Pretty for Top
+impl Eq for Top
+impl Show for Top
+
+pub struct TruncateStmt {
+  table_name : ObjectName
+}
+impl @prettyprinter.Pretty for TruncateStmt
+impl Eq for TruncateStmt
+impl Show for TruncateStmt
+
+pub enum UnaryOperator {
+  Plus
+  Minus
+  Not
+}
+impl @prettyprinter.Pretty for UnaryOperator
+impl Eq for UnaryOperator
+impl Show for UnaryOperator
+
+pub struct UpdateStmt {
+  table_name : ObjectName
+  assignments : Array[Assignment]
+  where_clause : Expr?
+}
+impl @prettyprinter.Pretty for UpdateStmt
+impl Eq for UpdateStmt
+impl Show for UpdateStmt
+
+pub struct UseStmt {
+  database_name : ObjectName
+}
+impl @prettyprinter.Pretty for UseStmt
+impl Eq for UseStmt
+impl Show for UseStmt
+
+pub struct ViewColumnDef {
+  name : String
+}
+impl @prettyprinter.Pretty for ViewColumnDef
+impl Eq for ViewColumnDef
+impl Show for ViewColumnDef
+
+pub enum WindowFrameBound {
+  UnboundedPreceding
+  UnboundedFollowing
+  CurrentRow
+  Preceding(Expr)
+  Following(Expr)
+}
+impl @prettyprinter.Pretty for WindowFrameBound
+impl Eq for WindowFrameBound
+impl Show for WindowFrameBound
+
+pub struct WindowFrameClause {
+  frame_units : WindowFrameUnits
+  frame_start : WindowFrameBound
+  frame_end : WindowFrameBound?
+}
+impl @prettyprinter.Pretty for WindowFrameClause
+impl Eq for WindowFrameClause
+impl Show for WindowFrameClause
+
+pub enum WindowFrameUnits {
+  Rows
+  Range
+}
+impl Eq for WindowFrameUnits
+impl Show for WindowFrameUnits
+
+pub struct WindowSpec {
+  partition_by : Array[Expr]
+  order_by : Array[OrderByExpr]
+  frame_clause : WindowFrameClause?
+}
+impl @prettyprinter.Pretty for WindowSpec
+impl Eq for WindowSpec
+impl Show for WindowSpec
+
+// Type aliases
+
+// Traits
+pub trait Dialect {
+  supports_string_literal_backslash_escape(Self) -> Bool
+  supports_boolean_literals(Self) -> Bool
+  supports_filter_during_aggregation(Self) -> Bool
+  supports_within_after_array_aggregation(Self) -> Bool
+  requires_column_types_in_create_table(Self) -> Bool
+  supports_if_not_exists(Self) -> Bool
+  supports_double_quoted_identifiers(Self) -> Bool
+  supports_array_syntax(Self) -> Bool
+  supports_named_parameters(Self) -> Bool
+  parse_expr(Self, ArrayView[Token]) -> (Expr, ArrayView[Token])? raise ParserError
+  parse_statement(Self, Parser, ArrayView[Token]) -> (Statement, ArrayView[Token])? raise ParserError
+  read_keyword(Self, String) -> Keyword?
+}
+

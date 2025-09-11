@@ -2703,25 +2703,25 @@ fn Parser::parse_merge_statement(
 ) -> ParserResult[MergeStmt] raise ParserError {
   let tokens = self.expect_token(tokens, Keyword(Merge))
   let tokens = self.expect_token(tokens, Keyword(Into))
-  
+
   // Parse target table
   let (target_table, tokens) = self.parse_object_name(tokens)
-  
+
   // Parse optional target alias
   let (target_alias, tokens) = match tokens {
-    [Keyword(As), Token::Identifier(alias_name), .. tokens] => 
+    [Keyword(As), Token::Identifier(alias_name), .. tokens] =>
       (Some(alias_name), tokens)
-    [Token::Identifier(alias_name), .. tokens] if alias_name != "using" => 
+    [Token::Identifier(alias_name), .. tokens] if alias_name != "using" =>
       (Some(alias_name), tokens)
     _ => (None, tokens)
   }
-  
+
   // Parse USING clause
   let tokens = self.expect_token(tokens, Keyword(Using))
-  
+
   // Parse source (table or subquery)
   let (source, tokens) = match tokens {
-    [Token::LParen, .. _] => {
+    [Token::LParen, ..] => {
       let tokens = self.expect_token(tokens, Token::LParen)
       let (query, tokens) = self.parse_query(tokens)
       let tokens = self.expect_token(tokens, Token::RParen)
@@ -2732,20 +2732,20 @@ fn Parser::parse_merge_statement(
       (MergeSource::Table(table_name), tokens)
     }
   }
-  
+
   // Parse optional source alias
   let (source_alias, tokens) = match tokens {
-    [Keyword(As), Token::Identifier(alias_name), .. tokens] => 
+    [Keyword(As), Token::Identifier(alias_name), .. tokens] =>
       (Some(alias_name), tokens)
-    [Token::Identifier(alias_name), .. tokens] if alias_name != "on" => 
+    [Token::Identifier(alias_name), .. tokens] if alias_name != "on" =>
       (Some(alias_name), tokens)
     _ => (None, tokens)
   }
-  
+
   // Parse ON condition
   let tokens = self.expect_token(tokens, Keyword(On))
   let (join_condition, tokens) = self.parse_expr(tokens)
-  
+
   // Parse WHEN clauses
   let when_clauses = []
   let tokens = loop tokens {
@@ -2756,8 +2756,17 @@ fn Parser::parse_merge_statement(
     }
     rest_tokens => break rest_tokens
   }
-  
-  ({ target_table, target_alias, source, source_alias, join_condition, when_clauses }, tokens)
+  (
+    {
+      target_table,
+      target_alias,
+      source,
+      source_alias,
+      join_condition,
+      when_clauses,
+    },
+    tokens,
+  )
 }
 
 ///|
@@ -2768,11 +2777,18 @@ fn Parser::parse_merge_when_clause(
   // Parse MATCHED or NOT MATCHED
   let (match_type, tokens) = match tokens {
     [Keyword(Matched), .. tokens] => (MergeMatchType::Matched, tokens)
-    [Keyword(Not), Keyword(Matched), .. tokens] => (MergeMatchType::NotMatched, tokens)
-    [token, .. _] => raise UnexpectedTokenMessageError(token, "expected MATCHED or NOT MATCHED")
-    [] => raise ParserError::InternalBug("parse_merge_when_clause: unexpected end of tokens")
+    [Keyword(Not), Keyword(Matched), .. tokens] =>
+      (MergeMatchType::NotMatched, tokens)
+    [token, ..] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected MATCHED or NOT MATCHED",
+      )
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_merge_when_clause: unexpected end of tokens",
+      )
   }
-  
+
   // Parse optional AND condition
   let (condition, tokens) = match tokens {
     [Keyword(And), .. tokens] => {
@@ -2781,11 +2797,10 @@ fn Parser::parse_merge_when_clause(
     }
     _ => (None, tokens)
   }
-  
+
   // Parse THEN action
   let tokens = self.expect_token(tokens, Keyword(Then))
   let (action, tokens) = self.parse_merge_action(tokens)
-  
   ({ match_type, condition, action }, tokens)
 }
 
@@ -2809,20 +2824,23 @@ fn Parser::parse_merge_action(
               columns.push(col)
               break tokens
             }
-            [token, .. _] => raise UnexpectedTokenMessageError(token, "expected column name")
-            [] => raise ParserError::InternalBug("parse_merge_action: unexpected end of tokens")
+            [token, ..] =>
+              raise UnexpectedTokenMessageError(token, "expected column name")
+            [] =>
+              raise ParserError::InternalBug(
+                "parse_merge_action: unexpected end of tokens",
+              )
           }
           (columns, tokens)
         }
         _ => ([], tokens)
       }
-      
+
       // Parse VALUES
       let tokens = self.expect_token(tokens, Keyword(Values))
       let tokens = self.expect_token(tokens, Token::LParen)
       let (values, tokens) = self.parse_comma_separated_exprs(tokens)
       let tokens = self.expect_token(tokens, Token::RParen)
-      
       (MergeAction::Insert(columns, values), tokens)
     }
     [Keyword(Update), Keyword(Set), .. tokens] => {
@@ -2839,13 +2857,22 @@ fn Parser::parse_merge_action(
         }
         [token, .. _tokens] =>
           raise UnexpectedTokenMessageError(token, "expected column assignment")
-        [] => raise ParserError::InternalBug("parse_merge_action: unexpected end of tokens")
+        [] =>
+          raise ParserError::InternalBug(
+            "parse_merge_action: unexpected end of tokens",
+          )
       }
       (MergeAction::Update(assignments), tokens)
     }
     [Keyword(Delete), .. tokens] => (MergeAction::Delete, tokens)
-    [token, .. _] => raise UnexpectedTokenMessageError(token, "expected INSERT, UPDATE, or DELETE")
-    [] => raise ParserError::InternalBug("parse_merge_action: unexpected end of tokens")
+    [token, ..] =>
+      raise UnexpectedTokenMessageError(
+        token, "expected INSERT, UPDATE, or DELETE",
+      )
+    [] =>
+      raise ParserError::InternalBug(
+        "parse_merge_action: unexpected end of tokens",
+      )
   }
 }
 

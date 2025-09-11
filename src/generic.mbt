@@ -5,7 +5,9 @@
 pub(all) struct Generic {}
 
 ///|
-pub impl Dialect for Generic with supports_string_literal_backslash_escape(_self) {
+pub impl Dialect for Generic with supports_string_literal_backslash_escape(
+  _self,
+) {
   true
 }
 

@@ -93,10 +93,14 @@ pub impl @pp.Pretty for Statement with pretty(self) {
     Use(stmt) => stmt.pretty()
     Copy(stmt) => stmt.pretty()
     LoadData(stmt) => stmt.pretty()
-    LockTables(tables) => @pp.text("LOCK TABLES ") + @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
+    LockTables(tables) =>
+      @pp.text("LOCK TABLES ") +
+      @pp.separate(@pp.text(", "), tables.map(@pp.pretty))
     UnlockTables => @pp.text("UNLOCK TABLES")
     Listen(channel) => @pp.text("LISTEN ") + @pp.text(channel)
-    Notify(channel, payload) => @pp.text("NOTIFY ") + @pp.text(channel) + 
+    Notify(channel, payload) =>
+      @pp.text("NOTIFY ") +
+      @pp.text(channel) +
       (match payload {
         Some(msg) => @pp.text(", '") + @pp.text(msg) + @pp.text("'")
         None => @pp.empty
@@ -129,7 +133,7 @@ pub struct QueryStmt {
 ///|
 pub impl @pp.Pretty for QueryStmt with pretty(self) {
   (match self.with_clause {
-    Some(ctes) => 
+    Some(ctes) =>
       @pp.text("WITH ") +
       @pp.separate(@pp.text(", ") + @pp.hardline, ctes.map(@pp.pretty)) +
       @pp.hardline
@@ -367,10 +371,10 @@ pub impl @pp.Pretty for Expr with pretty(self) {
         (if dup is Some(dup) { dup.pretty() + @pp.space } else { @pp.empty }) +
         @pp.separate(@pp.text(", "), args.map(@pp.pretty)),
       ) +
-      (if filter is Some(filter) { 
+      (if filter is Some(filter) {
         @pp.text(" FILTER (WHERE ") + filter.pretty() + @pp.text(")")
-      } else { 
-        @pp.empty 
+      } else {
+        @pp.empty
       })
     Expr::Wildcard => @pp.char('*')
     Datetime(s) => @pp.text("DATE '") + @pp.text(s) + @pp.char('\'')
@@ -470,8 +474,8 @@ pub impl @pp.Pretty for Literal with pretty(self) {
 ///|
 /// PostgreSQL array expression
 pub struct ArrayExpr {
-  elem : Array[Expr]  // The list of expressions between brackets
-  named : Bool        // true for ARRAY[..], false for [..]
+  elem : Array[Expr] // The list of expressions between brackets
+  named : Bool // true for ARRAY[..], false for [..]
 } derive(Eq, Show)
 
 ///|
@@ -485,7 +489,7 @@ pub impl @pp.Pretty for ArrayExpr with pretty(self) {
 ///|
 /// Access expression for array indexing, slicing, and field access
 pub enum AccessExpr {
-  Dot(Expr)           // Field access: obj.field
+  Dot(Expr) // Field access: obj.field
   Subscript(Subscript) // Array/map subscript: arr[index] or arr[start:end]
 } derive(Eq, Show)
 
@@ -500,7 +504,7 @@ pub impl @pp.Pretty for AccessExpr with pretty(self) {
 ///|
 /// Subscript expression for array indexing and slicing
 pub enum Subscript {
-  Index(Expr)         // Simple index: arr[1]
+  Index(Expr) // Simple index: arr[1]
   Slice(Expr?, Expr?, Expr?) // Array slice: arr[1:3] (lower, upper, stride)
 } derive(Eq, Show)
 
@@ -508,31 +512,39 @@ pub enum Subscript {
 pub impl @pp.Pretty for Subscript with pretty(self) {
   match self {
     Subscript::Index(index) => @pp.text("[") + index.pretty() + @pp.text("]")
-    Subscript::Slice(lower, upper, stride) => {
+    Subscript::Slice(lower, upper, stride) =>
       @pp.text("[") +
-      (match lower { Some(l) => l.pretty(); None => @pp.empty }) +
+      (match lower {
+        Some(l) => l.pretty()
+        None => @pp.empty
+      }) +
       @pp.text(":") +
-      (match upper { Some(u) => u.pretty(); None => @pp.empty }) +
-      (match stride { Some(s) => @pp.text(":") + s.pretty(); None => @pp.empty }) +
+      (match upper {
+        Some(u) => u.pretty()
+        None => @pp.empty
+      }) +
+      (match stride {
+        Some(s) => @pp.text(":") + s.pretty()
+        None => @pp.empty
+      }) +
       @pp.text("]")
-    }
   }
 }
 
 ///|
 /// Common Table Expression (CTE) for WITH clauses
 pub struct Cte {
-  name : String          // CTE name
-  query : QueryStmt       // CTE query body
-  columns : Array[String]?  // Optional column list: WITH cte(col1, col2) AS (...)
+  name : String // CTE name
+  query : QueryStmt // CTE query body
+  columns : Array[String]? // Optional column list: WITH cte(col1, col2) AS (...)
 } derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for Cte with pretty(self) {
   @pp.text(self.name) +
   (match self.columns {
-    Some(cols) => 
-      @pp.text("(") + 
+    Some(cols) =>
+      @pp.text("(") +
       @pp.separate(@pp.text(", "), cols.map(@pp.text)) +
       @pp.text(")")
     None => @pp.empty
@@ -556,17 +568,17 @@ pub enum BinaryOperator {
   Minus
   Mul
   Div
-  IntegerDiv  // MySQL DIV keyword for integer division
+  IntegerDiv // MySQL DIV keyword for integer division
   Mod
   And
   Or
   // PostgreSQL JSON operators
-  JsonExtract        // ->
-  JsonExtractText    // ->>
-  JsonExtractPath    // #>
+  JsonExtract // ->
+  JsonExtractText // ->>
+  JsonExtractPath // #>
   JsonExtractPathText // #>>
-  JsonContains       // @>
-  JsonContainedIn    // <@
+  JsonContains // @>
+  JsonContainedIn // <@
 } derive(Eq, Show)
 
 ///|
@@ -835,7 +847,8 @@ pub impl @pp.Pretty for DatetimeUnit with pretty(self) {
   }
 }
 
-///| CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
+///|
+/// CASE [operand] WHEN <expr> THEN <expr> [...] [ELSE <expr>] END
 pub struct CaseExpr {
   // CASE [operand]
   operand : Expr?
@@ -874,7 +887,8 @@ pub impl @pp.Pretty for CaseExpr with pretty(self) {
   @pp.text("END")
 }
 
-///| Window function specification: OVER ([PARTITION BY ...] [ORDER BY ...] [frame_clause])
+///|
+/// Window function specification: OVER ([PARTITION BY ...] [ORDER BY ...] [frame_clause])
 pub struct WindowSpec {
   // PARTITION BY <expr>, ...
   partition_by : Array[Expr]
@@ -884,7 +898,8 @@ pub struct WindowSpec {
   frame_clause : WindowFrameClause?
 } derive(Eq, Show)
 
-///| Window frame clause
+///|
+/// Window frame clause
 pub struct WindowFrameClause {
   // ROWS or RANGE
   frame_units : WindowFrameUnits
@@ -893,13 +908,15 @@ pub struct WindowFrameClause {
   frame_end : WindowFrameBound?
 } derive(Eq, Show)
 
-///| Window frame units
+///|
+/// Window frame units
 pub enum WindowFrameUnits {
   Rows
   Range
 } derive(Eq, Show)
 
-///| Window frame bound
+///|
+/// Window frame bound
 pub enum WindowFrameBound {
   UnboundedPreceding
   UnboundedFollowing
@@ -913,20 +930,19 @@ pub impl @pp.Pretty for WindowSpec with pretty(self) {
   let partition_clause = if self.partition_by.is_empty() {
     @pp.empty
   } else {
-    @pp.text("PARTITION BY ") + @pp.separate(@pp.text(", "), self.partition_by.map(@pp.pretty))
+    @pp.text("PARTITION BY ") +
+    @pp.separate(@pp.text(", "), self.partition_by.map(@pp.pretty))
   }
-  
   let order_clause = if self.order_by.is_empty() {
     @pp.empty
   } else {
-    @pp.text("ORDER BY ") + @pp.separate(@pp.text(", "), self.order_by.map(@pp.pretty))
+    @pp.text("ORDER BY ") +
+    @pp.separate(@pp.text(", "), self.order_by.map(@pp.pretty))
   }
-  
   let frame_clause = match self.frame_clause {
     Some(frame) => @pp.space + frame.pretty()
     None => @pp.empty
   }
-  
   let clauses = []
   if !self.partition_by.is_empty() {
     clauses.push(partition_clause)
@@ -934,7 +950,6 @@ pub impl @pp.Pretty for WindowSpec with pretty(self) {
   if !self.order_by.is_empty() {
     clauses.push(order_clause)
   }
-  
   @pp.separate(@pp.space, clauses) + frame_clause
 }
 
@@ -944,13 +959,14 @@ pub impl @pp.Pretty for WindowFrameClause with pretty(self) {
     WindowFrameUnits::Rows => "ROWS"
     WindowFrameUnits::Range => "RANGE"
   }
-  
   match self.frame_end {
-    Some(end_bound) => 
-      @pp.text(units_text) + @pp.text(" BETWEEN ") + 
-      self.frame_start.pretty() + @pp.text(" AND ") + end_bound.pretty()
-    None =>
-      @pp.text(units_text) + @pp.space + self.frame_start.pretty()
+    Some(end_bound) =>
+      @pp.text(units_text) +
+      @pp.text(" BETWEEN ") +
+      self.frame_start.pretty() +
+      @pp.text(" AND ") +
+      end_bound.pretty()
+    None => @pp.text(units_text) + @pp.space + self.frame_start.pretty()
   }
 }
 
@@ -986,11 +1002,7 @@ pub enum CreateTableDefinition {
 ///|
 pub impl @pp.Pretty for CreateTableStmt with pretty(self) {
   @pp.text("CREATE TABLE ") +
-  (if self.if_not_exists {
-    @pp.text("IF NOT EXISTS ")
-  } else {
-    @pp.empty
-  }) +
+  (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
   @pp.text(self.name) +
   @pp.space +
   self.definition.pretty()
@@ -1017,8 +1029,7 @@ pub impl @pp.Pretty for CreateTableDefinition with pretty(self) {
       ) +
       @pp.hardline +
       @pp.text(")")
-    CreateTableDefinition::AsQuery(query) =>
-      @pp.text("AS ") + query.pretty()
+    CreateTableDefinition::AsQuery(query) => @pp.text("AS ") + query.pretty()
   }
 }
 
@@ -1123,7 +1134,8 @@ pub struct ViewColumnDef {
   name : String
 } derive(Eq, Show)
 
-///| CREATE INDEX statement
+///|
+/// CREATE INDEX statement
 pub struct CreateIndexStmt {
   // CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] <index_name>
   unique : Bool
@@ -1140,7 +1152,8 @@ pub struct CreateIndexStmt {
   where_clause : Expr?
 } derive(Eq, Show)
 
-///| Index creation method
+///|
+/// Index creation method
 pub enum IndexMethod {
   Btree
   Hash
@@ -1150,7 +1163,8 @@ pub enum IndexMethod {
   Brin
 } derive(Eq, Show)
 
-///| Index column specification
+///|
+/// Index column specification
 pub struct IndexColumn {
   name : Expr // Can be column name or expression
   asc : Bool? // None = default, Some(true) = ASC, Some(false) = DESC
@@ -1164,8 +1178,10 @@ pub impl @pp.Pretty for CreateIndexStmt with pretty(self) {
   @pp.text(" INDEX") +
   (if self.concurrently { @pp.text(" CONCURRENTLY") } else { @pp.empty }) +
   (if self.if_not_exists { @pp.text(" IF NOT EXISTS") } else { @pp.empty }) +
-  @pp.text(" ") + @pp.text(self.name) +
-  @pp.text(" ON ") + self.table_name.pretty() +
+  @pp.text(" ") +
+  @pp.text(self.name) +
+  @pp.text(" ON ") +
+  self.table_name.pretty() +
   (match self.index_method {
     Some(index_method) => @pp.text(" USING ") + index_method.pretty()
     None => @pp.empty
@@ -1319,9 +1335,7 @@ pub impl @pp.Pretty for CreateFunctionStmt with pretty(self) {
   @pp.text("CREATE FUNCTION ") +
   (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
   @pp.text(self.name) +
-  @pp.parens(
-    @pp.separate(@pp.text(", "), self.parameters.map(@pp.pretty))
-  ) +
+  @pp.parens(@pp.separate(@pp.text(", "), self.parameters.map(@pp.pretty))) +
   (match self.return_type {
     Some(ret_type) => @pp.text(" RETURNS ") + ret_type.pretty()
     None => @pp.empty
@@ -1332,7 +1346,8 @@ pub impl @pp.Pretty for CreateFunctionStmt with pretty(self) {
   }) +
   (if self.deterministic { @pp.text(" DETERMINISTIC") } else { @pp.empty }) +
   (match self.body {
-    Some(body_text) => @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
+    Some(body_text) =>
+      @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
     None => @pp.empty
   })
 }
@@ -1342,15 +1357,14 @@ pub impl @pp.Pretty for CreateProcedureStmt with pretty(self) {
   @pp.text("CREATE PROCEDURE ") +
   (if self.if_not_exists { @pp.text("IF NOT EXISTS ") } else { @pp.empty }) +
   @pp.text(self.name) +
-  @pp.parens(
-    @pp.separate(@pp.text(", "), self.parameters.map(@pp.pretty))
-  ) +
+  @pp.parens(@pp.separate(@pp.text(", "), self.parameters.map(@pp.pretty))) +
   (match self.language {
     Some(lang) => @pp.text(" LANGUAGE ") + @pp.text(lang)
     None => @pp.empty
   }) +
   (match self.body {
-    Some(body_text) => @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
+    Some(body_text) =>
+      @pp.text(" AS ") + @pp.text("'") + @pp.text(body_text) + @pp.text("'")
     None => @pp.empty
   })
 }
@@ -1410,12 +1424,14 @@ pub impl @pp.Pretty for CreateSequenceStmt with pretty(self) {
     None => @pp.empty
   }) +
   (match self.minvalue {
-    Some(SequenceLimit::Value(val)) => @pp.text(" MINVALUE ") + @pp.text(val.to_string())
+    Some(SequenceLimit::Value(val)) =>
+      @pp.text(" MINVALUE ") + @pp.text(val.to_string())
     Some(SequenceLimit::NoLimit) => @pp.text(" NO MINVALUE")
     None => @pp.empty
   }) +
   (match self.maxvalue {
-    Some(SequenceLimit::Value(val)) => @pp.text(" MAXVALUE ") + @pp.text(val.to_string())
+    Some(SequenceLimit::Value(val)) =>
+      @pp.text(" MAXVALUE ") + @pp.text(val.to_string())
     Some(SequenceLimit::NoLimit) => @pp.text(" NO MAXVALUE")
     None => @pp.empty
   }) +
@@ -1433,7 +1449,7 @@ pub impl @pp.Pretty for CreateSequenceStmt with pretty(self) {
     None => @pp.empty
   }) +
   (match self.owned_by {
-    Some(SequenceOwnedBy::Column(table, column)) => 
+    Some(SequenceOwnedBy::Column(table, column)) =>
       @pp.text(" OWNED BY ") + table.pretty() + @pp.text(".") + @pp.text(column)
     Some(SequenceOwnedBy::ByNone) => @pp.text(" OWNED BY NONE")
     None => @pp.empty
@@ -1451,7 +1467,7 @@ pub impl @pp.Pretty for SequenceLimit with pretty(self) {
 ///|
 pub impl @pp.Pretty for SequenceOwnedBy with pretty(self) {
   match self {
-    SequenceOwnedBy::Column(table, column) => 
+    SequenceOwnedBy::Column(table, column) =>
       table.pretty() + @pp.text(".") + @pp.text(column)
     SequenceOwnedBy::ByNone => @pp.text("NONE")
   }
@@ -1465,7 +1481,9 @@ pub impl @pp.Pretty for FunctionParameter with pretty(self) {
     Some(ParameterMode::InOut) => @pp.text("INOUT ")
     None => @pp.empty
   }) +
-  @pp.text(self.name) + @pp.space + self.param_type.pretty()
+  @pp.text(self.name) +
+  @pp.space +
+  self.param_type.pretty()
 }
 
 ///|
@@ -1548,14 +1566,17 @@ pub struct ObjectName {
 
 ///|
 pub impl @pp.Pretty for ObjectName with pretty(self) {
-  @pp.separate(@pp.text("."), self.parts.map(fn(part) {
-    // Add backticks if the identifier contains spaces or special characters
-    if part.contains(" ") || part.contains("-") || part.contains(".") {
-      @pp.text("`" + part + "`")
-    } else {
-      @pp.text(part)
-    }
-  }))
+  @pp.separate(
+    @pp.text("."),
+    self.parts.map(fn(part) {
+      // Add backticks if the identifier contains spaces or special characters
+      if part.contains(" ") || part.contains("-") || part.contains(".") {
+        @pp.text("`" + part + "`")
+      } else {
+        @pp.text(part)
+      }
+    }),
+  )
 }
 
 ///|
@@ -1591,7 +1612,8 @@ pub impl @pp.Pretty for InsertStmt with pretty(self) {
   // Handle REPLACE vs INSERT OR REPLACE
   (match self.or {
     Some(SqliteOnConflict::Replace) => @pp.text("REPLACE INTO ")
-    Some(conflict) => @pp.text("INSERT ") + conflict.pretty() + @pp.text(" INTO ")
+    Some(conflict) =>
+      @pp.text("INSERT ") + conflict.pretty() + @pp.text(" INTO ")
     None => @pp.text("INSERT INTO ")
   }) +
   self.table_name.pretty() +
@@ -1626,7 +1648,7 @@ pub impl @pp.Pretty for InsertSource with pretty(self) {
         @pp.text(", "),
         rows.map(fn(row) {
           @pp.parens(@pp.separate(@pp.text(", "), row.map(@pp.pretty)))
-        })
+        }),
       )
     InsertSource::Query(query) => query.pretty()
   }
@@ -1637,7 +1659,7 @@ pub struct DeleteStmt {
   /// DELETE FROM <table_name>
   table_name : ObjectName
   /// Optional WHERE clause
-  where_clause : Option[Expr]
+  where_clause : Expr?
 } derive(Eq, Show)
 
 ///|
@@ -1657,7 +1679,7 @@ pub struct UpdateStmt {
   // SET assignments
   assignments : Array[Assignment]
   // Optional WHERE clause
-  where_clause : Option[Expr]
+  where_clause : Expr?
 } derive(Eq, Show)
 
 ///|
@@ -1736,7 +1758,7 @@ pub enum MergeMatchType {
 /// Actions that can be performed in MERGE
 pub enum MergeAction {
   /// INSERT (columns) VALUES (values)
-  Insert(Array[String], Array[Expr])  // columns, values
+  Insert(Array[String], Array[Expr]) // columns, values
   /// UPDATE SET assignments
   Update(Array[Assignment])
   /// DELETE (no parameters needed)
@@ -1759,14 +1781,15 @@ pub impl @pp.Pretty for MergeStmt with pretty(self) {
     None => @pp.empty
   }) +
   @pp.hardline +
-  @pp.text("ON ") + self.join_condition.pretty() +
+  @pp.text("ON ") +
+  self.join_condition.pretty() +
   (if self.when_clauses.is_empty() {
     @pp.empty
   } else {
     @pp.hardline +
     @pp.separate(
       @pp.hardline,
-      self.when_clauses.map(fn(clause) { @pp.text("  ") + clause.pretty() })
+      self.when_clauses.map(fn(clause) { @pp.text("  ") + clause.pretty() }),
     )
   })
 }
@@ -1775,7 +1798,7 @@ pub impl @pp.Pretty for MergeStmt with pretty(self) {
 pub impl @pp.Pretty for MergeSource with pretty(self) {
   match self {
     MergeSource::Table(table) => table.pretty()
-    MergeSource::Query(query) => 
+    MergeSource::Query(query) =>
       @pp.parens(@pp.nest(@pp.hardline + query.pretty()) + @pp.hardline)
   }
 }
@@ -1803,7 +1826,7 @@ pub impl @pp.Pretty for MergeMatchType with pretty(self) {
 ///|
 pub impl @pp.Pretty for MergeAction with pretty(self) {
   match self {
-    MergeAction::Insert(columns, values) => {
+    MergeAction::Insert(columns, values) =>
       @pp.text("INSERT ") +
       (if columns.length() > 0 {
         @pp.parens(@pp.separate(@pp.text(", "), columns.map(@pp.text))) +
@@ -1813,7 +1836,6 @@ pub impl @pp.Pretty for MergeAction with pretty(self) {
       }) +
       @pp.text("VALUES ") +
       @pp.parens(@pp.separate(@pp.text(", "), values.map(@pp.pretty)))
-    }
     MergeAction::Update(assignments) =>
       @pp.text("UPDATE SET ") +
       @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
@@ -1843,11 +1865,7 @@ pub struct DropTableStmt {
 ///|
 pub impl @pp.Pretty for DropTableStmt with pretty(self) {
   @pp.text("DROP TABLE ") +
-  (if self.if_exists {
-    @pp.text("IF EXISTS ")
-  } else {
-    @pp.empty
-  }) +
+  (if self.if_exists { @pp.text("IF EXISTS ") } else { @pp.empty }) +
   self.table_name.pretty()
 }
 
@@ -1894,11 +1912,7 @@ pub enum AlterTableOperation {
 ///|
 pub impl @pp.Pretty for AlterTableStmt with pretty(self) {
   @pp.text("ALTER TABLE ") +
-  (if self.if_exists {
-    @pp.text("IF EXISTS ")
-  } else {
-    @pp.empty
-  }) +
+  (if self.if_exists { @pp.text("IF EXISTS ") } else { @pp.empty }) +
   self.table_name.pretty() +
   @pp.space +
   self.operation.pretty()
@@ -1909,11 +1923,7 @@ pub impl @pp.Pretty for AlterTableOperation with pretty(self) {
   match self {
     AlterTableOperation::DropColumn(column_name, if_exists) =>
       @pp.text("DROP COLUMN ") +
-      (if if_exists {
-        @pp.text("IF EXISTS ")
-      } else {
-        @pp.empty
-      }) +
+      (if if_exists { @pp.text("IF EXISTS ") } else { @pp.empty }) +
       @pp.text(column_name)
   }
 }
@@ -1952,11 +1962,7 @@ pub struct IndexParameter {
 ///|
 pub impl @pp.Pretty for AlterIndexStmt with pretty(self) {
   @pp.text("ALTER INDEX ") +
-  (if self.if_exists {
-    @pp.text("IF EXISTS ")
-  } else {
-    @pp.empty
-  }) +
+  (if self.if_exists { @pp.text("IF EXISTS ") } else { @pp.empty }) +
   @pp.text(self.name) +
   @pp.space +
   self.operation.pretty()
@@ -1970,9 +1976,13 @@ pub impl @pp.Pretty for AlterIndexOperation with pretty(self) {
     AlterIndexOperation::SetTablespace(tablespace) =>
       @pp.text("SET TABLESPACE ") + @pp.text(tablespace)
     AlterIndexOperation::Reset(params) =>
-      @pp.text("RESET (") + @pp.separate(@pp.text(", "), params.map(@pp.text)) + @pp.text(")")
+      @pp.text("RESET (") +
+      @pp.separate(@pp.text(", "), params.map(@pp.text)) +
+      @pp.text(")")
     AlterIndexOperation::Set(params) =>
-      @pp.text("SET (") + @pp.separate(@pp.text(", "), params.map(@pp.pretty)) + @pp.text(")")
+      @pp.text("SET (") +
+      @pp.separate(@pp.text(", "), params.map(@pp.pretty)) +
+      @pp.text(")")
   }
 }
 
@@ -1987,13 +1997,13 @@ pub struct ShowStmt {
   // The type of SHOW statement
   show_type : ShowType
   // Optional object name (table, database, etc.)
-  object : Option[ObjectName]
+  object : ObjectName?
   // Optional filter condition
-  filter : Option[ShowFilter]
+  filter : ShowFilter?
   // Additional options
-  extended : Bool  // SHOW EXTENDED ...
-  full : Bool      // SHOW FULL ...
-  global_scope : Bool  // GLOBAL/SESSION for STATUS/VARIABLES
+  extended : Bool // SHOW EXTENDED ...
+  full : Bool // SHOW FULL ...
+  global_scope : Bool // GLOBAL/SESSION for STATUS/VARIABLES
 } derive(Eq, Show)
 
 ///|
@@ -2002,7 +2012,7 @@ pub enum ShowType {
   Columns
   Status
   Databases
-  Schemas  // synonym for Databases
+  Schemas // synonym for Databases
   Variables
   Processlist
   Grants
@@ -2029,14 +2039,17 @@ pub impl @pp.Pretty for ShowStmt with pretty(self) {
   (if self.global_scope { @pp.text("GLOBAL ") } else { @pp.empty }) +
   self.show_type.pretty() +
   (match self.object {
-    Some(obj) => {
+    Some(obj) =>
       // For CREATE statements, object comes directly after type (no FROM)
       match self.show_type {
-        ShowType::CreateTable | ShowType::CreateView | ShowType::CreateFunction | ShowType::CreateProcedure | ShowType::CreateEvent | ShowType::CreateTrigger => 
-          @pp.space + obj.pretty()
+        ShowType::CreateTable
+        | ShowType::CreateView
+        | ShowType::CreateFunction
+        | ShowType::CreateProcedure
+        | ShowType::CreateEvent
+        | ShowType::CreateTrigger => @pp.space + obj.pretty()
         _ => @pp.space + @pp.text("FROM ") + obj.pretty()
       }
-    }
     None => @pp.empty
   }) +
   (match self.filter {
@@ -2069,7 +2082,8 @@ pub impl @pp.Pretty for ShowType with pretty(self) {
 ///|
 pub impl @pp.Pretty for ShowFilter with pretty(self) {
   match self {
-    ShowFilter::Like(pattern) => @pp.text("LIKE '") + @pp.text(pattern) + @pp.text("'")
+    ShowFilter::Like(pattern) =>
+      @pp.text("LIKE '") + @pp.text(pattern) + @pp.text("'")
     ShowFilter::Where(expr) => @pp.text("WHERE ") + expr.pretty()
   }
 }
@@ -2084,10 +2098,10 @@ pub struct SetStmt {
 
 ///|
 pub enum SetScope {
-  Global      // SET GLOBAL var = value
-  Session     // SET SESSION var = value  
-  UserVar     // SET @var = value
-  Local       // Default scope (session for system vars)
+  Global // SET GLOBAL var = value
+  Session // SET SESSION var = value  
+  UserVar // SET @var = value
+  Local // Default scope (session for system vars)
 } derive(Eq, Show)
 
 ///|
@@ -2114,7 +2128,7 @@ pub impl @pp.Pretty for SetStmt with pretty(self) {
 pub impl @pp.Pretty for SetAssignment with pretty(self) {
   (match self.variable {
     variable if variable.strip_prefix("@") != None => @pp.text(variable)
-    variable => @pp.text(variable) 
+    variable => @pp.text(variable)
   }) +
   @pp.text(" = ") +
   self.value.pretty()
@@ -2149,7 +2163,7 @@ pub struct CopyStmt {
 /// Source specification for COPY statement
 pub enum CopySource {
   /// Copy from a table: COPY table_name
-  Table(ObjectName, Array[String]?)  // table_name, optional column_list
+  Table(ObjectName, Array[String]?) // table_name, optional column_list
   /// Copy from a query: COPY (SELECT ...)
   Query(QueryStmt)
 } derive(Eq, Show)
@@ -2169,7 +2183,7 @@ pub enum CopyTarget {
   /// File path: COPY ... TO/FROM 'filename'
   File(String)
   /// Standard input: COPY ... FROM STDIN
-  Stdin  
+  Stdin
   /// Standard output: COPY ... TO STDOUT
   Stdout
   /// Program: COPY ... TO/FROM PROGRAM 'command'
@@ -2205,7 +2219,7 @@ pub enum CopyOption {
 /// COPY format specification
 pub enum CopyFormat {
   Csv
-  Text  
+  Text
   Binary
 } derive(Eq, Show)
 
@@ -2224,7 +2238,7 @@ pub impl @pp.Pretty for CopyStmt with pretty(self) {
   self.source.pretty() +
   @pp.space +
   self.direction.pretty() +
-  @pp.space +  
+  @pp.space +
   self.target.pretty() +
   (if self.format_options.is_empty() {
     @pp.empty
@@ -2242,7 +2256,7 @@ pub impl @pp.Pretty for CopySource with pretty(self) {
     CopySource::Table(table_name, columns) =>
       table_name.pretty() +
       (match columns {
-        Some(col_list) if col_list.length() > 0 => 
+        Some(col_list) if col_list.length() > 0 =>
           @pp.space +
           @pp.parens(@pp.separate(@pp.text(", "), col_list.map(@pp.text)))
         _ => @pp.empty
@@ -2263,10 +2277,12 @@ pub impl @pp.Pretty for CopyDirection with pretty(self) {
 ///|
 pub impl @pp.Pretty for CopyTarget with pretty(self) {
   match self {
-    CopyTarget::File(filename) => @pp.text("'") + @pp.text(filename) + @pp.text("'")
+    CopyTarget::File(filename) =>
+      @pp.text("'") + @pp.text(filename) + @pp.text("'")
     CopyTarget::Stdin => @pp.text("STDIN")
-    CopyTarget::Stdout => @pp.text("STDOUT") 
-    CopyTarget::Program(command) => @pp.text("PROGRAM '") + @pp.text(command) + @pp.text("'")
+    CopyTarget::Stdout => @pp.text("STDOUT")
+    CopyTarget::Program(command) =>
+      @pp.text("PROGRAM '") + @pp.text(command) + @pp.text("'")
   }
 }
 
@@ -2274,19 +2290,29 @@ pub impl @pp.Pretty for CopyTarget with pretty(self) {
 pub impl @pp.Pretty for CopyOption with pretty(self) {
   match self {
     CopyOption::Format(format) => @pp.text("FORMAT ") + format.pretty()
-    CopyOption::Delimiter(delim) => @pp.text("DELIMITER '") + @pp.text(delim) + @pp.text("'")
-    CopyOption::Null(null_str) => @pp.text("NULL '") + @pp.text(null_str) + @pp.text("'")
+    CopyOption::Delimiter(delim) =>
+      @pp.text("DELIMITER '") + @pp.text(delim) + @pp.text("'")
+    CopyOption::Null(null_str) =>
+      @pp.text("NULL '") + @pp.text(null_str) + @pp.text("'")
     CopyOption::Header(Some(true)) => @pp.text("HEADER true")
     CopyOption::Header(Some(false)) => @pp.text("HEADER false")
     CopyOption::Header(None) => @pp.text("HEADER")
-    CopyOption::Quote(quote_char) => @pp.text("QUOTE '") + @pp.text(quote_char) + @pp.text("'")
-    CopyOption::Escape(escape_char) => @pp.text("ESCAPE '") + @pp.text(escape_char) + @pp.text("'")
-    CopyOption::ForceQuote(force_quote) => @pp.text("FORCE_QUOTE ") + force_quote.pretty()
+    CopyOption::Quote(quote_char) =>
+      @pp.text("QUOTE '") + @pp.text(quote_char) + @pp.text("'")
+    CopyOption::Escape(escape_char) =>
+      @pp.text("ESCAPE '") + @pp.text(escape_char) + @pp.text("'")
+    CopyOption::ForceQuote(force_quote) =>
+      @pp.text("FORCE_QUOTE ") + force_quote.pretty()
     CopyOption::ForceNotNull(columns) =>
-      @pp.text("FORCE_NOT_NULL (") + @pp.separate(@pp.text(", "), columns.map(@pp.text)) + @pp.text(")")
+      @pp.text("FORCE_NOT_NULL (") +
+      @pp.separate(@pp.text(", "), columns.map(@pp.text)) +
+      @pp.text(")")
     CopyOption::ForceNull(columns) =>
-      @pp.text("FORCE_NULL (") + @pp.separate(@pp.text(", "), columns.map(@pp.text)) + @pp.text(")")
-    CopyOption::Encoding(encoding) => @pp.text("ENCODING '") + @pp.text(encoding) + @pp.text("'")
+      @pp.text("FORCE_NULL (") +
+      @pp.separate(@pp.text(", "), columns.map(@pp.text)) +
+      @pp.text(")")
+    CopyOption::Encoding(encoding) =>
+      @pp.text("ENCODING '") + @pp.text(encoding) + @pp.text("'")
   }
 }
 
@@ -2346,7 +2372,7 @@ pub enum ConflictTarget {
   /// ON CONFLICT ON CONSTRAINT constraint_name
   OnConstraint(String)
   /// ON CONFLICT (expression) WHERE condition
-  OnExpression(Expr, Expr?)  // expression, optional WHERE condition
+  OnExpression(Expr, Expr?) // expression, optional WHERE condition
 } derive(Eq, Show)
 
 ///|
@@ -2355,7 +2381,7 @@ pub enum ConflictAction {
   /// DO NOTHING
   DoNothing
   /// DO UPDATE SET assignments [WHERE condition]
-  DoUpdate(Array[Assignment], Expr?)  // assignments, optional WHERE condition
+  DoUpdate(Array[Assignment], Expr?) // assignments, optional WHERE condition
 } derive(Eq, Show)
 
 ///|
@@ -2424,8 +2450,8 @@ pub impl @pp.Pretty for SqliteOnConflict with pretty(self) {
 
 pub struct BeginStmt {
   // BEGIN [WORK] [TRANSACTION] or START TRANSACTION
-  work : Bool      // whether WORK keyword was used
-  transaction : Bool  // whether TRANSACTION keyword was used
+  work : Bool // whether WORK keyword was used
+  transaction : Bool // whether TRANSACTION keyword was used
 } derive(Eq, Show)
 
 ///|
@@ -2438,8 +2464,8 @@ pub impl @pp.Pretty for BeginStmt with pretty(self) {
 ///|
 pub struct CommitStmt {
   // COMMIT [WORK] [TRANSACTION]
-  work : Bool      // whether WORK keyword was used  
-  transaction : Bool  // whether TRANSACTION keyword was used
+  work : Bool // whether WORK keyword was used  
+  transaction : Bool // whether TRANSACTION keyword was used
 } derive(Eq, Show)
 
 ///|
@@ -2452,8 +2478,8 @@ pub impl @pp.Pretty for CommitStmt with pretty(self) {
 ///|
 pub struct RollbackStmt {
   // ROLLBACK [WORK] [TRANSACTION] [TO [SAVEPOINT] savepoint_name]
-  work : Bool      // whether WORK keyword was used
-  transaction : Bool  // whether TRANSACTION keyword was used  
+  work : Bool // whether WORK keyword was used
+  transaction : Bool // whether TRANSACTION keyword was used  
   savepoint : String? // optional savepoint name to rollback to
 } derive(Eq, Show)
 
@@ -2482,7 +2508,7 @@ pub impl @pp.Pretty for SavepointStmt with pretty(self) {
 ///|
 pub struct ReleaseSavepointStmt {
   // RELEASE [SAVEPOINT] savepoint_name
-  savepoint_keyword : Bool  // whether SAVEPOINT keyword was used
+  savepoint_keyword : Bool // whether SAVEPOINT keyword was used
   name : String
 } derive(Eq, Show)
 
@@ -2499,30 +2525,30 @@ pub impl @pp.Pretty for ReleaseSavepointStmt with pretty(self) {
 pub struct GrantStmt {
   // GRANT privileges ON object TO grantees [WITH GRANT OPTION]
   privileges : Array[Privilege]
-  objects : Array[ObjectName]    // tables, views, etc.
-  grantees : Array[String]       // users or roles
+  objects : Array[ObjectName] // tables, views, etc.
+  grantees : Array[String] // users or roles
   with_grant_option : Bool
 } derive(Eq, Show)
 
 ///|
 pub enum Privilege {
   // Basic privileges
-  Select(Array[String]?)         // SELECT [(column_list)]
-  Insert(Array[String]?)         // INSERT [(column_list)]
-  Update(Array[String]?)         // UPDATE [(column_list)]
-  Delete                         // DELETE
-  References(Array[String]?)     // REFERENCES [(column_list)]
+  Select(Array[String]?) // SELECT [(column_list)]
+  Insert(Array[String]?) // INSERT [(column_list)]
+  Update(Array[String]?) // UPDATE [(column_list)]
+  Delete // DELETE
+  References(Array[String]?) // REFERENCES [(column_list)]
   // DDL privileges  
-  Create                         // CREATE
-  Drop                           // DROP
-  Alter                          // ALTER
-  Index                          // INDEX/CREATE INDEX
+  Create // CREATE
+  Drop // DROP
+  Alter // ALTER
+  Index // INDEX/CREATE INDEX
   // Special privileges
-  All                           // ALL [PRIVILEGES]
-  Usage                         // USAGE (for sequences, schemas)
-  Execute                       // EXECUTE (for functions, procedures)
-  Connect                       // CONNECT (for databases)
-  Temporary                     // TEMPORARY/TEMP (for databases)
+  All // ALL [PRIVILEGES]
+  Usage // USAGE (for sequences, schemas)
+  Execute // EXECUTE (for functions, procedures)
+  Connect // CONNECT (for databases)
+  Temporary // TEMPORARY/TEMP (for databases)
 } derive(Eq, Show)
 
 ///|
@@ -2533,33 +2559,45 @@ pub impl @pp.Pretty for GrantStmt with pretty(self) {
   @pp.separate(@pp.text(", "), self.objects.map(@pp.pretty)) +
   @pp.text(" TO ") +
   @pp.separate(@pp.text(", "), self.grantees.map(@pp.text)) +
-  (if self.with_grant_option { @pp.text(" WITH GRANT OPTION") } else { @pp.empty })
+  (if self.with_grant_option {
+    @pp.text(" WITH GRANT OPTION")
+  } else {
+    @pp.empty
+  })
 }
 
 ///|
 pub impl @pp.Pretty for Privilege with pretty(self) {
   match self {
-    Privilege::Select(cols) => @pp.text("SELECT") + (match cols {
-      Some(column_names) if column_names.length() > 0 =>
-        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
-      _ => @pp.empty
-    })
-    Privilege::Insert(cols) => @pp.text("INSERT") + (match cols {
-      Some(column_names) if column_names.length() > 0 =>
-        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
-      _ => @pp.empty
-    })
-    Privilege::Update(cols) => @pp.text("UPDATE") + (match cols {
-      Some(column_names) if column_names.length() > 0 =>
-        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
-      _ => @pp.empty
-    })
+    Privilege::Select(cols) =>
+      @pp.text("SELECT") +
+      (match cols {
+        Some(column_names) if column_names.length() > 0 =>
+          @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+        _ => @pp.empty
+      })
+    Privilege::Insert(cols) =>
+      @pp.text("INSERT") +
+      (match cols {
+        Some(column_names) if column_names.length() > 0 =>
+          @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+        _ => @pp.empty
+      })
+    Privilege::Update(cols) =>
+      @pp.text("UPDATE") +
+      (match cols {
+        Some(column_names) if column_names.length() > 0 =>
+          @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+        _ => @pp.empty
+      })
     Privilege::Delete => @pp.text("DELETE")
-    Privilege::References(cols) => @pp.text("REFERENCES") + (match cols {
-      Some(column_names) if column_names.length() > 0 =>
-        @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
-      _ => @pp.empty
-    })
+    Privilege::References(cols) =>
+      @pp.text("REFERENCES") +
+      (match cols {
+        Some(column_names) if column_names.length() > 0 =>
+          @pp.parens(@pp.separate(@pp.text(", "), column_names.map(@pp.text)))
+        _ => @pp.empty
+      })
     Privilege::Create => @pp.text("CREATE")
     Privilege::Drop => @pp.text("DROP")
     Privilege::Alter => @pp.text("ALTER")
@@ -2575,23 +2613,27 @@ pub impl @pp.Pretty for Privilege with pretty(self) {
 ///|
 pub struct RevokeStmt {
   // REVOKE [GRANT OPTION FOR] privileges ON object FROM grantees [RESTRICT | CASCADE]
-  grant_option_for : Bool        // whether GRANT OPTION FOR was specified
+  grant_option_for : Bool // whether GRANT OPTION FOR was specified
   privileges : Array[Privilege]
-  objects : Array[ObjectName]    // tables, views, etc.
-  grantees : Array[String]       // users or roles
-  cascade : RevokeOption?        // RESTRICT | CASCADE
+  objects : Array[ObjectName] // tables, views, etc.
+  grantees : Array[String] // users or roles
+  cascade : RevokeOption? // RESTRICT | CASCADE
 } derive(Eq, Show)
 
 ///|
 pub enum RevokeOption {
-  Restrict                       // RESTRICT
-  Cascade                        // CASCADE
+  Restrict // RESTRICT
+  Cascade // CASCADE
 } derive(Eq, Show)
 
 ///|
 pub impl @pp.Pretty for RevokeStmt with pretty(self) {
   @pp.text("REVOKE ") +
-  (if self.grant_option_for { @pp.text("GRANT OPTION FOR ") } else { @pp.empty }) +
+  (if self.grant_option_for {
+    @pp.text("GRANT OPTION FOR ")
+  } else {
+    @pp.empty
+  }) +
   @pp.separate(@pp.text(", "), self.privileges.map(@pp.pretty)) +
   @pp.text(" ON ") +
   @pp.separate(@pp.text(", "), self.objects.map(@pp.pretty)) +
@@ -2616,8 +2658,8 @@ pub impl @pp.Pretty for RevokeOption with pretty(self) {
 /// LOAD DATA statement for MySQL-style bulk data loading
 pub struct LoadDataStmt {
   /// LOAD DATA [LOCAL] INFILE 'filename'
-  is_local : Bool                 // LOCAL keyword
-  filename : String               // INFILE filename
+  is_local : Bool // LOCAL keyword
+  filename : String // INFILE filename
   /// [REPLACE | IGNORE]
   duplicate_handling : LoadDataDuplicateHandling?
   /// INTO TABLE table_name
@@ -2639,8 +2681,8 @@ pub struct LoadDataStmt {
 ///|
 /// Duplicate handling for LOAD DATA
 pub enum LoadDataDuplicateHandling {
-  Replace   // REPLACE
-  Ignore    // IGNORE
+  Replace // REPLACE
+  Ignore // IGNORE
 } derive(Eq, Show)
 
 ///|
@@ -2668,38 +2710,52 @@ pub struct LoadDataLinesOptions {
 pub impl @pp.Pretty for LoadDataStmt with pretty(self) {
   @pp.text("LOAD DATA ") +
   (if self.is_local { @pp.text("LOCAL ") } else { @pp.empty }) +
-  @pp.text("INFILE '") + @pp.text(self.filename) + @pp.text("' ") +
-  (match self.duplicate_handling {
-    Some(handling) => handling.pretty() + @pp.space
-    None => @pp.empty
-  }) +
-  @pp.text("INTO TABLE ") + self.table_name.pretty() +
-  (match self.character_set {
-    Some(charset) => @pp.text(" CHARACTER SET ") + @pp.text(charset)
-    None => @pp.empty
-  }) +
-  (match self.fields_options {
-    Some(fields) => @pp.space + fields.pretty()
-    None => @pp.empty
-  }) +
-  (match self.lines_options {
-    Some(lines) => @pp.space + lines.pretty()
-    None => @pp.empty
-  }) +
-  (match self.ignore_lines {
-    Some(num) => @pp.text(" IGNORE ") + @pp.text(num.to_string()) + @pp.text(" LINES")
-    None => @pp.empty
-  }) +
-  (match self.columns {
-    Some(cols) if cols.length() > 0 => 
-      @pp.space + @pp.parens(@pp.separate(@pp.text(", "), cols.map(@pp.text)))
-    _ => @pp.empty
-  }) +
-  (match self.set_assignments {
-    Some(assignments) if assignments.length() > 0 =>
-      @pp.text(" SET ") + @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
-    _ => @pp.empty
-  })
+  @pp.text("INFILE '") +
+  @pp.text(self.filename) +
+  @pp.text("'") +
+  @pp.nest(
+    @pp.hardline +
+    (match self.duplicate_handling {
+      Some(handling) => handling.pretty() + @pp.space
+      None => @pp.empty
+    }) +
+    @pp.text("INTO TABLE ") +
+    self.table_name.pretty() +
+    (match self.character_set {
+      Some(charset) =>
+        @pp.hardline + @pp.text("CHARACTER SET ") + @pp.text(charset)
+      None => @pp.empty
+    }) +
+    (match self.fields_options {
+      Some(fields) => @pp.hardline + fields.pretty()
+      None => @pp.empty
+    }) +
+    (match self.lines_options {
+      Some(lines) => @pp.hardline + lines.pretty()
+      None => @pp.empty
+    }) +
+    (match self.ignore_lines {
+      Some(num) =>
+        @pp.hardline +
+        @pp.text("IGNORE ") +
+        @pp.text(num.to_string()) +
+        @pp.text(" LINES")
+      None => @pp.empty
+    }) +
+    (match self.columns {
+      Some(cols) if cols.length() > 0 =>
+        @pp.hardline +
+        @pp.parens(@pp.separate(@pp.text(", "), cols.map(@pp.text)))
+      _ => @pp.empty
+    }) +
+    (match self.set_assignments {
+      Some(assignments) if assignments.length() > 0 =>
+        @pp.hardline +
+        @pp.text("SET ") +
+        @pp.separate(@pp.text(", "), assignments.map(@pp.pretty))
+      _ => @pp.empty
+    }),
+  )
 }
 
 ///|
@@ -2713,25 +2769,27 @@ pub impl @pp.Pretty for LoadDataDuplicateHandling with pretty(self) {
 ///|
 pub impl @pp.Pretty for LoadDataFieldsOptions with pretty(self) {
   let parts = []
-  
   match self.terminated_by {
-    Some(term) => parts.push(@pp.text("TERMINATED BY '") + @pp.text(term) + @pp.text("'"))
+    Some(term) =>
+      parts.push(@pp.text("TERMINATED BY '") + @pp.text(term) + @pp.text("'"))
     None => ()
   }
-  
   match self.enclosed_by {
     Some(enc) => {
-      let prefix = if self.optionally_enclosed { "OPTIONALLY ENCLOSED BY '" } else { "ENCLOSED BY '" }
+      let prefix = if self.optionally_enclosed {
+        "OPTIONALLY ENCLOSED BY '"
+      } else {
+        "ENCLOSED BY '"
+      }
       parts.push(@pp.text(prefix) + @pp.text(enc) + @pp.text("'"))
     }
     None => ()
   }
-  
   match self.escaped_by {
-    Some(esc) => parts.push(@pp.text("ESCAPED BY '") + @pp.text(esc) + @pp.text("'"))
+    Some(esc) =>
+      parts.push(@pp.text("ESCAPED BY '") + @pp.text(esc) + @pp.text("'"))
     None => ()
   }
-  
   if parts.length() > 0 {
     @pp.text("FIELDS ") + @pp.separate(@pp.space, parts)
   } else {
@@ -2742,17 +2800,16 @@ pub impl @pp.Pretty for LoadDataFieldsOptions with pretty(self) {
 ///|
 pub impl @pp.Pretty for LoadDataLinesOptions with pretty(self) {
   let parts = []
-  
   match self.starting_by {
-    Some(start) => parts.push(@pp.text("STARTING BY '") + @pp.text(start) + @pp.text("'"))
+    Some(start) =>
+      parts.push(@pp.text("STARTING BY '") + @pp.text(start) + @pp.text("'"))
     None => ()
   }
-  
   match self.terminated_by {
-    Some(term) => parts.push(@pp.text("TERMINATED BY '") + @pp.text(term) + @pp.text("'"))
+    Some(term) =>
+      parts.push(@pp.text("TERMINATED BY '") + @pp.text(term) + @pp.text("'"))
     None => ()
   }
-  
   if parts.length() > 0 {
     @pp.text("LINES ") + @pp.separate(@pp.space, parts)
   } else {

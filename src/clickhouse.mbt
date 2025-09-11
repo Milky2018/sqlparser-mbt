@@ -3,7 +3,9 @@
 pub(all) struct ClickHouse {}
 
 ///|
-pub impl Dialect for ClickHouse with supports_string_literal_backslash_escape(_self) {
+pub impl Dialect for ClickHouse with supports_string_literal_backslash_escape(
+  _self,
+) {
   true
 }
 
@@ -18,12 +20,16 @@ pub impl Dialect for ClickHouse with supports_filter_during_aggregation(_self) {
 }
 
 ///|
-pub impl Dialect for ClickHouse with supports_within_after_array_aggregation(_self) {
+pub impl Dialect for ClickHouse with supports_within_after_array_aggregation(
+  _self,
+) {
   false
 }
 
 ///|
-pub impl Dialect for ClickHouse with requires_column_types_in_create_table(_self) {
+pub impl Dialect for ClickHouse with requires_column_types_in_create_table(
+  _self,
+) {
   true
 }
 

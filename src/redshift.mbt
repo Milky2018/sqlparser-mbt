@@ -3,7 +3,9 @@
 pub(all) struct Redshift {}
 
 ///|
-pub impl Dialect for Redshift with supports_string_literal_backslash_escape(_self) {
+pub impl Dialect for Redshift with supports_string_literal_backslash_escape(
+  _self,
+) {
   true
 }
 
@@ -18,7 +20,9 @@ pub impl Dialect for Redshift with supports_filter_during_aggregation(_self) {
 }
 
 ///|
-pub impl Dialect for Redshift with supports_within_after_array_aggregation(_self) {
+pub impl Dialect for Redshift with supports_within_after_array_aggregation(
+  _self,
+) {
   false
 }
 

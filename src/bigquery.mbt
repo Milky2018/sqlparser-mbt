@@ -3,7 +3,9 @@
 pub(all) struct BigQuery {}
 
 ///|
-pub impl Dialect for BigQuery with supports_string_literal_backslash_escape(_self) {
+pub impl Dialect for BigQuery with supports_string_literal_backslash_escape(
+  _self,
+) {
   true
 }
 
@@ -18,7 +20,9 @@ pub impl Dialect for BigQuery with supports_filter_during_aggregation(_self) {
 }
 
 ///|
-pub impl Dialect for BigQuery with supports_within_after_array_aggregation(_self) {
+pub impl Dialect for BigQuery with supports_within_after_array_aggregation(
+  _self,
+) {
   false
 }
 
@@ -64,7 +68,7 @@ pub impl Dialect for BigQuery with parse_expr(
 
 test "BigQuery named parameter" {
   let tokens = "SELECT * FROM users WHERE id = @user_id;"
-  let stmt = parse_sql(dialect=BigQuery::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=BigQuery::{  }, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -78,9 +82,10 @@ test "BigQuery named parameter" {
   )
 }
 
+///|
 test "BigQuery positional parameter" {
   let tokens = "SELECT * FROM users WHERE id = ?;"
-  let stmt = parse_sql(dialect=BigQuery::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=BigQuery::{  }, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -94,9 +99,10 @@ test "BigQuery positional parameter" {
   )
 }
 
+///|
 test "BigQuery mixed parameters" {
   let tokens = "SELECT * FROM users WHERE id = @user_id AND age > ?;"
-  let stmt = parse_sql(dialect=BigQuery::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=BigQuery::{  }, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -111,9 +117,10 @@ test "BigQuery mixed parameters" {
   )
 }
 
+///|
 test "BigQuery multiple named parameters" {
   let tokens = "SELECT @field FROM @table WHERE @condition = @value;"
-  let stmt = parse_sql(dialect=BigQuery::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=BigQuery::{  }, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(
@@ -132,7 +139,7 @@ test "BigQuery multiple named parameters" {
 
 test "Named parameters treated as identifiers in MySQL" {
   let tokens = "SELECT @user_id FROM users;"
-  let stmt = parse_sql(dialect=MySQL::{}, tokens).stmts[0] |> pretty_print
+  let stmt = parse_sql(dialect=MySQL::{  }, tokens).stmts[0] |> pretty_print
   inspect(
     stmt,
     content=(

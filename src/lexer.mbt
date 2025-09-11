@@ -36,12 +36,12 @@ pub(all) enum Token {
   Period
   PlaceHolder
   // PostgreSQL JSON operators
-  JsonExtract        // ->
-  JsonExtractText    // ->>
-  JsonExtractPath    // #>
+  JsonExtract // ->
+  JsonExtractText // ->>
+  JsonExtractPath // #>
   JsonExtractPathText // #>>
-  JsonContains       // @>
-  JsonContainedIn    // <@
+  JsonContains // @>
+  JsonContainedIn // <@
   Unknown(Char)
   Eof
 } derive(Eq, Show)
@@ -53,7 +53,7 @@ priv struct Lexer {
 
 ///|
 pub fn tokenize(
-  dialect~ : &Dialect = MySQL::{  },
+  dialect? : &Dialect = MySQL::{  },
   input : String,
 ) -> Array[Token] raise LexerError {
   let lexer = Lexer::{ dialect, }
@@ -85,13 +85,13 @@ fn Lexer::next_token(
     [.. "<=>", .. rest] => (Spaceship, rest)
     [.. "<>", .. rest] => (Neq, rest)
     [.. "<=", .. rest] => (LtEq, rest)
-    [.. "<@", .. rest] => (JsonContainedIn, rest)  // PostgreSQL JSON <@
+    [.. "<@", .. rest] => (JsonContainedIn, rest) // PostgreSQL JSON <@
     ['<', .. rest] => (Lt, rest)
     [.. ">=", .. rest] => (GtEq, rest)
     ['>', .. rest] => (Gt, rest)
     ['+', .. rest] => (Plus, rest)
-    [.. "->>" , .. rest] => (JsonExtractText, rest)    // PostgreSQL JSON ->>
-    [.. "->" , .. rest] => (JsonExtract, rest)       // PostgreSQL JSON ->
+    [.. "->>", .. rest] => (JsonExtractText, rest) // PostgreSQL JSON ->>
+    [.. "->", .. rest] => (JsonExtract, rest) // PostgreSQL JSON ->
     [.. "--", .. rest] => {
       let rest = skip_line_comment(rest)
       self.next_token(rest)
@@ -110,9 +110,9 @@ fn Lexer::next_token(
     ['`', .. rest] => self.read_backtick_quoted_identifier(rest)
     ['.', .. rest] => read_frac(rest)
     // PostgreSQL JSON operators (must come before general patterns and character matching)
-    [.. "#>>", .. rest] => (JsonExtractPathText, rest)  // PostgreSQL JSON #>>
-    [.. "#>", .. rest] => (JsonExtractPath, rest)       // PostgreSQL JSON #>
-    [.. "@>", .. rest] => (JsonContains, rest)          // PostgreSQL JSON @>
+    [.. "#>>", .. rest] => (JsonExtractPathText, rest) // PostgreSQL JSON #>>
+    [.. "#>", .. rest] => (JsonExtractPath, rest) // PostgreSQL JSON #>
+    [.. "@>", .. rest] => (JsonContains, rest) // PostgreSQL JSON @>
     // General patterns after specific JSON operators
     [c, .. _rest] as code if c.is_ascii_digit() => read_number(code)
     ['_', .. _rest] as code => self.read_identifier_or_keyword(code)
@@ -173,15 +173,17 @@ fn Lexer::read_identifier_or_keyword(
     (rest, n) => break (n, rest)
   }
   let word = input.view(start_offset=0, end_offset=idx).to_lower()
-  
+
   // First try dialect-specific keywords
   let token = match self.dialect.read_keyword(word.to_string()) {
     Some(keyword) => Keyword(keyword)
-    None => {
+    None =>
       // Then try common keywords and boolean literals
       match word {
-        "true" if self.dialect.supports_boolean_literals() => Token::Boolean(true)
-        "false" if self.dialect.supports_boolean_literals() => Token::Boolean(false)
+        "true" if self.dialect.supports_boolean_literals() =>
+          Token::Boolean(true)
+        "false" if self.dialect.supports_boolean_literals() =>
+          Token::Boolean(false)
         "select" => Keyword(Select)
         "from" => Keyword(From)
         "where" => Keyword(Where)
@@ -390,7 +392,6 @@ fn Lexer::read_identifier_or_keyword(
         // NOTE: Removed LOAD DATA keywords from common keywords - they are now MySQL-specific
         word => Token::Identifier(word.to_string())
       }
-    }
   }
   (token, rest)
 }
@@ -410,15 +411,15 @@ fn Lexer::read_user_variable(
     ['@', .. rest] => rest
     _ => input
   }
-  
+
   // Read the variable name part
   let (idx, rest) = loop (input, 0) {
     ([c, .. rest], n) if is_ascii_alphabetic_or_digit(c) =>
       continue (rest, n + 1)
     (rest, n) => break (n, rest)
   }
-  
-  let variable_name = "@" + input.view(start_offset=0, end_offset=idx).to_string()
+  let variable_name = "@" +
+    input.view(start_offset=0, end_offset=idx).to_string()
   (Token::Identifier(variable_name), rest)
 }
 

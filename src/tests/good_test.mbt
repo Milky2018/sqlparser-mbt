@@ -144,7 +144,8 @@ test {
 
 ///|
 test {
-  "INSERT INTO some_schema.test_table SELECT * FROM another_schema.students;" |> pass
+  "INSERT INTO some_schema.test_table SELECT * FROM another_schema.students;"
+  |> pass
 }
 
 ///|
@@ -159,7 +160,8 @@ test {
 
 ///|
 test {
-  "CREATE TABLE students_3 AS SELECT city, grade FROM students WHERE grade > 3.0;" |> pass
+  "CREATE TABLE students_3 AS SELECT city, grade FROM students WHERE grade > 3.0;"
+  |> pass
 }
 
 ///|
@@ -179,7 +181,8 @@ test {
 
 ///|
 test {
-  "UPDATE students SET grade = 1.3, name='Felix Fürstenberg' WHERE name = 'Max Mustermann';" |> pass
+  "UPDATE students SET grade = 1.3, name='Felix Fürstenberg' WHERE name = 'Max Mustermann';"
+  |> pass
 }
 
 ///|
